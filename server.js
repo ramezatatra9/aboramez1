@@ -513,6 +513,13 @@ app.post('/api/reset-sales', (req, res) => {
     // مسح جميع سندات القبض
     fs.writeFileSync(RECEIPTS_FILE, JSON.stringify([], null, 2), 'utf-8');
 
+    // مسح من Supabase أيضاً في السحابة
+    const { supabase } = require('./supabaseClient');
+    if (supabase) {
+      supabase.from('invoices').delete().neq('id', '___non_existent___').then(() => {});
+      supabase.from('receipts').delete().neq('id', '___non_existent___').then(() => {});
+    }
+
     console.log(`⚠️ تم إعادة تعيين جميع بيانات المبيعات والإحصائيات في: ${formatServerDateTime(new Date())}`);
 
     res.json({ success: true, message: 'تم إعادة تعيين جميع بيانات المبيعات وسندات القبض بنجاح. المنتجات والإعدادات محفوظة.' });
@@ -522,9 +529,11 @@ app.post('/api/reset-sales', (req, res) => {
 });
 
 // تشغيل الخادم
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`=======================================================`);
   console.log(`🚀 نظام المبيعات وإصدار الفواتير يعمل بنجاح على:`);
   console.log(`🔗 الرابط المحلي: http://localhost:${PORT}`);
   console.log(`=======================================================`);
+  // فحص ومزامنة البيانات السحابية مع Supabase
+  await dataStore.initFromSupabase();
 });

@@ -1,11 +1,109 @@
 const fs = require('fs');
 const path = require('path');
+const { supabase } = require('./supabaseClient');
 
 const DATA_DIR = path.join(__dirname, 'data');
 const PRODUCTS_FILE = path.join(DATA_DIR, 'products.json');
 const INVOICES_FILE = path.join(DATA_DIR, 'invoices.json');
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
 const RECEIPTS_FILE = path.join(DATA_DIR, 'receipts.json');
+
+// مزامنة خلفية غير معطلة مع Supabase (Non-blocking background sync)
+async function syncProductToSupabase(product) {
+  if (!supabase) return;
+  try {
+    await supabase.from('products').upsert({
+      id: String(product.id),
+      code: String(product.code || ''),
+      name: String(product.name || ''),
+      category: String(product.mainCategory || product.category || 'عام'),
+      subcategory: String(product.category || ''),
+      costPrice: Number(product.costPrice) || 0,
+      sellPrice: Number(product.sellPrice) || 0,
+      stock: parseInt(product.stock) || 0,
+      unit: String(product.unit || 'قطعة'),
+      image: String(product.image || ''),
+      description: String(product.description || ''),
+      lastStockUpdate: product.lastStockUpdate || null,
+      lastStockEditor: product.lastStockEditor || null,
+      createdAt: product.createdAt || new Date().toISOString()
+    });
+  } catch (err) {
+    console.error('Supabase product sync error:', err.message);
+  }
+}
+
+async function deleteProductFromSupabase(id) {
+  if (!supabase) return;
+  try {
+    await supabase.from('products').delete().eq('id', id);
+  } catch (err) {
+    console.error('Supabase product delete error:', err.message);
+  }
+}
+
+async function syncInvoiceToSupabase(invoice) {
+  if (!supabase) return;
+  try {
+    await supabase.from('invoices').upsert({
+      id: String(invoice.id),
+      invoiceNumber: invoice.invoiceNumber,
+      createdAt: invoice.createdAt,
+      employeeName: invoice.employeeName,
+      customerName: invoice.customerName,
+      customerPhone: invoice.customerPhone,
+      notes: invoice.notes,
+      items: invoice.items,
+      summary: invoice.summary,
+      paymentMethod: invoice.paymentMethod,
+      installmentDetails: invoice.installmentDetails,
+      telegramStatus: invoice.telegramStatus
+    });
+  } catch (err) {
+    console.error('Supabase invoice sync error:', err.message);
+  }
+}
+
+async function syncReceiptToSupabase(receipt) {
+  if (!supabase) return;
+  try {
+    await supabase.from('receipts').upsert({
+      id: String(receipt.id),
+      receiptNumber: receipt.receiptNumber,
+      createdAt: receipt.createdAt,
+      employeeName: receipt.employeeName,
+      customerName: receipt.customerName,
+      customerPhone: receipt.customerPhone,
+      amount: receipt.amount,
+      description: receipt.description,
+      notes: receipt.notes,
+      paymentMethod: receipt.paymentMethod
+    });
+  } catch (err) {
+    console.error('Supabase receipt sync error:', err.message);
+  }
+}
+
+async function deleteReceiptFromSupabase(id) {
+  if (!supabase) return;
+  try {
+    await supabase.from('receipts').delete().eq('id', id);
+  } catch (err) {
+    console.error('Supabase receipt delete error:', err.message);
+  }
+}
+
+async function syncSettingsToSupabase(settings) {
+  if (!supabase) return;
+  try {
+    await supabase.from('settings').upsert({
+      id: 'general',
+      data: settings
+    });
+  } catch (err) {
+    console.error('Supabase settings sync error:', err.message);
+  }
+}
 
 // تأكد من وجود مجلد البيانات
 if (!fs.existsSync(DATA_DIR)) {
@@ -175,6 +273,7 @@ const dataStore = {
     }
 
     writeJson(PRODUCTS_FILE, products);
+    syncProductToSupabase(product);
     return product;
   },
 
@@ -182,6 +281,7 @@ const dataStore = {
     const products = this.getProducts();
     const filtered = products.filter(p => p.id !== id);
     writeJson(PRODUCTS_FILE, filtered);
+    deleteProductFromSupabase(id);
     return filtered.length !== products.length;
   },
 
@@ -231,6 +331,7 @@ const dataStore = {
 
     invoices.unshift(invoice);
     writeJson(INVOICES_FILE, invoices);
+    syncInvoiceToSupabase(invoice);
     return invoice;
   },
 
@@ -244,6 +345,7 @@ const dataStore = {
         error: error || null
       };
       writeJson(INVOICES_FILE, invoices);
+      syncInvoiceToSupabase(invoices[index]);
       return invoices[index];
     }
     return null;
@@ -254,6 +356,7 @@ const dataStore = {
     const products = this.getProducts();
     const now = new Date().toISOString();
     let changedCount = 0;
+    const modifiedProducts = [];
 
     updates.forEach(({ id, stock }) => {
       const index = products.findIndex(p => p.id === id);
@@ -263,12 +366,19 @@ const dataStore = {
           products[index].stock = Math.max(0, newStock);
           products[index].lastStockUpdate = now;
           products[index].lastStockEditor = editorName || 'غير محدد';
+          modifiedProducts.push(products[index]);
           changedCount++;
         }
       }
     });
 
     writeJson(PRODUCTS_FILE, products);
+
+    // مزامنة التحديثات مع Supabase
+    if (modifiedProducts.length > 0) {
+      modifiedProducts.forEach(p => syncProductToSupabase(p));
+    }
+
     return { changedCount };
   },
 
@@ -298,6 +408,7 @@ const dataStore = {
 
     receipts.unshift(receipt);
     writeJson(RECEIPTS_FILE, receipts);
+    syncReceiptToSupabase(receipt);
     return receipt;
   },
 
@@ -305,6 +416,7 @@ const dataStore = {
     const receipts = this.getReceipts();
     const filtered = receipts.filter(r => r.id !== id);
     writeJson(RECEIPTS_FILE, filtered);
+    deleteReceiptFromSupabase(id);
     return filtered.length !== receipts.length;
   },
 
@@ -320,7 +432,39 @@ const dataStore = {
       ...newSettings
     };
     writeJson(SETTINGS_FILE, updated);
+    syncSettingsToSupabase(updated);
     return updated;
+  },
+
+  // مزامنة أولية عند تشغيل السيرفر
+  async initFromSupabase() {
+    if (!supabase) return;
+    try {
+      console.log('🔄 جاري فحص ومزامنة البيانات مع Supabase...');
+      // 1. الإعدادات
+      const { data: stRow } = await supabase.from('settings').select('data').eq('id', 'general').maybeSingle();
+      if (stRow && stRow.data) {
+        writeJson(SETTINGS_FILE, stRow.data);
+      }
+
+      // 2. الفواتير
+      const { data: invRows } = await supabase.from('invoices').select('*').order('invoiceNumber', { ascending: false });
+      if (invRows && invRows.length > 0) {
+        writeJson(INVOICES_FILE, invRows);
+      }
+
+      // 3. سندات القبض
+      const { data: rcpRows } = await supabase.from('receipts').select('*').order('receiptNumber', { ascending: false });
+      if (rcpRows && rcpRows.length > 0) {
+        writeJson(RECEIPTS_FILE, rcpRows);
+      }
+
+      // 4. عدد المنتجات
+      const { count } = await supabase.from('products').select('*', { count: 'exact', head: true });
+      console.log(`✅ تم الاتصال بـ Supabase بنجاح! عدد المنتجات في السحابة: ${count || 0}`);
+    } catch (err) {
+      console.warn('⚠️ تنبيه: تعذر استرداد بيانات Supabase عند البدء، يتم الاعتماد على البيانات المحلية:', err.message);
+    }
   }
 };
 
