@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>رامز عطاطرة</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💼</text></svg>">
+</head>
+<body>
+
+  <!-- Top App Header -->
+  <header class="app-header">
+    <div class="app-container" style="padding-bottom: 0;">
+      <div class="header-top">
+        <div class="brand-section">
+          <div class="brand-icon">💼</div>
+          <div>
+            <h1 class="brand-title" id="headerCompanyName">رامز عطاطرة</h1>
+            <p class="brand-subtitle">نظام المبيعات والمخزون وإصدار الفواتير وسندات القبض</p>
+          </div>
+        </div>
+
+        <div class="header-actions">
+          <div class="header-info-badge">
+            <span>📅</span>
+            <span id="currentDateDisplay">جاري التحميل...</span>
+          </div>
+
+          <div class="header-info-badge" id="telegramHeaderBadge">
+            <span>✈️</span>
+            <span id="telegramStatusText">تيليجرام: جاري الفحص...</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="nav-tabs" role="tablist">
+        <button class="nav-tab-btn active" data-tab="catalog" id="tabBtnCatalog">
+          <span>📦</span>
+          <span>كتالوج المنتجات</span>
+        </button>
+
+        <button class="nav-tab-btn" data-tab="create-invoice" id="tabBtnCreateInvoice">
+          <span>🧾</span>
+          <span>فاتورة جديدة</span>
+          <span class="badge badge-primary" id="cartCountBadge" style="display:none;">0</span>
+        </button>
+
+        <button class="nav-tab-btn" data-tab="receipts" id="tabBtnReceipts">
+          <span>💰</span>
+          <span>سند قبض</span>
+        </button>
+
+        <button class="nav-tab-btn" data-tab="inventory" id="tabBtnInventory">
+          <span>📋</span>
+          <span>الجرد والمخزون</span>
+          <span class="badge badge-warning" id="inventoryModifiedBadge" style="display:none;">0</span>
+        </button>
+
+        <button class="nav-tab-btn" data-tab="invoices-list" id="tabBtnInvoicesList">
+          <span>📑</span>
+          <span>سجل الفواتير</span>
+        </button>
+
+        <button class="nav-tab-btn" data-tab="dashboard" id="tabBtnDashboard">
+          <span>📊</span>
+          <span>الإحصائيات والأرباح</span>
+        </button>
+
+        <button class="nav-tab-btn" data-tab="settings" id="tabBtnSettings">
+          <span>⚙️</span>
+          <span>الإعدادات</span>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="app-container">
+
+    <!-- Telegram Quick Alert Banner (shown if not configured) -->
+    <div id="telegramAlertBanner" class="telegram-status-banner warning" style="display: none;">
+      <div>
+        ⚠️ <strong>تنبيه:</strong> لم يتم ضبط معرف بوت تيليجرام بعد. يُرجى الانتقال إلى تبويب <strong>الإعدادات وتيليجرام</strong> لتصلك تفاصيل الفواتير والأرباح فوراً على هاتفك.
+      </div>
+      <button class="btn btn-sm btn-telegram" onclick="switchTab('settings')">ضبط تيليجرام الآن</button>
+    </div>
+
+    <!-- ======================================================= -->
+    <!-- TAB 1: كتالوج المنتجات -->
+    <!-- ======================================================= -->
+    <section id="tab-catalog" class="tab-content active">
+      <!-- Toolbar: Search & Action -->
+      <div class="catalog-toolbar" style="margin-bottom: 1rem;">
+        <div class="search-box" style="flex: 1;">
+          <span>🔍</span>
+          <input type="text" id="catalogSearchInput" placeholder="ابحث باسم المنتج أو الكود أو الماركة (مثال: LG، ثلاجة، I00000001)...">
+        </div>
+
+        <div>
+          <button class="btn btn-primary" onclick="openAddProductModal()">
+            <span>➕</span>
+            <span>إضافة منتج جديد</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Categories Hub: 5 Main Categories + Dynamic Sub-categories -->
+      <div class="categories-hub">
+        <div class="categories-hub-header">
+          <div class="categories-hub-title">
+            <span>📂</span>
+            <span>أقسام وتصنيفات المنتجات (1,312 صنف)</span>
+          </div>
+          <div style="font-size: 0.8rem; color: var(--text-muted);">
+            اختر قسماً رئيسياً لعرض فروعه
+          </div>
+        </div>
+
+        <!-- Level 1: Main Categories -->
+        <div class="main-categories-grid" id="mainCategoriesContainer">
+          <!-- يتم التحميل ديناميكياً بواسطة JavaScript -->
+        </div>
+
+        <!-- Level 2: Sub-categories for Selected Main Category -->
+        <div class="sub-categories-wrapper" id="subCategoriesWrapper">
+          <div class="sub-cat-label">
+            <span>🏷️</span>
+            <span id="subCategorySectionTitle">الأقسام الفرعية:</span>
+          </div>
+          <div class="sub-chips-list" id="subCategoriesContainer">
+            <!-- يتم التحميل ديناميكياً بواسطة JavaScript -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Products Grid -->
+      <div class="products-grid" id="productsGridContainer">
+        <!-- يتم التحميل ديناميكياً بواسطة JavaScript -->
+      </div>
+    </section>
+
+    <!-- ======================================================= -->
+    <!-- TAB 2: إنشاء فاتورة جديدة -->
+    <!-- ======================================================= -->
+    <section id="tab-create-invoice" class="tab-content">
+      <div class="invoice-create-container">
+        
+        <!-- Left / Main Column: Invoice Items & Customer Data -->
+        <div class="invoice-main-col">
+          
+          <!-- Basic Info Card -->
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title">
+                <span>👤</span>
+                <span>بيانات الفاتورة والموظف</span>
+              </h2>
+              <span class="badge badge-primary">بدون تسجيل دخول - اكتب اسمك فقط</span>
+            </div>
+
+            <div class="grid-3">
+              <div class="form-group">
+                <label class="form-label" for="invEmployeeName">
+                  <span class="req">*</span> اسم الموظف المسؤول:
+                </label>
+                <input type="text" id="invEmployeeName" class="form-control" placeholder="اكتب اسمك هنا..." required>
+                <div class="input-hint">سيتم تسجيل اسمك في الفاتورة ورسالة التيليجرام</div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="invCustomerName">
+                  <span class="req">*</span> اسم الزبون:
+                </label>
+                <input type="text" id="invCustomerName" class="form-control" placeholder="اسم المشتري / الزبون..." required>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="invCustomerPhone">رقم هاتف الزبون:</label>
+                <input type="tel" id="invCustomerPhone" class="form-control" placeholder="05XXXXXXXX">
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" for="invNotes">ملاحظات إضافية على الفاتورة (اختياري):</label>
+              <input type="text" id="invNotes" class="form-control" placeholder="أي تفاصيل خاصة بالتسليم أو الكفالة...">
+            </div>
+          </div>
+
+          <!-- Items Selection & Table Card -->
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title">
+                <span>🛒</span>
+                <span>المنتجات المختارة بالفاتورة</span>
+              </h2>
+              <div>
+                <button class="btn btn-sm btn-secondary" onclick="switchTab('catalog')">
+                  <span>📦</span>
+                  <span>تصفح الكتالوج لإضافة منتجات</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Quick Add from Search / Dropdown -->
+            <div style="display: flex; gap: 0.75rem; margin-bottom: 1.25rem; align-items: center; flex-wrap: wrap;">
+              <div style="flex: 1; min-width: 260px;">
+                <input type="text" id="quickProductSearchInput" class="form-control" placeholder="🔍 اكتب كود أو اسم المنتج للإضافة السريعة..." list="productsDataList" onkeydown="if(event.key==='Enter'){event.preventDefault();addQuickSelectedProductFromSearch();}">
+                <datalist id="productsDataList"></datalist>
+              </div>
+              <select id="quickProductSelect" class="form-control" style="flex: 1.5; min-width: 260px;">
+                <option value="">-- أو اختر من قائمة المنتجات --</option>
+              </select>
+              <button class="btn btn-primary" onclick="addQuickSelectedProduct()">
+                <span>➕</span>
+                <span>إضافة للفاتورة</span>
+              </button>
+            </div>
+
+            <!-- Table of selected items -->
+            <div style="overflow-x: auto;">
+              <table class="items-table" id="selectedItemsTable">
+                <thead>
+                  <tr>
+                    <th>المنتج</th>
+                    <th>رأس المال (التكلفة)</th>
+                    <th>سعر البيع</th>
+                    <th>الكمية</th>
+                    <th>إجمالي البيع</th>
+                    <th>ربح الصنف</th>
+                    <th>إجراء</th>
+                  </tr>
+                </thead>
+                <tbody id="selectedItemsTableBody">
+                  <!-- ديناميكي -->
+                </tbody>
+              </table>
+            </div>
+
+            <div id="emptyCartMessage" class="empty-state">
+              <div class="empty-state-icon">🛒</div>
+              <h3>لم يتم إضافة أي منتجات للفاتورة بعد</h3>
+              <p>اختر منتجات من القائمة أعلاه أو تصفح كتالوج المنتجات وأضفها بنقرة واحدة</p>
+            </div>
+          </div>
+
+          <!-- Payment Method Card -->
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title">
+                <span>💳</span>
+                <span>طريقة الدفع وسداد الفاتورة</span>
+              </h2>
+            </div>
+
+            <div class="payment-selector">
+              <div class="payment-option active" id="payOptCash" onclick="selectPaymentMethod('cash')">
+                <div class="icon">💵</div>
+                <div class="title">نقداً (كاش)</div>
+                <div style="font-size: 0.8rem; color: var(--text-muted);">تسديد كامل قيمة الفاتورة فوراً</div>
+              </div>
+
+              <div class="payment-option" id="payOptInstallments" onclick="selectPaymentMethod('installments')">
+                <div class="icon">⏳</div>
+                <div class="title">أقساط مجدولة</div>
+                <div style="font-size: 0.8rem; color: var(--text-muted);">دفعة أولى وسداد باقي المبلغ على فترات</div>
+              </div>
+            </div>
+
+            <!-- Installments Details Form (Hidden by default) -->
+            <div id="installmentsDetailsBlock" class="installments-card" style="display: none;">
+              <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 0.75rem; color: #92400e;">
+                📅 تفاصيل الدفعة الأولى ومدة سداد باقي المبلغ:
+              </h3>
+
+              <div class="grid-3">
+                <div class="form-group">
+                  <label class="form-label" for="instDownPayment">
+                    <span class="req">*</span> الدفعة الأولى المدفوعة:
+                  </label>
+                  <input type="number" id="instDownPayment" class="form-control" value="0" min="0" step="any" oninput="calculateInstallments()">
+                  <div class="input-hint">المبلغ الذي يدفعه الزبون الآن نقداً</div>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">المبلغ المتبقي للتقسيط:</label>
+                  <input type="text" id="instRemainingAmount" class="form-control" readonly style="background: #f1f5f9; font-weight: 800; color: #b45309;">
+                  <div class="input-hint">يُحسب تلقائياً (الإجمالي - الدفعة الأولى)</div>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">
+                    <span class="req">*</span> مدة سداد باقي المبلغ:
+                  </label>
+                  <div style="display: flex; gap: 0.5rem;">
+                    <input type="number" id="instDurationNumber" class="form-control" placeholder="مثال: 6" min="1" style="flex: 1;">
+                    <select id="instDurationType" class="form-control" style="flex: 1;">
+                      <option value="months">شهر</option>
+                      <option value="days">يوم</option>
+                    </select>
+                  </div>
+                  <div class="input-hint">حدد الرقم ونوع المدة (أيام أو أشهر)</div>
+                </div>
+              </div>
+
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label" for="instScheduleNotes">جدول وتفاصيل الأقساط (اختياري):</label>
+                <input type="text" id="instScheduleNotes" class="form-control" placeholder="مثال: قسط شهري بقيمة 200 شيكل في أول كل شهر...">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column: Live Financial Calculation & Submit -->
+        <div class="invoice-summary-card">
+          <div class="card" style="border: 2px solid var(--primary); box-shadow: var(--shadow-lg);">
+            <div class="card-header" style="background: #f8fafc; margin: -1.5rem -1.5rem 1.25rem -1.5rem; padding: 1.25rem 1.5rem;">
+              <h2 class="card-title" style="color: var(--primary-dark);">
+                <span>💰</span>
+                <span>الحساب المالي والأرباح</span>
+              </h2>
+            </div>
+
+            <div class="summary-row">
+              <span class="text-muted">إجمالي عدد القطع:</span>
+              <strong id="sumTotalQty">0 قطعة</strong>
+            </div>
+
+            <div class="summary-row">
+              <span class="text-muted">إجمالي رأس المال (التكلفة):</span>
+              <strong id="sumTotalCost" style="color: #475569;">0 شيكل</strong>
+            </div>
+
+            <div class="summary-row highlight">
+              <span style="color: var(--success-dark);">صافي أرباح الفاتورة:</span>
+              <strong id="sumTotalProfit" style="color: var(--success-dark);">+0 شيكل (0%)</strong>
+            </div>
+
+            <div class="summary-row total-final">
+              <span>المبلغ النهائي للفاتورة:</span>
+              <span id="sumTotalAmount">0 شيكل</span>
+            </div>
+
+            <div id="summaryInstallmentBreakdown" style="margin-top: 1rem; padding: 0.75rem; background: #fffbeb; border-radius: var(--radius-md); font-size: 0.85rem; display: none;">
+              <div style="display: flex; justify-content: space-between; margin-bottom: 0.3rem;">
+                <span>الدفعة الأولى:</span>
+                <strong id="sumInstDownPayment">0 شيكل</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; color: #b45309; font-weight: 700;">
+                <span>المتبقي بالأقساط:</span>
+                <span id="sumInstRemaining">0 شيكل</span>
+              </div>
+            </div>
+
+            <div style="margin-top: 1.5rem;">
+              <button class="btn btn-success btn-lg btn-block" id="btnSubmitInvoice" onclick="submitInvoice()">
+                <span>🚀</span>
+                <span>إنشاء الفاتورة وإرسال لتيليجرام</span>
+              </button>
+
+              <p style="font-size: 0.78rem; text-align: center; color: var(--text-muted); margin-top: 0.75rem;">
+                ✈️ سيتم إرسال كافة تفاصيل الفاتورة، المنتجات، الموظف، الأرباح، وطريقة الدفع إلى حساب تيليجرام فوراً.
+              </p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ======================================================= -->
+    <!-- TAB: سند قبض لزبون -->
+    <!-- ======================================================= -->
+    <section id="tab-receipts" class="tab-content">
+      <div class="receipts-layout">
+        <!-- Form Column -->
+        <div class="card" style="border-top: 4px solid var(--success);">
+          <div class="card-header">
+            <h2 class="card-title">
+              <span>💰</span>
+              <span>إصدار سند قبض جديد لزبون</span>
+            </h2>
+          </div>
+
+          <form id="receiptForm" onsubmit="handleReceiptSubmit(event)">
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label" for="rcpEmployeeName">
+                  <span class="req">*</span> اسم الموظف (المستلم):
+                </label>
+                <input type="text" id="rcpEmployeeName" class="form-control" placeholder="اسم الموظف محرر السند..." required>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="rcpCustomerName">
+                  <span class="req">*</span> اسم الزبون:
+                </label>
+                <input type="text" id="rcpCustomerName" class="form-control" placeholder="اسم الزبون المسدد..." required>
+              </div>
+            </div>
+
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label" for="rcpCustomerPhone">رقم هاتف الزبون:</label>
+                <input type="text" id="rcpCustomerPhone" class="form-control" placeholder="مثال: 059xxxxxxx">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="rcpAmount">
+                  <span class="req">*</span> المبلغ المقبوض:
+                </label>
+                <div style="position: relative;">
+                  <input type="number" id="rcpAmount" class="form-control" min="0.01" step="any" placeholder="0.00" required oninput="updateReceiptTafqeet(this.value)">
+                  <span id="rcpCurrencyBadge" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-weight: 700; color: var(--text-muted);">شيكل</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Arabic Tafqeet Box -->
+            <div class="tafqeet-box" id="rcpTafqeetBox" style="display: none;">
+              <span style="color: var(--success-dark); font-size: 0.85rem; font-weight: 600;">المبلغ كتابةً:</span>
+              <strong id="rcpTafqeetText" style="color: var(--text-main); margin-right: 0.5rem;"></strong>
+            </div>
+
+            <div class="grid-2" style="margin-top: 0.75rem;">
+              <div class="form-group">
+                <label class="form-label" for="rcpPaymentMethod">طريقة الدفع:</label>
+                <select id="rcpPaymentMethod" class="form-control">
+                  <option value="cash">💵 نقداً (كاش)</option>
+                  <option value="transfer">🏦 تحويل بنكي</option>
+                  <option value="check">📝 شيك مصرفي</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="rcpDescription">البيان / مقابل:</label>
+                <input type="text" id="rcpDescription" class="form-control" placeholder="مثال: دفعة تحت الحساب، تسديد قسط شهر 9...">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="rcpNotes">ملاحظات إضافية:</label>
+              <textarea id="rcpNotes" class="form-control" rows="2" placeholder="أي ملاحظات تخص السند..."></textarea>
+            </div>
+
+            <div style="display: flex; gap: 0.75rem; margin-top: 1.25rem;">
+              <button type="submit" class="btn btn-success btn-lg" style="flex: 2;" id="btnSubmitReceipt">
+                <span>💾</span>
+                <span>حفظ وإصدار السند</span>
+              </button>
+              <button type="button" class="btn btn-secondary" style="flex: 1;" onclick="resetReceiptForm()">
+                <span>🔄</span>
+                <span>مسح</span>
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Archive Column -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">
+              <span>📋</span>
+              <span>سجل سندات القبض الصادرة</span>
+            </h2>
+            <span class="badge badge-primary" id="receiptsCountBadge">0 سند</span>
+          </div>
+
+          <div class="receipts-kpi-row">
+            <div class="receipt-kpi-item">
+              <div class="label">إجمالي المقبوضات</div>
+              <div class="val" id="receiptsTotalAmount">0 شيكل</div>
+            </div>
+            <div class="receipt-kpi-item">
+              <div class="label">عدد السندات</div>
+              <div class="val" id="receiptsTotalCount">0</div>
+            </div>
+          </div>
+
+          <div class="search-box" style="margin-bottom: 1rem;">
+            <span>🔍</span>
+            <input type="text" id="receiptsSearchInput" placeholder="بحث باسم الزبون أو الموظف أو رقم السند..." oninput="handleReceiptsSearch(this.value)">
+          </div>
+
+          <div style="overflow-x: auto; max-height: 480px;">
+            <table class="items-table">
+              <thead>
+                <tr>
+                  <th>رقم السند</th>
+                  <th>التاريخ</th>
+                  <th>الزبون</th>
+                  <th>المبلغ</th>
+                  <th>الدفع</th>
+                  <th>الموظف</th>
+                  <th>إجراءات</th>
+                </tr>
+              </thead>
+              <tbody id="receiptsTableBody">
+                <!-- ديناميكي -->
+              </tbody>
+            </table>
+          </div>
+
+          <div id="emptyReceiptsMessage" class="empty-state" style="display: none;">
+            <div class="empty-state-icon">💰</div>
+            <h3>لا توجد سندات قبض بعد</h3>
+            <p>قم بإصدار أول سند قبض من النموذج المجاور</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================= -->
+    <!-- TAB: الجرد والمخزون -->
+    <!-- ======================================================= -->
+    <section id="tab-inventory" class="tab-content">
+      <div class="inventory-container">
+        
+        <!-- Inventory Toolbar -->
+        <div class="inventory-toolbar">
+          <div class="inventory-stats-strip">
+            <div style="display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap;">
+              <span class="inventory-stat-pill">
+                <span>📦</span>
+                <span id="invTotalProductsBadge">1,312 صنف</span>
+              </span>
+              <span class="inventory-stat-pill success" id="invPillModified" style="display: none;">
+                <span>⚡</span>
+                <span id="invModifiedCountBadge">تم تعديل 0 صنف</span>
+              </span>
+              <span class="inventory-stat-pill danger">
+                <span>⚠️</span>
+                <span id="invOutOfStockBadge">0 صنف نافد</span>
+              </span>
+              <span class="inventory-stat-pill warning">
+                <span>📉</span>
+                <span id="invLowStockBadge">0 كمية منخفضة (≤3)</span>
+              </span>
+            </div>
+
+            <div style="font-size: 0.85rem; color: var(--text-muted);">
+              💡 يمكنك زيادة أو تقليل الكمية فوراً بالضغط على (+) أو (-) أو كتابة الرقم مباشرة
+            </div>
+          </div>
+
+          <!-- Search & Filters -->
+          <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center;">
+            <div class="search-box" style="flex: 1; min-width: 280px;">
+              <span>🔍</span>
+              <input type="text" id="inventorySearchInput" placeholder="ابحث باسم الصنف، الموديل، الماركة، أو الكود..." oninput="handleInventorySearch(this.value)">
+            </div>
+
+            <select id="invCategoryFilter" class="form-control" style="width: auto; min-width: 190px;" onchange="handleInventoryCategoryFilter(this.value)">
+              <option value="all">📁 جميع الأقسام (الكل)</option>
+              <option value="أجهزة كهربائية كبيرة">أجهزة كهربائية كبيرة</option>
+              <option value="أدوات مطبخ">أدوات مطبخ</option>
+              <option value="أدوات منزل">أدوات منزل</option>
+              <option value="أدوات شخصية">أدوات شخصية</option>
+              <option value="أخرى">أخرى</option>
+            </select>
+
+            <div class="category-chips" style="margin-bottom: 0;">
+              <button class="chip active" id="invFilterBtnAll" onclick="setInventoryQuickFilter('all', this)">الكل</button>
+              <button class="chip" id="invFilterBtnModified" onclick="setInventoryQuickFilter('modified', this)">المعدلة حالياً</button>
+              <button class="chip" id="invFilterBtnZero" onclick="setInventoryQuickFilter('zero', this)">نفدت (0)</button>
+              <button class="chip" id="invFilterBtnLow" onclick="setInventoryQuickFilter('low', this)">قليلة (≤3)</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Vertical List of Items -->
+        <div class="inventory-items-list" id="inventoryItemsContainer">
+          <!-- ديناميكي مرتب عمودياً -->
+        </div>
+
+        <!-- Pagination Bar -->
+        <div class="catalog-pagination" id="inventoryPagination" style="margin-top: 1rem;">
+          <!-- صفحات الجرد ديناميكياً -->
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ======================================================= -->
+    <!-- TAB 3: سجل الفواتير الصادرة -->
+    <!-- ======================================================= -->
+    <section id="tab-invoices-list" class="tab-content">
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">
+            <span>📋</span>
+            <span>أرشيف وسجل الفواتير الصادرة</span>
+          </h2>
+          <div style="display: flex; gap: 0.5rem;">
+            <button class="btn btn-sm btn-secondary" onclick="loadInvoices()">🔄 تحديث</button>
+            <button class="btn btn-sm btn-primary" onclick="switchTab('create-invoice')">➕ فاتورة جديدة</button>
+          </div>
+        </div>
+
+        <div class="catalog-toolbar" style="margin-bottom: 1rem;">
+          <div class="search-box">
+            <span>🔍</span>
+            <input type="text" id="invoicesSearchInput" placeholder="ابحث برقم الفاتورة، اسم الزبون، أو اسم الموظف...">
+          </div>
+
+          <div class="category-chips">
+            <button class="chip active" onclick="filterInvoicesByPayment('all', this)">جميع الفواتير</button>
+            <button class="chip" onclick="filterInvoicesByPayment('cash', this)">كاش نقدي</button>
+            <button class="chip" onclick="filterInvoicesByPayment('installments', this)">أقساط مجدولة</button>
+          </div>
+        </div>
+
+        <div style="overflow-x: auto;">
+          <table class="items-table" id="invoicesListTable">
+            <thead>
+              <tr>
+                <th>رقم الفاتورة</th>
+                <th>التاريخ والوقت</th>
+                <th>الموظف</th>
+                <th>الزبون</th>
+                <th>طريقة الدفع</th>
+                <th>إجمالي الفاتورة</th>
+                <th>صافي الربح</th>
+                <th>حالة تيليجرام</th>
+                <th>إجراءات</th>
+              </tr>
+            </thead>
+            <tbody id="invoicesTableBody">
+              <!-- ديناميكي -->
+            </tbody>
+          </table>
+        </div>
+
+        <div id="emptyInvoicesMessage" class="empty-state" style="display: none;">
+          <div class="empty-state-icon">📋</div>
+          <h3>لا توجد فواتير سابقة حتى الآن</h3>
+          <p>قم بإنشاء فاتورتك الأولى من تبويب "إنشاء فاتورة جديدة"</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================= -->
+    <!-- TAB 4: الإحصائيات والأرباح -->
+    <!-- ======================================================= -->
+    <section id="tab-dashboard" class="tab-content">
+      <!-- Top KPIs -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon blue">💰</div>
+          <div class="stat-info">
+            <div class="stat-label">إجمالي المبيعات</div>
+            <div class="stat-value" id="kpiTotalSales">0 شيكل</div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icon green">📈</div>
+          <div class="stat-info">
+            <div class="stat-label">إجمالي صافي الأرباح</div>
+            <div class="stat-value" id="kpiTotalProfit">0 شيكل</div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icon purple">🧾</div>
+          <div class="stat-info">
+            <div class="stat-label">عدد الفواتير الصادرة</div>
+            <div class="stat-value" id="kpiTotalInvoices">0</div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icon amber">⏳</div>
+          <div class="stat-info">
+            <div class="stat-label">أقساط متبقية للتحصيل</div>
+            <div class="stat-value" id="kpiInstallmentsRemaining">0 شيكل</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Financial Distribution Details -->
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title"><span>💵</span> تفصيل الدفع والمبيعات</h3>
+          </div>
+          <div class="summary-row">
+            <span>مبيعات الكاش النقدية:</span>
+            <strong id="dashCashSales">0 شيكل</strong>
+          </div>
+          <div class="summary-row">
+            <span>إجمالي فواتير الأقساط:</span>
+            <strong id="dashInstallmentsTotal">0 شيكل</strong>
+          </div>
+          <div class="summary-row">
+            <span>الدفوعات الأولى المحصلة من الأقساط:</span>
+            <strong id="dashInstallmentsDown">0 شيكل</strong>
+          </div>
+          <div class="summary-row highlight">
+            <span>نسبة هامش الربح الإجمالي:</span>
+            <strong id="dashProfitMargin">0%</strong>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title"><span>📦</span> حالة المنتجات والكتالوج</h3>
+          </div>
+          <div class="summary-row">
+            <span>عدد الأصناف المتوفرة بالكتالوج:</span>
+            <strong id="dashProductsCount">0 منتجات</strong>
+          </div>
+          <div class="summary-row">
+            <span>إجمالي تكلفة المبيعات (رأس المال):</span>
+            <strong id="dashTotalCost">0 شيكل</strong>
+          </div>
+          <div style="margin-top: 1.5rem; text-align: center;">
+            <button class="btn btn-primary" onclick="switchTab('create-invoice')">
+              <span>🧾</span>
+              <span>إصدار فاتورة بيع جديدة الآن</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================= -->
+    <!-- TAB 5: إعدادات النظام وتيليجرام -->
+    <!-- ======================================================= -->
+    <section id="tab-settings" class="tab-content">
+      <div class="grid-2">
+        
+        <!-- Telegram Settings Card -->
+        <div class="card" style="border: 2px solid var(--telegram);">
+          <div class="card-header" style="background: var(--telegram-light); margin: -1.5rem -1.5rem 1.25rem -1.5rem; padding: 1.25rem 1.5rem;">
+            <h2 class="card-title" style="color: var(--telegram-dark);">
+              <span>✈️</span>
+              <span>ربط وإشعارات بوت تيليجرام (Telegram Bot)</span>
+            </h2>
+          </div>
+
+          <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 1.25rem;">
+            عند حفظ الفاتورة، يُرسل النظام تلقائياً رسالة تحتوي على اسم الموظف، اسم الزبون، المنتجات، إجمالي الفاتورة، تفاصيل الأقساط وصافي الأرباح إلى هذا الحساب فوراً.
+          </p>
+
+          <div class="form-group">
+            <label class="form-label" for="cfgTelegramBotToken">
+              <span class="req">*</span> رمز البوت (Bot Token):
+            </label>
+            <input type="text" id="cfgTelegramBotToken" class="form-control" placeholder="1234567890:ABCdefGhIJKlmNoPQRstuVWxYZ">
+            <div class="input-hint">يتم الحصول عليه من بوت @BotFather على تيليجرام</div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="cfgTelegramChatId">
+              <span class="req">*</span> معرف المحادثة (Chat ID):
+            </label>
+            <input type="text" id="cfgTelegramChatId" class="form-control" placeholder="مثال: 987654321 أو -100xxxxxxxx">
+            <div class="input-hint">معرف حسابك الشخصي أو معرف مجموعة تيليجرام الخاصة بالإدارة</div>
+          </div>
+
+          <div style="display: flex; gap: 0.75rem; margin-top: 1.5rem;">
+            <button class="btn btn-telegram btn-block" onclick="testTelegramConnection()">
+              <span>🚀</span>
+              <span>فحص الاتصال وإرسال رسالة تجريبية لهاتفي</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Store & Company Settings Card -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">
+              <span>🏢</span>
+              <span>بيانات الشركة والفاتورة</span>
+            </h2>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="cfgCompanyName">اسم الشركة أو المتجر:</label>
+            <input type="text" id="cfgCompanyName" class="form-control" value="شركة الريان للأجهزة والتقنية">
+          </div>
+
+          <div class="grid-2">
+            <div class="form-group">
+              <label class="form-label" for="cfgCompanyPhone">رقم هاتف الشركة:</label>
+              <input type="text" id="cfgCompanyPhone" class="form-control" value="059-1234567">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="cfgCurrency">العملة الافتراضية:</label>
+              <select id="cfgCurrency" class="form-control">
+                <option value="شيكل">شيكل (₪)</option>
+                <option value="دولار">دولار ($)</option>
+                <option value="دينار">دينار أردني (JD)</option>
+                <option value="ريال">ريال سعودي (SAR)</option>
+                <option value="درهم">درهم إماراتي (AED)</option>
+                <option value="جنيه">جنيه مصري (EGP)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="cfgCompanyAddress">عنوان الشركة / الفرع:</label>
+            <input type="text" id="cfgCompanyAddress" class="form-control" value="المركز التجاري الرئيسي">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="cfgInvoiceFooter">نص ذيل الفاتورة المطبوعة:</label>
+            <input type="text" id="cfgInvoiceFooter" class="form-control" value="شكراً لتعاملكم معنا - بضاعة الشركة مكفولة حسب شروط الضمان">
+          </div>
+
+          <button class="btn btn-primary btn-block" onclick="saveCompanySettings()">
+            <span>💾</span>
+            <span>حفظ الإعدادات</span>
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Quick Setup Guide for Telegram -->
+      <div class="card" style="margin-top: 1rem; background: #f8fafc;">
+        <h3 style="font-size: 1.05rem; font-weight: 700; margin-bottom: 0.75rem;">
+          📖 دليل سريع: كيف تجهز بوت تيليجرام في دقيقتين؟
+        </h3>
+        <ol style="padding-right: 1.5rem; line-height: 1.8; font-size: 0.92rem; color: #334155;">
+          <li>افتح تطبيق تيليجرام وابحث عن المستخدم الرسمي: <strong>@BotFather</strong></li>
+          <li>أرسل له الأمر <code>/newbot</code> ثم اكتب اسماً للبوت، ثم معرف للبوت ينتهي بكلمة <code>bot</code>.</li>
+          <li>سيمنحك BotFather رمز الـ <strong>HTTP API Token</strong> (انسخه وضعه في خانة Bot Token أعلاه).</li>
+          <li>لمعرفة الـ <strong>Chat ID</strong> الخاص بك: ابحث في تيليجرام عن بوت <strong>@userinfobot</strong> واضغط Start، وسيعطيك رقم الـ Id الخاص بحسابك فوراً.</li>
+          <li><strong>ملاحظة هامة:</strong> افتح البوت الذي أنشأته واضغط على زر <strong>Start</strong> لمرة واحدة حتى يسمح له تيليجرام بإرسال الرسائل إليك.</li>
+          <li>الصق الـ Token والـ Chat ID هنا واضغط زر <strong>فحص الاتصال وإرسال رسالة تجريبية</strong>!</li>
+        </ol>
+      </div>
+
+      <!-- ======================================================= -->
+      <!-- منطقة الخطر: إعادة تعيين بيانات المبيعات -->
+      <!-- ======================================================= -->
+      <div class="card danger-zone-card" style="margin-top: 1rem;">
+        <div class="card-header" style="background: #fff1f2; margin: -1.5rem -1.5rem 1.25rem -1.5rem; padding: 1.25rem 1.5rem; border-bottom: 1px solid #fecdd3;">
+          <h2 class="card-title" style="color: #be123c;">
+            <span>⚠️</span>
+            <span>منطقة الخطر — إعادة تعيين بيانات المبيعات</span>
+          </h2>
+          <span class="badge" style="background: #fecdd3; color: #be123c; font-size: 0.75rem;">إجراء لا يمكن التراجع عنه</span>
+        </div>
+
+        <div style="background: #fff7f7; border: 1.5px dashed #fca5a5; border-radius: var(--radius-md); padding: 1rem; margin-bottom: 1.25rem;">
+          <p style="font-size: 0.92rem; color: #7f1d1d; line-height: 1.7; margin: 0;">
+            ⚠️ <strong>تحذير:</strong> هذا الإجراء سيقوم بحذف <strong>جميع الفواتير وسندات القبض</strong> بشكل دائم ونهائي. 
+            سيتم إعادة تصفير الإحصائيات المالية وسجل المبيعات. 
+            <br><strong>لن تتأثر بيانات المنتجات والكتالوج والإعدادات.</strong>
+          </p>
+        </div>
+
+        <div style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end;">
+          <div class="form-group" style="flex: 1; min-width: 220px; margin-bottom: 0;">
+            <label class="form-label" for="resetConfirmInput">
+              <span class="req">*</span> اكتب عبارة التأكيد للمتابعة:
+            </label>
+            <input 
+              type="text" 
+              id="resetConfirmInput" 
+              class="form-control" 
+              placeholder='اكتب: تأكيد الحذف'
+              style="border-color: #fca5a5;"
+            >
+            <div class="input-hint" style="color: #be123c;">يجب كتابة العبارة بالضبط: <strong>تأكيد الحذف</strong></div>
+          </div>
+
+          <button 
+            class="btn btn-danger" 
+            id="btnResetSales" 
+            onclick="confirmResetSalesData()"
+            style="flex-shrink: 0; height: 42px;"
+          >
+            <span>🗑️</span>
+            <span>إعادة تعيين المبيعات والإحصائيات</span>
+          </button>
+        </div>
+
+        <div id="resetSalesResult" style="display: none; margin-top: 1rem; padding: 0.75rem 1rem; border-radius: var(--radius-md); font-size: 0.9rem; font-weight: 600;"></div>
+      </div>
+
+    </section>
+
+
+  </main>
+
+  <!-- ======================================================= -->
+  <!-- MODAL: إضافة وتعديل منتج -->
+  <!-- ======================================================= -->
+  <div class="modal-backdrop" id="productModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 style="font-weight: 700;" id="productModalTitle">إضافة منتج جديد</h3>
+        <button class="close-btn" onclick="closeProductModal()">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <input type="hidden" id="editProductId">
+
+        <div class="grid-2">
+          <div class="form-group">
+            <label class="form-label" for="prodCode">كود المنتج / الباركود:</label>
+            <input type="text" id="prodCode" class="form-control" placeholder="مثال: PRD-105">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="prodMainCategory">التصنيف الرئيسي:</label>
+            <select id="prodMainCategory" class="form-control">
+              <option value="أجهزة كهربائية كبيرة">أجهزة كهربائية كبيرة</option>
+              <option value="أدوات مطبخ">أدوات مطبخ</option>
+              <option value="أدوات منزل">أدوات منزل</option>
+              <option value="أدوات شخصية">أدوات شخصية</option>
+              <option value="أخرى">أخرى</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="prodCategory">التصنيف الفرعي:</label>
+          <input type="text" id="prodCategory" class="form-control" placeholder="مثال: غسالات ونشافات، ثلاجات، خلاطات...">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="prodName">
+            <span class="req">*</span> اسم المنتج:
+          </label>
+          <input type="text" id="prodName" class="form-control" placeholder="اكتب اسم المنتج بدقة..." required>
+        </div>
+
+        <div class="grid-3">
+          <div class="form-group">
+            <label class="form-label" for="prodCostPrice">
+              <span class="req">*</span> رأس المال (التكلفة):
+            </label>
+            <input type="number" id="prodCostPrice" class="form-control" min="0" step="any" required oninput="calcProductModalProfit()">
+            <div class="input-hint">سعر التكلفة للشركة</div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="prodSellPrice">
+              <span class="req">*</span> سعر البيع:
+            </label>
+            <input type="number" id="prodSellPrice" class="form-control" min="0" step="any" required oninput="calcProductModalProfit()">
+            <div class="input-hint">سعر بيعه للزبائن</div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">ربح القطعة:</label>
+            <input type="text" id="prodCalculatedProfit" class="form-control" readonly style="background: #ecfdf5; color: #047857; font-weight: 800;">
+            <div class="input-hint">يُحسب تلقائياً</div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="form-group">
+            <label class="form-label" for="prodStock">الكمية المتوفرة في المخزن:</label>
+            <input type="number" id="prodStock" class="form-control" value="10" min="0">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="prodImageFile">رفع صورة للمنتج (أو رابط):</label>
+            <input type="file" id="prodImageFile" class="form-control" accept="image/*" onchange="handleImageUpload(this)">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="prodImageUrl">رابط صورة المنتج (URL):</label>
+          <input type="url" id="prodImageUrl" class="form-control" placeholder="https://...">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="prodDescription">وصف المنتج ومميزاته:</label>
+          <textarea id="prodDescription" class="form-control" rows="2" placeholder="مواصفات إضافية..."></textarea>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeProductModal()">إلغاء</button>
+        <button class="btn btn-primary" onclick="saveProductFromModal()">حفظ المنتج</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================= -->
+  <!-- MODAL: معاينة وطباعة الفاتورة -->
+  <!-- ======================================================= -->
+  <div class="modal-backdrop" id="invoiceViewModal">
+    <div class="modal-card" style="max-width: 800px;">
+      <div class="modal-header no-print">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <h3 style="font-weight: 700;">معاينة وطباعة الفاتورة</h3>
+          <div style="display: inline-flex; border: 1px solid var(--border-color); border-radius: var(--radius-sm); overflow: hidden;">
+            <button id="btnCopyCustomer" class="btn btn-sm btn-primary" onclick="setInvoicePrintMode('customer')">نسخة الزبون (بدون أرباح)</button>
+            <button id="btnCopyInternal" class="btn btn-sm btn-secondary" onclick="setInvoicePrintMode('internal')">نسخة الإدارة (مع الأرباح)</button>
+          </div>
+        </div>
+        <button class="close-btn" onclick="closeInvoiceModal()">✕</button>
+      </div>
+
+      <div class="modal-body" style="padding: 0;">
+        <div id="printableArea" class="printable-invoice">
+          <!-- محتوى الفاتورة المطبوعة بالكامل -->
+        </div>
+      </div>
+
+      <div class="modal-footer no-print">
+        <button class="btn btn-telegram" id="btnModalResendTelegram" onclick="resendCurrentInvoiceTelegram()">
+          <span>✈️</span>
+          <span>إعادة الإرسال لتيليجرام</span>
+        </button>
+        <button class="btn btn-secondary" onclick="closeInvoiceModal()">إغلاق</button>
+        <button class="btn btn-primary" onclick="window.print()">
+          <span>🖨️</span>
+          <span>طباعة الفاتورة</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================= -->
+  <!-- MODAL: معاينة وطباعة سند القبض -->
+  <!-- ======================================================= -->
+  <div class="modal-backdrop" id="receiptViewModal">
+    <div class="modal-card" style="max-width: 760px;">
+      <div class="modal-header no-print">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <h3 style="font-weight: 700;">معاينة وطباعة سند القبض المالي</h3>
+          <span class="badge badge-success">نسخة رسمية معتمدة</span>
+        </div>
+        <button class="close-btn" onclick="closeReceiptModal()">✕</button>
+      </div>
+
+      <div class="modal-body" style="padding: 0;">
+        <div id="printableReceiptArea" class="printable-receipt">
+          <!-- ديناميكي -->
+        </div>
+      </div>
+
+      <div class="modal-footer no-print">
+        <button class="btn btn-secondary" onclick="closeReceiptModal()">إغلاق</button>
+        <button class="btn btn-primary" onclick="printReceiptVoucher()">
+          <span>🖨️</span>
+          <span>طباعة سند القبض</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Floating Save Bar for Inventory Audit -->
+  <div class="inventory-floating-bar" id="inventoryFloatingBar" style="display: none;">
+    <div class="audit-info-col">
+      <div class="audit-icon-pulse">📋</div>
+      <div>
+        <div class="audit-title">جلسة جرد المخزون الفعلي</div>
+        <div class="audit-subtitle" id="inventoryModifiedCountText">لم يتم تعديل أي صنف بعد</div>
+      </div>
+    </div>
+
+    <div class="audit-emp-col">
+      <label for="invAuditEmployeeName">اسم الموظف القائم بالجرد:</label>
+      <input type="text" id="invAuditEmployeeName" class="audit-input" placeholder="اسمك (مثال: رامز)...">
+    </div>
+
+    <div class="audit-actions-col">
+      <button class="btn btn-success btn-floating-save" id="btnSaveInventory" onclick="saveInventoryBulkChanges()">
+        <span>💾</span>
+        <span>حفظ التعديلات في المخزن</span>
+      </button>
+
+      <button class="btn btn-secondary-dark" onclick="resetInventoryChanges()" title="إلغاء التعديلات غير المحفوظة">
+        <span>↩️</span>
+        <span>تراجع</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- JavaScript -->
+  <script src="js/app.js"></script>
+</body>
+</html>

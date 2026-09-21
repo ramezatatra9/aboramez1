@@ -1,0 +1,11 @@
+# Dependencies
+node_modules/
+
+# Uploads & Temp files
+uploads/
+*.log
+
+# OS & Environment
+.env
+.DS_Store
+Thumbs.db
