@@ -136,6 +136,8 @@ function switchTab(tabId) {
     loadInvoices();
   } else if (tabId === 'dashboard') {
     loadDashboard();
+  } else if (tabId === 'catalog') {
+    loadProducts().then(() => renderCatalog());
   } else if (tabId === 'create-invoice') {
     updateInvoiceDropdown();
   } else if (tabId === 'receipts') {
@@ -144,7 +146,7 @@ function switchTab(tabId) {
     const rcpEmp = document.getElementById('rcpEmployeeName');
     if (lastEmp && rcpEmp && !rcpEmp.value) rcpEmp.value = lastEmp;
   } else if (tabId === 'inventory') {
-    renderInventoryList();
+    loadProducts().then(() => renderInventoryList());
     const lastEmp = localStorage.getItem('last_employee_name');
     const auditEmp = document.getElementById('invAuditEmployeeName');
     if (lastEmp && auditEmp && !auditEmp.value) auditEmp.value = lastEmp;
@@ -1087,7 +1089,9 @@ async function submitInvoice() {
       if (document.getElementById('instDownPayment')) document.getElementById('instDownPayment').value = '0';
       selectPaymentMethod('cash');
 
-      // تحديث السجل والإحصائيات
+      // تحديث السجل والمنتجات والمخزون والإحصائيات
+      await loadProducts();
+      renderCatalog();
       loadInvoices();
       loadDashboard();
 

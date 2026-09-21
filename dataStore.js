@@ -285,6 +285,33 @@ const dataStore = {
     return filtered.length !== products.length;
   },
 
+  // خصم الكميات المباعة من المخزون عند إنشاء فاتورة
+  deductStockForInvoice(items, editorName) {
+    if (!Array.isArray(items) || items.length === 0) return [];
+    const products = this.getProducts();
+    const now = new Date().toISOString();
+    const modifiedProducts = [];
+
+    items.forEach(item => {
+      const prodId = item.productId || item.id;
+      const qty = Math.max(1, parseInt(item.quantity) || 1);
+      const index = products.findIndex(p => p.id === prodId);
+      if (index !== -1) {
+        const currentStock = parseInt(products[index].stock) || 0;
+        products[index].stock = Math.max(0, currentStock - qty);
+        products[index].lastStockUpdate = now;
+        products[index].lastStockEditor = editorName ? `فاتورة (${editorName.trim()})` : 'فاتورة مبيعات';
+        modifiedProducts.push(products[index]);
+      }
+    });
+
+    if (modifiedProducts.length > 0) {
+      writeJson(PRODUCTS_FILE, products);
+      modifiedProducts.forEach(p => syncProductToSupabase(p));
+    }
+    return modifiedProducts;
+  },
+
   // الفواتير
   getInvoices() {
     return readJson(INVOICES_FILE, []);

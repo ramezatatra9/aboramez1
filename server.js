@@ -244,6 +244,9 @@ app.post('/api/invoices', async (req, res) => {
       installmentDetails: validatedInstallments
     });
 
+    // خصم الكميات المباعة من المخزون وتحديث السجلات في Supabase تلقائياً
+    const updatedStockProducts = dataStore.deductStockForInvoice(validatedItems, employeeName);
+
     // إرسال إشعار تيليجرام فوراً
     const settings = dataStore.getSettings();
     let telegramResult = { ok: false, error: 'غير مهيأ' };
