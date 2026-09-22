@@ -341,11 +341,69 @@ app.post('/api/telegram/test', async (req, res) => {
   }
 });
 
-// إحصائيات لوحة التحكم
+// إحصائيات لوحة التحكم مع دعم فلاتر المدة الزمنية وحساب رأس المال الكلي للمخزون
 app.get('/api/dashboard', (req, res) => {
   try {
     const invoices = dataStore.getInvoices();
     const products = dataStore.getProducts();
+
+    const period = (req.query.period || 'all').toLowerCase();
+    const startDate = req.query.startDate;
+    const endDate = req.query.endDate;
+
+    // حساب رأس المال الكلي للمخزون الفعلي بالقطع والتكلفة والبيع
+    let totalInventoryCapital = 0;
+    let totalStockUnits = 0;
+    let totalInventoryRetail = 0;
+
+    products.forEach(p => {
+      const stock = Math.max(0, parseInt(p.stock) || 0);
+      const cost = Math.max(0, parseFloat(p.costPrice) || 0);
+      const sell = Math.max(0, parseFloat(p.sellPrice) || 0);
+
+      totalInventoryCapital += cost * stock;
+      totalStockUnits += stock;
+      totalInventoryRetail += sell * stock;
+    });
+
+    const expectedInventoryProfit = Math.max(0, totalInventoryRetail - totalInventoryCapital);
+
+    // فلترة الفواتير بحسب المدة الزمنية المطلوبة
+    let filteredInvoices = invoices;
+    const now = new Date();
+
+    if (period === 'today') {
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+      filteredInvoices = invoices.filter(inv => {
+        const t = new Date(inv.createdAt).getTime();
+        return !isNaN(t) && t >= todayStart;
+      });
+    } else if (period === 'week') {
+      const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).getTime();
+      filteredInvoices = invoices.filter(inv => {
+        const t = new Date(inv.createdAt).getTime();
+        return !isNaN(t) && t >= weekStart;
+      });
+    } else if (period === 'month') {
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+      filteredInvoices = invoices.filter(inv => {
+        const t = new Date(inv.createdAt).getTime();
+        return !isNaN(t) && t >= monthStart;
+      });
+    } else if (period === 'year') {
+      const yearStart = new Date(now.getFullYear(), 0, 1).getTime();
+      filteredInvoices = invoices.filter(inv => {
+        const t = new Date(inv.createdAt).getTime();
+        return !isNaN(t) && t >= yearStart;
+      });
+    } else if (period === 'custom' && (startDate || endDate)) {
+      const startMs = startDate ? new Date(`${startDate}T00:00:00`).getTime() : 0;
+      const endMs = endDate ? new Date(`${endDate}T23:59:59.999`).getTime() : Infinity;
+      filteredInvoices = invoices.filter(inv => {
+        const t = new Date(inv.createdAt).getTime();
+        return !isNaN(t) && t >= startMs && t <= endMs;
+      });
+    }
 
     let totalSales = 0;
     let totalCost = 0;
@@ -355,7 +413,7 @@ app.get('/api/dashboard', (req, res) => {
     let installmentsRemaining = 0;
     let installmentsDownPayments = 0;
 
-    invoices.forEach(inv => {
+    filteredInvoices.forEach(inv => {
       const amount = inv.summary?.totalAmount || 0;
       const cost = inv.summary?.totalCost || 0;
       const profit = inv.summary?.totalProfit || 0;
@@ -378,7 +436,8 @@ app.get('/api/dashboard', (req, res) => {
     res.json({
       success: true,
       stats: {
-        totalInvoicesCount: invoices.length,
+        totalInvoicesCount: filteredInvoices.length,
+        allInvoicesCount: invoices.length,
         totalProductsCount: products.length,
         totalSales,
         totalCost,
@@ -387,7 +446,16 @@ app.get('/api/dashboard', (req, res) => {
         cashSales,
         installmentsTotal,
         installmentsDownPayments,
-        installmentsRemaining
+        installmentsRemaining,
+        // إحصائيات رأس مال المخزون الحالي
+        totalInventoryCapital,
+        totalStockUnits,
+        totalInventoryRetail,
+        expectedInventoryProfit,
+        // معلومات الفلترة
+        period,
+        startDate: startDate || null,
+        endDate: endDate || null
       }
     });
   } catch (err) {

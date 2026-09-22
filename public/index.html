@@ -202,19 +202,38 @@
               </div>
             </div>
 
-            <!-- Quick Add from Search / Dropdown -->
-            <div style="display: flex; gap: 0.75rem; margin-bottom: 1.25rem; align-items: center; flex-wrap: wrap;">
-              <div style="flex: 1; min-width: 260px;">
-                <input type="text" id="quickProductSearchInput" class="form-control" placeholder="🔍 اكتب كود أو اسم المنتج للإضافة السريعة..." list="productsDataList" onkeydown="if(event.key==='Enter'){event.preventDefault();addQuickSelectedProductFromSearch();}">
-                <datalist id="productsDataList"></datalist>
+            <!-- Quick Add from Visual Live Search & Dropdown -->
+            <div class="quick-add-section">
+              <div class="visual-search-wrapper" id="visualSearchWrapper">
+                <div class="visual-search-input-box">
+                  <span class="search-lens-icon">🔍</span>
+                  <input type="text" id="quickProductSearchInput" class="form-control visual-search-input" placeholder="ابحث باسم المنتج أو الكود أو الماركة لإظهار الصورة والبيانات والإضافة..." autocomplete="off">
+                  <button type="button" class="btn-clear-search" id="btnClearQuickSearch" onclick="clearQuickSearch()" style="display: none;" title="مسح البحث">✕</button>
+                  <span class="search-keyboard-hint">Enter للإضافة السريعة</span>
+                </div>
+
+                <!-- Floating Visual Search Results Dropdown -->
+                <div class="live-search-dropdown" id="liveSearchDropdown" style="display: none;">
+                  <div class="live-search-header">
+                    <span>نتائج البحث (<strong id="liveSearchCount">0</strong> صنف مطابقة)</span>
+                    <span style="font-size: 0.78rem; color: var(--text-muted);">انقر على أي صنف لإضافته فوراً للفاتورة</span>
+                  </div>
+                  <div class="live-search-results-list" id="liveSearchResultsList">
+                    <!-- البطاقات المصغرة يتم إنشاؤها ديناميكياً بواسطة JavaScript -->
+                  </div>
+                </div>
               </div>
-              <select id="quickProductSelect" class="form-control" style="flex: 1.5; min-width: 260px;">
-                <option value="">-- أو اختر من قائمة المنتجات --</option>
-              </select>
-              <button class="btn btn-primary" onclick="addQuickSelectedProduct()">
-                <span>➕</span>
-                <span>إضافة للفاتورة</span>
-              </button>
+
+              <!-- Traditional Select Option for easy browsing -->
+              <div class="quick-select-wrapper">
+                <select id="quickProductSelect" class="form-control">
+                  <option value="">-- أو تصفح القائمة الكاملة للأصناف --</option>
+                </select>
+                <button class="btn btn-primary" onclick="addQuickSelectedProduct()">
+                  <span>➕</span>
+                  <span>إضافة للفاتورة</span>
+                </button>
+              </div>
             </div>
 
             <!-- Table of selected items -->
@@ -643,12 +662,111 @@
     <!-- TAB 4: الإحصائيات والأرباح -->
     <!-- ======================================================= -->
     <section id="tab-dashboard" class="tab-content">
-      <!-- Top KPIs -->
+      
+      <!-- Time Period Filter Toolbar -->
+      <div class="dashboard-filter-toolbar">
+        <div class="period-filter-header">
+          <div class="period-title-wrap">
+            <span style="font-size: 1.25rem;">⏱️</span>
+            <strong>فترة عرض الأرباح والتقارير المالية:</strong>
+          </div>
+          <div class="current-period-display" id="dashCurrentPeriodBadge">
+            الفترة المحددة: <strong>🌟 كل الأوقات</strong>
+          </div>
+        </div>
+
+        <div class="period-chips-group">
+          <button class="period-btn active" data-period="all" onclick="selectDashboardPeriod('all', this)">
+            <span>🌟</span>
+            <span>كل الأوقات</span>
+          </button>
+          <button class="period-btn" data-period="week" onclick="selectDashboardPeriod('week', this)">
+            <span>📅</span>
+            <span>هذا الأسبوع</span>
+          </button>
+          <button class="period-btn" data-period="month" onclick="selectDashboardPeriod('month', this)">
+            <span>🗓️</span>
+            <span>هذا الشهر</span>
+          </button>
+          <button class="period-btn" data-period="year" onclick="selectDashboardPeriod('year', this)">
+            <span>📆</span>
+            <span>هذه السنة</span>
+          </button>
+          <button class="period-btn" data-period="custom" id="btnCustomPeriod" onclick="toggleCustomPeriodForm(this)">
+            <span>🎯</span>
+            <span>فترة مخصصة</span>
+          </button>
+        </div>
+
+        <!-- Custom Date Range Form (collapsible) -->
+        <div class="custom-period-form" id="customPeriodForm" style="display: none;">
+          <div class="custom-date-field">
+            <label for="dashStartDate">من تاريخ:</label>
+            <input type="date" id="dashStartDate" class="form-control form-control-sm">
+          </div>
+          <div class="custom-date-field">
+            <label for="dashEndDate">إلى تاريخ:</label>
+            <input type="date" id="dashEndDate" class="form-control form-control-sm">
+          </div>
+          <button class="btn btn-sm btn-primary" onclick="applyCustomDateFilter()">
+            <span>🔍</span>
+            <span>تطبيق الفلترة</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Inventory Capital & Stock Assets Section (المخزون ورأس المال الكلي في النظام) -->
+      <div class="inventory-capital-banner">
+        <div class="capital-banner-header">
+          <div style="display: flex; align-items: center; gap: 0.6rem;">
+            <span style="font-size: 1.5rem;">📦</span>
+            <div>
+              <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: #0f172a;">رأس المال الكلي وتقييم المخزون الحالي داخل النظام</h3>
+              <p style="margin: 0; font-size: 0.85rem; color: #64748b;">محسوب بدقة بناءً على الكمية المتوفرة × سعر التكلفة ورأس المال الفعلي لكل صنف</p>
+            </div>
+          </div>
+          <span class="badge badge-primary" id="kpiProductsTotalCountBadge">1,312 صنف بالكتالوج</span>
+        </div>
+
+        <div class="capital-stats-grid">
+          <div class="capital-card capital-main">
+            <div class="capital-card-label">📦 رأس المال الكلي في المخزن (قيمة الشراء):</div>
+            <div class="capital-card-val" id="kpiTotalInventoryCapital">0 شيكل</div>
+            <div class="capital-card-hint">إجمالي رأس المال الفعلي المجمد بالبضاعة حالياً</div>
+          </div>
+
+          <div class="capital-card">
+            <div class="capital-card-label">🔢 إجمالي عدد القطع بالمخزن:</div>
+            <div class="capital-card-val text-blue" id="kpiTotalStockUnits">0 قطعة</div>
+            <div class="capital-card-hint">مجموع كميات كافة الأصناف المتوفرة بالجرد</div>
+          </div>
+
+          <div class="capital-card">
+            <div class="capital-card-label">🏷️ القيمة البيعية للمخزون:</div>
+            <div class="capital-card-val text-purple" id="kpiTotalInventoryRetail">0 شيكل</div>
+            <div class="capital-card-hint">إجمالي قيمة البضاعة بسعر البيع للمستهلك</div>
+          </div>
+
+          <div class="capital-card">
+            <div class="capital-card-label">🟢 الأرباح المتوقعة في المخزن:</div>
+            <div class="capital-card-val text-green" id="kpiExpectedInventoryProfit">+0 شيكل</div>
+            <div class="capital-card-hint">صافي الربح عند تصريف كامل البضاعة المتوفرة</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Financial Period Section Title -->
+      <h3 style="font-size: 1.05rem; font-weight: 800; margin: 1.5rem 0 0.85rem 0; color: #1e293b; display: flex; align-items: center; gap: 0.5rem;">
+        <span>📊</span>
+        <span>مؤشرات المبيعات والأرباح (بحسب الفترة المحددة أعلاه)</span>
+      </h3>
+
+      <!-- Top KPIs for Selected Period -->
       <div class="stats-grid">
         <div class="stat-card">
           <div class="stat-icon blue">💰</div>
           <div class="stat-info">
-            <div class="stat-label">إجمالي المبيعات</div>
+            <div class="stat-label">إجمالي المبيعات بالفترة</div>
             <div class="stat-value" id="kpiTotalSales">0 شيكل</div>
           </div>
         </div>
@@ -656,7 +774,7 @@
         <div class="stat-card">
           <div class="stat-icon green">📈</div>
           <div class="stat-info">
-            <div class="stat-label">إجمالي صافي الأرباح</div>
+            <div class="stat-label">صافي الأرباح المحققة</div>
             <div class="stat-value" id="kpiTotalProfit">0 شيكل</div>
           </div>
         </div>
@@ -728,6 +846,19 @@
     <!-- TAB 5: إعدادات النظام وتيليجرام -->
     <!-- ======================================================= -->
     <section id="tab-settings" class="tab-content">
+      
+      <!-- Settings Security Header Bar -->
+      <div class="settings-security-bar">
+        <div class="security-status-tag">
+          <span class="status-dot"></span>
+          <span>جلسة الإعدادات مفتوحة ومحمية برمز الدخول (99199)</span>
+        </div>
+        <button class="btn btn-sm btn-secondary" onclick="lockSettings()">
+          <span>🔒</span>
+          <span>قفل الإعدادات الآن</span>
+        </button>
+      </div>
+
       <div class="grid-2">
         
         <!-- Telegram Settings Card -->
@@ -1074,6 +1205,61 @@
         <span>↩️</span>
         <span>تراجع</span>
       </button>
+    </div>
+  </div>
+
+  <!-- Floating Direct Jump to Invoice Bar (زر وشريط الانتقال المباشر للفاتورة) -->
+  <div class="floating-cart-bar" id="floatingCartBar" style="display: none;" onclick="jumpToInvoiceDirectly()">
+    <div class="floating-cart-content">
+      <div class="floating-cart-icon-pulse">
+        <span>🛒</span>
+        <span class="floating-cart-badge" id="floatingCartBadge">0</span>
+      </div>
+      <div class="floating-cart-details">
+        <div class="floating-cart-title">الفاتورة قيد الإنشاء: <strong id="floatingCartItemsCount">0</strong> صنف</div>
+        <div class="floating-cart-total">المجموع: <strong id="floatingCartTotal">0</strong> <span id="floatingCartCurrency">شيكل</span></div>
+      </div>
+    </div>
+    <button class="btn btn-floating-jump" onclick="event.stopPropagation(); jumpToInvoiceDirectly();">
+      <span>الذهاب المباشر للفاتورة</span>
+      <span class="jump-arrow">🧾 ⬅️</span>
+    </button>
+  </div>
+
+  <!-- Settings Security Password Modal (نافذة إدخال كلمة سر الإعدادات) -->
+  <div class="modal-overlay" id="settingsPasswordModal" style="display: none;">
+    <div class="modal-content settings-pin-modal">
+      <div class="settings-lock-badge">
+        <div class="lock-shield-icon">🔒</div>
+      </div>
+      <h3 class="pin-modal-title">منطقة الإعدادات محمية بكلمة سر</h3>
+      <p class="pin-modal-subtitle">
+        للحفاظ على سرية الأرباح وتوكن تيليجرام، يُرجى كتابة الرمز السري للمدير
+      </p>
+
+      <form id="settingsPasswordForm" onsubmit="event.preventDefault(); verifySettingsPassword();">
+        <div class="pin-input-box">
+          <input type="password" id="settingsPasswordInput" class="pin-password-input" placeholder="اكتب كلمة السر هنا..." maxlength="20" autocomplete="current-password" required>
+          <button type="button" class="btn-toggle-eye" id="btnToggleEye" onclick="toggleSettingsPasswordVisibility()" title="إظهار / إخفاء كلمة السر">
+            👁️
+          </button>
+        </div>
+
+        <div id="settingsPasswordError" class="pin-error-alert" style="display: none;">
+          <span>❌</span>
+          <span>رمز الدخول غير صحيح! الرجاء التأكد والمحاولة مجدداً</span>
+        </div>
+
+        <div class="pin-actions-row">
+          <button type="submit" class="btn btn-primary btn-pin-submit">
+            <span>🔓</span>
+            <span>تأكيد الدخول للإعدادات</span>
+          </button>
+          <button type="button" class="btn btn-secondary btn-pin-cancel" onclick="closeSettingsPasswordModal()">
+            <span>إلغاء</span>
+          </button>
+        </div>
+      </form>
     </div>
   </div>
 

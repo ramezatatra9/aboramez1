@@ -70,7 +70,15 @@ const state = {
   inventoryQuickFilter: 'all', // 'all' | 'modified' | 'zero' | 'low'
   inventoryPendingUpdates: new Map(), // productId -> newStock
   inventoryPageSize: 40,
-  inventoryCurrentPage: 1
+  inventoryCurrentPage: 1,
+
+  // حماية الإعدادات بكلمة السر (99199)
+  settingsUnlocked: false,
+
+  // فلترة المدة الزمنية للإحصائيات
+  dashboardPeriod: 'all',
+  dashboardStartDate: '',
+  dashboardEndDate: ''
 };
 
 // تشغيل عند تحميل الصفحة
@@ -96,8 +104,14 @@ async function initApp() {
   // إعداد التنقل بين التبويبات
   setupNavigation();
 
-  // إعداد البحث
+  // إعداد البحث في الكتالوج والفواتير
   setupSearchListeners();
+
+  // إعداد البحث المرئي الذكي عن المنتجات
+  setupLiveProductSearch();
+
+  // تحديث شريط الفاتورة العائم
+  updateFloatingCartUI();
 
   // جلب البيانات من الخادم
   await loadSettings();
@@ -108,8 +122,68 @@ async function initApp() {
 }
 
 // -------------------------------------------------------------
-// إدارة التبويبات والتاريخ
+// إدارة التبويبات والتاريخ مع حماية الإعدادات
 // -------------------------------------------------------------
+const SETTINGS_PASSWORD = '99199';
+
+function openSettingsPasswordModal() {
+  const modal = document.getElementById('settingsPasswordModal');
+  const input = document.getElementById('settingsPasswordInput');
+  const err = document.getElementById('settingsPasswordError');
+  if (modal) modal.style.display = 'flex';
+  if (err) err.style.display = 'none';
+  if (input) {
+    input.value = '';
+    input.type = 'password';
+    const btn = document.getElementById('btnToggleEye');
+    if (btn) btn.textContent = '👁️';
+    setTimeout(() => input.focus(), 150);
+  }
+}
+
+function closeSettingsPasswordModal() {
+  const modal = document.getElementById('settingsPasswordModal');
+  if (modal) modal.style.display = 'none';
+}
+
+function verifySettingsPassword() {
+  const input = document.getElementById('settingsPasswordInput');
+  const err = document.getElementById('settingsPasswordError');
+  if (!input) return;
+
+  const entered = input.value.trim();
+  if (entered === SETTINGS_PASSWORD) {
+    state.settingsUnlocked = true;
+    closeSettingsPasswordModal();
+    actuallySwitchTab('settings');
+    showToast('تم التحقق بنجاح! مرحباً بك في الإعدادات 🔓', 'success');
+  } else {
+    if (err) err.style.display = 'flex';
+    input.classList.add('pin-shake');
+    setTimeout(() => input.classList.remove('pin-shake'), 600);
+    input.select();
+  }
+}
+
+function lockSettings() {
+  state.settingsUnlocked = false;
+  switchTab('catalog');
+  showToast('تم قفل الإعدادات بنجاح 🔒', 'info');
+}
+
+function toggleSettingsPasswordVisibility() {
+  const input = document.getElementById('settingsPasswordInput');
+  const btn = document.getElementById('btnToggleEye');
+  if (!input) return;
+  if (input.type === 'password') {
+    input.type = 'text';
+    if (btn) btn.textContent = '🙈';
+  } else {
+    input.type = 'password';
+    if (btn) btn.textContent = '👁️';
+  }
+}
+
 function setupNavigation() {
   const tabBtns = document.querySelectorAll('.nav-tab-btn');
   tabBtns.forEach(btn => {
@@ -121,6 +195,15 @@ function setupNavigation() {
 }
 
 function switchTab(tabId) {
+  // فحص حماية تبويب الإعدادات بكلمة السر 99199
+  if (tabId === 'settings' && !state.settingsUnlocked) {
+    openSettingsPasswordModal();
+    return;
+  }
+  actuallySwitchTab(tabId);
+}
+
+function actuallySwitchTab(tabId) {
   // إلغاء تفعيل الأزرار
   document.querySelectorAll('.nav-tab-btn').forEach(btn => {
     btn.classList.toggle('active', btn.getAttribute('data-tab') === tabId);
@@ -734,8 +817,201 @@ async function confirmDeleteProduct(id) {
 }
 
 // -------------------------------------------------------------
-// إدارة سلة وإنشاء الفاتورة
+// إدارة سلة وإنشاء الفاتورة والبحث المرئي الذكي
 // -------------------------------------------------------------
+function jumpToInvoiceDirectly() {
+  switchTab('create-invoice');
+  const table = document.getElementById('selectedItemsTable');
+  if (table) {
+    table.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
+function updateFloatingCartUI() {
+  const floatingBar = document.getElementById('floatingCartBar');
+  if (!floatingBar) return;
+
+  const totalItemsCount = state.cart.reduce((sum, i) => sum + i.quantity, 0);
+  const totalAmount = state.cart.reduce((sum, i) => sum + (i.quantity * i.sellPrice), 0);
+  const currency = state.settings.currency || 'شيكل';
+
+  if (totalItemsCount > 0) {
+    const badge = document.getElementById('floatingCartBadge');
+    if (badge) badge.textContent = totalItemsCount;
+    const countEl = document.getElementById('floatingCartItemsCount');
+    if (countEl) countEl.textContent = totalItemsCount;
+    const totalEl = document.getElementById('floatingCartTotal');
+    if (totalEl) totalEl.textContent = totalAmount.toLocaleString('en-US');
+    const currEl = document.getElementById('floatingCartCurrency');
+    if (currEl) currEl.textContent = currency;
+
+    floatingBar.style.display = 'flex';
+    floatingBar.classList.add('pulse-highlight');
+    setTimeout(() => floatingBar.classList.remove('pulse-highlight'), 1200);
+  } else {
+    floatingBar.style.display = 'none';
+  }
+}
+
+// -------------------------------------------------------------
+// البحث المرئي الذكي عن المنتجات (Visual Live Search)
+// -------------------------------------------------------------
+function setupLiveProductSearch() {
+  const input = document.getElementById('quickProductSearchInput');
+  const dropdown = document.getElementById('liveSearchDropdown');
+  const list = document.getElementById('liveSearchResultsList');
+  const clearBtn = document.getElementById('btnClearQuickSearch');
+
+  if (!input || !dropdown || !list) return;
+
+  let debounceTimer = null;
+
+  input.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    const query = input.value.trim().toLowerCase();
+
+    if (clearBtn) clearBtn.style.display = query ? 'block' : 'none';
+
+    if (!query) {
+      dropdown.style.display = 'none';
+      return;
+    }
+
+    debounceTimer = setTimeout(() => {
+      renderLiveSearchResults(query);
+    }, 100);
+  });
+
+  input.addEventListener('focus', () => {
+    const query = input.value.trim().toLowerCase();
+    if (query) {
+      renderLiveSearchResults(query);
+    }
+  });
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      // إذا كان هناك نتائج ظاهرة، أضف النتيجة الأولى فوراً
+      const firstBtn = list.querySelector('.btn-live-add');
+      if (firstBtn) {
+        firstBtn.click();
+      } else {
+        addQuickSelectedProductFromSearch();
+      }
+    } else if (e.key === 'Escape') {
+      dropdown.style.display = 'none';
+    }
+  });
+
+  // إغلاق القائمة عند النقر خارج المربع
+  document.addEventListener('click', (e) => {
+    const wrapper = document.getElementById('visualSearchWrapper');
+    if (wrapper && !wrapper.contains(e.target)) {
+      dropdown.style.display = 'none';
+    }
+  });
+}
+
+function renderLiveSearchResults(query) {
+  const dropdown = document.getElementById('liveSearchDropdown');
+  const list = document.getElementById('liveSearchResultsList');
+  const countEl = document.getElementById('liveSearchCount');
+  const currency = state.settings.currency || 'شيكل';
+
+  if (!dropdown || !list) return;
+
+  const matches = state.products.filter(p => {
+    const name = (p.name || '').toLowerCase();
+    const code = (p.code || '').toLowerCase();
+    const cat = (p.category || '').toLowerCase();
+    const mainCat = (p.mainCategory || '').toLowerCase();
+    return name.includes(query) || code.includes(query) || cat.includes(query) || mainCat.includes(query);
+  });
+
+  if (countEl) countEl.textContent = matches.length;
+
+  if (matches.length === 0) {
+    list.innerHTML = `
+      <div class="live-search-empty">
+        <span style="font-size: 1.8rem;">🔍</span>
+        <div>لم يتم العثور على أي صنف يطابق: "<strong>${escapeHtml(query)}</strong>"</div>
+        <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 0.35rem;">تأكد من كتابة جزء من اسم المنتج أو الكود أو الماركة</div>
+      </div>
+    `;
+    dropdown.style.display = 'block';
+    return;
+  }
+
+  const topMatches = matches.slice(0, 35);
+
+  list.innerHTML = topMatches.map(prod => {
+    const stock = parseInt(prod.stock) || 0;
+    const cost = parseFloat(prod.costPrice) || 0;
+    const sell = parseFloat(prod.sellPrice) || 0;
+    const profit = sell - cost;
+    const imageUrl = prod.image || 'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80';
+
+    let stockBadgeClass = 'stock-ok';
+    let stockBadgeText = `متوفر: ${stock}`;
+    if (stock <= 0) {
+      stockBadgeClass = 'stock-out';
+      stockBadgeText = 'نفد المخزون';
+    } else if (stock <= 3) {
+      stockBadgeClass = 'stock-low';
+      stockBadgeText = `متبقي: ${stock} فقط`;
+    }
+
+    return `
+      <div class="live-search-item" onclick="selectLiveSearchResult('${prod.id}')" title="انقر لإضافة هذا الصنف فوراً للفاتورة">
+        <div class="live-item-thumb">
+          <img src="${imageUrl}" alt="${escapeHtml(prod.name)}" loading="lazy" onerror="this.src='https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80'">
+        </div>
+        <div class="live-item-info">
+          <div class="live-item-top">
+            <span class="live-item-code">[${escapeHtml(prod.code || 'كود')}]</span>
+            <strong class="live-item-name">${escapeHtml(prod.name)}</strong>
+          </div>
+          <div class="live-item-meta">
+            <span class="live-item-cat">📁 ${escapeHtml(prod.category || 'عام')}</span>
+            <span class="live-item-stock ${stockBadgeClass}">${stockBadgeText}</span>
+          </div>
+        </div>
+        <div class="live-item-pricing">
+          <div class="live-item-price">${sell.toLocaleString('en-US')} <small>${currency}</small></div>
+          <div class="live-item-profit">ربح: +${profit.toLocaleString('en-US')} ${currency}</div>
+        </div>
+        <button type="button" class="btn btn-sm btn-primary btn-live-add" onclick="event.stopPropagation(); selectLiveSearchResult('${prod.id}')">
+          <span>➕</span>
+          <span>إضافة</span>
+        </button>
+      </div>
+    `;
+  }).join('');
+
+  dropdown.style.display = 'block';
+}
+
+function selectLiveSearchResult(productId) {
+  addToCart(productId);
+  const input = document.getElementById('quickProductSearchInput');
+  if (input) {
+    input.focus();
+  }
+}
+
+function clearQuickSearch() {
+  const input = document.getElementById('quickProductSearchInput');
+  const dropdown = document.getElementById('liveSearchDropdown');
+  const clearBtn = document.getElementById('btnClearQuickSearch');
+  if (input) {
+    input.value = '';
+    input.focus();
+  }
+  if (dropdown) dropdown.style.display = 'none';
+  if (clearBtn) clearBtn.style.display = 'none';
+}
+
 function updateInvoiceDropdown() {
   const select = document.getElementById('quickProductSelect');
   const datalist = document.getElementById('productsDataList');
@@ -749,7 +1025,7 @@ function updateInvoiceDropdown() {
 
   if (select) {
     const currentVal = select.value;
-    select.innerHTML = '<option value="">-- أو اختر من قائمة المنتجات (' + state.products.length.toLocaleString('en-US') + ' صنف) --</option>' +
+    select.innerHTML = '<option value="">-- أو تصفح القائمة الكاملة للأصناف (' + state.products.length.toLocaleString('en-US') + ' صنف) --</option>' +
       state.products.map(p => `
         <option value="${p.id}">[${p.code}] ${p.name} - سعر البيع: ${p.sellPrice.toLocaleString('en-US')} ${currency} (ربح: ${(p.sellPrice - p.costPrice).toLocaleString('en-US')})</option>
       `).join('');
@@ -762,7 +1038,6 @@ function addQuickSelectedProductFromSearch() {
   if (!input || !input.value.trim()) return;
 
   const val = input.value.trim().toLowerCase();
-  // البحث بالكود أو الاسم أو جزء منهما
   const found = state.products.find(p => 
     val.includes(p.code.toLowerCase()) || 
     p.code.toLowerCase() === val || 
@@ -774,6 +1049,8 @@ function addQuickSelectedProductFromSearch() {
   if (found) {
     addToCart(found.id);
     input.value = '';
+    const dropdown = document.getElementById('liveSearchDropdown');
+    if (dropdown) dropdown.style.display = 'none';
   } else {
     showToast('لم يتم العثور على منتج يطابق البحث', 'warning');
   }
@@ -814,8 +1091,9 @@ function addToCart(productId) {
   }
 
   updateCartUI();
+  updateFloatingCartUI();
   renderCatalog();
-  showToast(`تمت إضافة "${prod.name}" للفاتورة`, 'info');
+  showToast(`تمت إضافة "${prod.name}" للفاتورة`, 'success', 'الذهاب للفاتورة 🧾', () => jumpToInvoiceDirectly());
 }
 
 function updateCartQuantity(productId, newQty) {
@@ -829,12 +1107,14 @@ function updateCartQuantity(productId, newQty) {
   }
 
   updateCartUI();
+  updateFloatingCartUI();
   renderCatalog();
 }
 
 function removeFromCart(productId) {
   state.cart = state.cart.filter(i => i.productId !== productId);
   updateCartUI();
+  updateFloatingCartUI();
   renderCatalog();
 }
 
@@ -1386,21 +1666,109 @@ async function resendInvoiceTelegram(invoiceId) {
 }
 
 // -------------------------------------------------------------
-// لوحة الإحصائيات (Dashboard)
+// لوحة الإحصائيات (Dashboard) وإدارة الفترات الزمنية ورأس المال
 // -------------------------------------------------------------
+function selectDashboardPeriod(period, btn) {
+  state.dashboardPeriod = period;
+  document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+
+  const customForm = document.getElementById('customPeriodForm');
+  if (customForm && period !== 'custom') {
+    customForm.style.display = 'none';
+  }
+
+  const badge = document.getElementById('dashCurrentPeriodBadge');
+  if (badge) {
+    let label = '🌟 كل الأوقات';
+    if (period === 'week') label = '📅 هذا الأسبوع (7 أيام)';
+    if (period === 'month') label = '🗓️ هذا الشهر (30 يوماً)';
+    if (period === 'year') label = '📆 هذه السنة';
+    badge.innerHTML = `الفترة المحددة: <strong>${label}</strong>`;
+  }
+
+  loadDashboard();
+}
+
+function toggleCustomPeriodForm(btn) {
+  const form = document.getElementById('customPeriodForm');
+  if (!form) return;
+  const isHidden = form.style.display === 'none' || !form.style.display;
+  form.style.display = isHidden ? 'flex' : 'none';
+
+  if (isHidden) {
+    document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    state.dashboardPeriod = 'custom';
+    
+    // وضع تواريخ افتراضية إن لم تكن محددة
+    const startInput = document.getElementById('dashStartDate');
+    const endInput = document.getElementById('dashEndDate');
+    if (startInput && !startInput.value) {
+      const d = new Date();
+      d.setDate(d.getDate() - 30);
+      startInput.value = d.toISOString().split('T')[0];
+    }
+    if (endInput && !endInput.value) {
+      endInput.value = new Date().toISOString().split('T')[0];
+    }
+  }
+}
+
+function applyCustomDateFilter() {
+  const startInput = document.getElementById('dashStartDate');
+  const endInput = document.getElementById('dashEndDate');
+  if (!startInput || !endInput) return;
+
+  state.dashboardPeriod = 'custom';
+  state.dashboardStartDate = startInput.value;
+  state.dashboardEndDate = endInput.value;
+
+  const badge = document.getElementById('dashCurrentPeriodBadge');
+  if (badge) {
+    badge.innerHTML = `الفترة المحددة: <strong>فترة مخصصة (${startInput.value || 'البداية'} إلى ${endInput.value || 'الآن'})</strong>`;
+  }
+
+  loadDashboard();
+}
+
 async function loadDashboard() {
   try {
-    const res = await fetch('/api/dashboard');
+    let url = `/api/dashboard?period=${encodeURIComponent(state.dashboardPeriod || 'all')}`;
+    if (state.dashboardPeriod === 'custom') {
+      if (state.dashboardStartDate) url += `&startDate=${encodeURIComponent(state.dashboardStartDate)}`;
+      if (state.dashboardEndDate) url += `&endDate=${encodeURIComponent(state.dashboardEndDate)}`;
+    }
+
+    const res = await fetch(url);
     const data = await res.json();
     if (data.success && data.stats) {
       const stats = data.stats;
       const currency = state.settings.currency || 'شيكل';
 
+      // مبيعات وأرباح الفترة الزمنية المحددة
       document.getElementById('kpiTotalSales').textContent = `${(stats.totalSales || 0).toLocaleString('en-US')} ${currency}`;
       document.getElementById('kpiTotalProfit').textContent = `+${(stats.totalProfit || 0).toLocaleString('en-US')} ${currency}`;
       document.getElementById('kpiTotalInvoices').textContent = `${stats.totalInvoicesCount || 0} فاتورة`;
       document.getElementById('kpiInstallmentsRemaining').textContent = `${(stats.installmentsRemaining || 0).toLocaleString('en-US')} ${currency}`;
 
+      // رأس المال والمخزون الكلي في النظام (بناءً على الكمية × التكلفة)
+      const capEl = document.getElementById('kpiTotalInventoryCapital');
+      if (capEl) capEl.textContent = `${(stats.totalInventoryCapital || 0).toLocaleString('en-US')} ${currency}`;
+
+      const stockEl = document.getElementById('kpiTotalStockUnits');
+      if (stockEl) stockEl.textContent = `${(stats.totalStockUnits || 0).toLocaleString('en-US')} قطعة`;
+
+      const retailEl = document.getElementById('kpiTotalInventoryRetail');
+      if (retailEl) retailEl.textContent = `${(stats.totalInventoryRetail || 0).toLocaleString('en-US')} ${currency}`;
+
+      const expProfitEl = document.getElementById('kpiExpectedInventoryProfit');
+      if (expProfitEl) expProfitEl.textContent = `+${(stats.expectedInventoryProfit || 0).toLocaleString('en-US')} ${currency}`;
+
+      const prodCountBadge = document.getElementById('kpiProductsTotalCountBadge');
+      if (prodCountBadge) prodCountBadge.textContent = `${(stats.totalProductsCount || 0).toLocaleString('en-US')} صنف بالكتالوج`;
+
+      // التفاصيل المالية
       document.getElementById('dashCashSales').textContent = `${(stats.cashSales || 0).toLocaleString('en-US')} ${currency}`;
       document.getElementById('dashInstallmentsTotal').textContent = `${(stats.installmentsTotal || 0).toLocaleString('en-US')} ${currency}`;
       document.getElementById('dashInstallmentsDown').textContent = `${(stats.installmentsDownPayments || 0).toLocaleString('en-US')} ${currency}`;
@@ -1415,9 +1783,9 @@ async function loadDashboard() {
 }
 
 // -------------------------------------------------------------
-// التنبيهات المنبثقة (Toast Notifications)
+// التنبيهات المنبثقة (Toast Notifications) مع دعم أزرار الإجراءات
 // -------------------------------------------------------------
-function showToast(message, type = 'info') {
+function showToast(message, type = 'info', actionText = null, actionCallback = null) {
   const container = document.getElementById('toastContainer');
   if (!container) return;
 
@@ -1429,7 +1797,25 @@ function showToast(message, type = 'info') {
   if (type === 'error') icon = '❌';
   if (type === 'warning') icon = '⚠️';
 
-  toast.innerHTML = `<span>${icon}</span><span>${message}</span>`;
+  toast.innerHTML = `
+    <div style="display: flex; align-items: center; gap: 0.5rem; flex: 1;">
+      <span>${icon}</span>
+      <span>${message}</span>
+    </div>
+    ${actionText ? `<button class="toast-action-btn" type="button">${actionText}</button>` : ''}
+  `;
+
+  if (actionText && actionCallback) {
+    const btn = toast.querySelector('.toast-action-btn');
+    if (btn) {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        actionCallback();
+        toast.remove();
+      });
+    }
+  }
+
   container.appendChild(toast);
 
   setTimeout(() => {
@@ -1437,7 +1823,7 @@ function showToast(message, type = 'info') {
     toast.style.transform = 'translateY(10px)';
     toast.style.transition = 'all 0.3s ease';
     setTimeout(() => toast.remove(), 300);
-  }, 4000);
+  }, actionText ? 5500 : 4000);
 }
 
 // =============================================================
