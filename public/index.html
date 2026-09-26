@@ -91,10 +91,10 @@
     <!-- ======================================================= -->
     <section id="tab-catalog" class="tab-content active">
       <!-- Toolbar: Search & Action -->
-      <div class="catalog-toolbar" style="margin-bottom: 1rem;">
-        <div class="search-box" style="flex: 1;">
+      <div class="catalog-toolbar" style="margin-bottom: 0.75rem;">
+        <div class="search-box" style="flex: 1; min-width: 260px;">
           <span>🔍</span>
-          <input type="text" id="catalogSearchInput" placeholder="ابحث باسم المنتج أو الكود أو الماركة (مثال: LG، ثلاجة، I00000001)...">
+          <input type="text" id="catalogSearchInput" placeholder="ابحث باسم المنتج، الموديل، أو الكود مع الماركة المختارة...">
         </div>
 
         <div>
@@ -102,6 +102,83 @@
             <span>➕</span>
             <span>إضافة منتج جديد</span>
           </button>
+        </div>
+      </div>
+
+      <!-- Smart Visual Brand Hub (مركز الماركات الذكي والفاخر) -->
+      <div class="brand-hub-card" id="catalogBrandHub">
+        <!-- Top Bar: Title & Actions -->
+        <div class="brand-hub-topbar">
+          <div class="brand-hub-title-group">
+            <span class="brand-hub-main-icon">🏷️</span>
+            <div>
+              <div class="brand-hub-title-text">ماركات الأجهزة والتقنية</div>
+              <div class="brand-hub-subtitle">اختر ماركة لعرض منتجاتها والبحث الحصري بداخلها</div>
+            </div>
+          </div>
+
+          <!-- Quick Actions: Search, Quick Select Dropdown, View Toggle -->
+          <div class="brand-hub-actions">
+            <!-- Quick Brand Search Input -->
+            <div class="brand-search-pill">
+              <span class="search-icon">🔍</span>
+              <input type="text" id="catalogBrandSearchInput" placeholder="ابحث عن ماركة (سيمفير، راف، مانجر، LG)..." oninput="handleBrandSearchInput('catalog', this.value)">
+              <span id="catalogBrandSearchCount" class="brand-search-count-badge" style="display:none;"></span>
+              <button type="button" class="btn-clear-input" id="btnCatalogClearBrandSearch" style="display:none;" onclick="clearBrandSearchInput('catalog')" title="مسح البحث">✕</button>
+            </div>
+
+            <!-- Quick Select Dropdown -->
+            <select id="catalogBrandSelectDropdown" class="brand-select-dropdown" onchange="selectBrandFilter('catalog', this.value)">
+              <option value="all">✨ كل الماركات (1,312 صنف)</option>
+            </select>
+
+            <!-- Toggle View Mode (شبكة كاملة أو شريط) -->
+            <button type="button" class="btn-toggle-brands-view" id="btnCatalogToggleBrandsView" onclick="toggleBrandsViewMode('catalog')">
+              <span id="catalogBrandsViewIcon">⊞</span>
+              <span id="catalogBrandsViewText">عرض كشبكة كاملة</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Quick Access: Popular Brands Row (الماركات الأكثر طلباً لتسهيل الوصول الفوري) -->
+        <div class="popular-brands-bar" id="catalogPopularBrandsBar">
+          <span class="popular-bar-label">⭐ الأكثر طلباً:</span>
+          <div class="popular-chips-wrap" id="catalogPopularBrandsChips">
+            <!-- يتم تعبئتها تلقائياً بواسطة JavaScript -->
+          </div>
+        </div>
+
+        <!-- Alphabetical / Group Filter Tabs (تبويبات تصفية سريعة للماركات) -->
+        <div class="brand-tabs-strip" id="catalogBrandTabs">
+          <button type="button" class="brand-tab-btn active" data-tab="all" onclick="setBrandTabFilter('catalog', 'all', this)">🔤 جميع الماركات</button>
+          <button type="button" class="brand-tab-btn" data-tab="popular" onclick="setBrandTabFilter('catalog', 'popular', this)">⭐ الأكثر طلباً</button>
+          <button type="button" class="brand-tab-btn" data-tab="ar_1" onclick="setBrandTabFilter('catalog', 'ar_1', this)">أ - ج</button>
+          <button type="button" class="brand-tab-btn" data-tab="ar_2" onclick="setBrandTabFilter('catalog', 'ar_2', this)">ح - ض</button>
+          <button type="button" class="brand-tab-btn" data-tab="ar_3" onclick="setBrandTabFilter('catalog', 'ar_3', this)">ط - ي</button>
+          <button type="button" class="brand-tab-btn" data-tab="en" onclick="setBrandTabFilter('catalog', 'en', this)">A - Z</button>
+        </div>
+
+        <!-- Active Brand Lock Banner (يظهر عند تثبيت ماركة) -->
+        <div class="brand-active-lock-bar" id="catalogBrandActiveHint" style="display: none;">
+          <div class="lock-brand-content">
+            <span class="lock-indicator">🔒 تصفية وبحث محصور داخل ماركة:</span>
+            <strong id="catalogBrandActiveName" class="active-brand-glow"></strong>
+            <span id="catalogBrandActiveCount" class="active-brand-badge"></span>
+            <span class="lock-sub-hint">💡 أي بحث في خانة البحث بالأعلى سيبحث داخل هذه الماركة حصراً</span>
+          </div>
+          <button type="button" class="btn-reset-brand-filter" onclick="selectBrandFilter('catalog', 'all')">
+            <span>✕</span>
+            <span>إلغاء الفلتر وعرض الكل</span>
+          </button>
+        </div>
+
+        <!-- Brands Scroll / Grid Container -->
+        <div class="brands-display-area ribbon-mode" id="catalogBrandsDisplayArea">
+          <button type="button" class="ribbon-arrow-btn prev" onclick="scrollBrandsRibbon('catalog', -260)" title="السابق">›</button>
+          <div class="brands-cards-scroll" id="catalogBrandsRibbon">
+            <!-- كروت الماركات تُنشأ ديناميكياً بواسطة JavaScript -->
+          </div>
+          <button type="button" class="ribbon-arrow-btn next" onclick="scrollBrandsRibbon('catalog', 260)" title="التالي">‹</button>
         </div>
       </div>
 
@@ -569,7 +646,7 @@
               <input type="text" id="inventorySearchInput" placeholder="ابحث باسم الصنف، الموديل، الماركة، أو الكود..." oninput="handleInventorySearch(this.value)">
             </div>
 
-            <select id="invCategoryFilter" class="form-control" style="width: auto; min-width: 190px;" onchange="handleInventoryCategoryFilter(this.value)">
+            <select id="invCategoryFilter" class="form-control" style="width: auto; min-width: 180px;" onchange="handleInventoryCategoryFilter(this.value)">
               <option value="all">📁 جميع الأقسام (الكل)</option>
               <option value="أجهزة كهربائية كبيرة">أجهزة كهربائية كبيرة</option>
               <option value="أدوات مطبخ">أدوات مطبخ</option>
@@ -585,6 +662,85 @@
               <button class="chip" id="invFilterBtnLow" onclick="setInventoryQuickFilter('low', this)">قليلة (≤3)</button>
             </div>
           </div>
+
+          <!-- Smart Visual Brand Hub for Inventory (مركز الماركات للجرد والتدقيق المالي) -->
+          <div class="brand-hub-card inv-brand-hub" id="inventoryBrandHub" style="margin-top: 0.75rem; border-top: 1px dashed var(--border-color); padding-top: 0.75rem;">
+            <!-- Top Bar -->
+            <div class="brand-hub-topbar">
+              <div class="brand-hub-title-group">
+                <span class="brand-hub-main-icon">🏢</span>
+                <div>
+                  <div class="brand-hub-title-text">جرد وتدقيق مالي حسب الماركة</div>
+                  <div class="brand-hub-subtitle">اختر الماركة لعرض أرصدتها ورأس مالها وحصر عجزها</div>
+                </div>
+              </div>
+
+              <!-- Quick Actions -->
+              <div class="brand-hub-actions">
+                <div class="brand-search-pill">
+                  <span class="search-icon">🔍</span>
+                  <input type="text" id="inventoryBrandSearchInput" placeholder="ابحث عن ماركة (سيمفير، راف، مانجر، LG)..." oninput="handleBrandSearchInput('inventory', this.value)">
+                  <span id="inventoryBrandSearchCount" class="brand-search-count-badge" style="display:none;"></span>
+                  <button type="button" class="btn-clear-input" id="btnInventoryClearBrandSearch" style="display:none;" onclick="clearBrandSearchInput('inventory')" title="مسح البحث">✕</button>
+                </div>
+
+                <select id="inventoryBrandSelectDropdown" class="brand-select-dropdown" onchange="selectBrandFilter('inventory', this.value)">
+                  <option value="all">✨ كل الماركات (1,312 صنف)</option>
+                </select>
+
+                <button type="button" class="btn-toggle-brands-view" id="btnInventoryToggleBrandsView" onclick="toggleBrandsViewMode('inventory')">
+                  <span id="inventoryBrandsViewIcon">⊞</span>
+                  <span id="inventoryBrandsViewText">عرض كشبكة كاملة</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Quick Access: Popular Brands Row -->
+            <div class="popular-brands-bar" id="inventoryPopularBrandsBar">
+              <span class="popular-bar-label">⭐ الأكثر طلباً:</span>
+              <div class="popular-chips-wrap" id="inventoryPopularBrandsChips">
+                <!-- يتم تعبئتها تلقائياً بواسطة JavaScript -->
+              </div>
+            </div>
+
+            <!-- Brand Filter Tabs Strip -->
+            <div class="brand-tabs-strip" id="inventoryBrandTabs">
+              <button type="button" class="brand-tab-btn active" data-tab="all" onclick="setBrandTabFilter('inventory', 'all', this)">🔤 جميع الماركات</button>
+              <button type="button" class="brand-tab-btn" data-tab="popular" onclick="setBrandTabFilter('inventory', 'popular', this)">⭐ الأكثر طلباً</button>
+              <button type="button" class="brand-tab-btn" data-tab="ar_1" onclick="setBrandTabFilter('inventory', 'ar_1', this)">أ - ج</button>
+              <button type="button" class="brand-tab-btn" data-tab="ar_2" onclick="setBrandTabFilter('inventory', 'ar_2', this)">ح - ض</button>
+              <button type="button" class="brand-tab-btn" data-tab="ar_3" onclick="setBrandTabFilter('inventory', 'ar_3', this)">ط - ي</button>
+              <button type="button" class="brand-tab-btn" data-tab="en" onclick="setBrandTabFilter('inventory', 'en', this)">A - Z</button>
+            </div>
+
+            <!-- Active Brand Lock Banner for Inventory -->
+            <div class="brand-active-lock-bar" id="invBrandActiveHint" style="display: none;">
+              <div class="lock-brand-content">
+                <span class="lock-indicator">🔒 جرد وبحث محصور داخل ماركة:</span>
+                <strong id="invBrandActiveName" class="active-brand-glow"></strong>
+                <span id="invBrandActiveCount" class="active-brand-badge"></span>
+                <span class="lock-sub-hint">💡 خانة البحث بالجرد الآن تبحث داخل منتجات هذه الماركة حصراً</span>
+              </div>
+              <button type="button" class="btn-reset-brand-filter" onclick="selectBrandFilter('inventory', 'all')">
+                <span>✕</span>
+                <span>إلغاء الفلتر وعرض الكل</span>
+              </button>
+            </div>
+
+            <!-- Brands Scroll / Grid Container -->
+            <div class="brands-display-area ribbon-mode" id="inventoryBrandsDisplayArea">
+              <button type="button" class="ribbon-arrow-btn prev" onclick="scrollBrandsRibbon('inventory', -260)" title="السابق">›</button>
+              <div class="brands-cards-scroll" id="inventoryBrandsRibbon">
+                <!-- يتم التوليد ديناميكياً بواسطة JavaScript -->
+              </div>
+              <button type="button" class="ribbon-arrow-btn next" onclick="scrollBrandsRibbon('inventory', 260)" title="التالي">‹</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- شريط ملخص رأس مال وجرد الماركة المختارة -->
+        <div id="invBrandSummaryBanner" class="brand-summary-banner" style="display: none;">
+          <!-- يتم التعبئة ديناميكياً عند اختيار ماركة -->
         </div>
 
         <!-- Vertical List of Items -->

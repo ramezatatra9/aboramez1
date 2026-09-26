@@ -34,6 +34,49 @@ function formatAppDateTime(dateInput) {
   return `${day}-${month}-${year} الساعة ${hours}:${minutes} ${period}`;
 }
 
+// -------------------------------------------------------------
+// توحيد وتطبيع النصوص العربية والإنجليزية لمطابقة الماركات والبحث الذكي
+// -------------------------------------------------------------
+function normalizeArabic(text) {
+  if (!text) return '';
+  return String(text)
+    .toLowerCase()
+    .replace(/[\u064B-\u065F\u0670]/g, '') // إزالة الحركات والتنوين
+    .replace(/[إأآا]/g, 'ا')               // توحيد أشكال الألف
+    .replace(/ة/g, 'ه')                    // توحيد التاء المربوطة
+    .replace(/ى/g, 'ي')                    // توحيد الياء
+    // توحيد المرادفات والماركات المطلوبة بدقة تامة
+    .replace(/سيمفير/g, 'سمفير')
+    .replace(/simfer/gi, 'سمفير')
+    .replace(/مانجر(\s*هوم)?/g, 'منجر هوم')
+    .replace(/منجر(\s*هوم)?/g, 'منجر هوم')
+    .replace(/manger(\s*home)?/gi, 'منجر هوم')
+    .replace(/\braf\b/gi, 'راف')
+    .replace(/لوكسور/g, 'لوكسر')
+    .replace(/luxor/gi, 'لوكسر')
+    .replace(/زاكاش/g, 'زكش')
+    .replace(/زكاش/g, 'زكش')
+    .replace(/zacash/gi, 'زكش')
+    .replace(/لورنس/g, 'لورنس')
+    .replace(/lawrence/gi, 'لورنس')
+    .replace(/يونيفرسال/g, 'يونيفرسال')
+    .replace(/universal/gi, 'يونيفرسال')
+    .replace(/ال\s*جي/g, 'lg')
+    .replace(/سامسونج/g, 'سامسونج')
+    .replace(/samsung/gi, 'سامسونج')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// دالة فحص مطابقة كلمة مع مراعاة حدود الكلمات العربية لعدم الخلط بين "راف" و "كرافيت/أطراف/كرافت"
+function matchArabicTerm(target, term) {
+  if (!target || !term) return false;
+  if (term === 'راف') {
+    return /(?:^|[^\u0621-\u064A])راف(?:[^\u0621-\u064A]|$)/i.test(target);
+  }
+  return target.includes(term);
+}
+
 // حالة التطبيق العامة (Global State)
 const state = {
   products: [],
@@ -52,6 +95,10 @@ const state = {
   currentPaymentMethod: 'cash',
   activeMainCategory: 'all', // 'all' | 'أجهزة كهربائية كبيرة' | 'أدوات مطبخ' | 'أدوات منزل' | 'أدوات شخصية' | 'أخرى'
   activeCategory: 'all',     // التصنيف الفرعي أو 'all'
+  activeBrand: 'all',        // فلتر الماركة بالكتالوج
+  catalogBrandTabFilter: 'all', // 'all' | 'popular' | 'ar_1' | 'ar_2' | 'ar_3' | 'en'
+  catalogBrandSearchTerm: '',
+  catalogBrandsViewMode: 'ribbon', // 'ribbon' | 'grid'
   catalogSearch: '',
   invoicesSearch: '',
   invoicesFilter: 'all',
@@ -67,6 +114,10 @@ const state = {
   // الجرد والمخزون
   inventorySearch: '',
   inventoryCategory: 'all',
+  inventoryBrand: 'all',     // فلتر الماركة بالجرد
+  inventoryBrandTabFilter: 'all',
+  inventoryBrandSearchTerm: '',
+  inventoryBrandsViewMode: 'ribbon',
   inventoryQuickFilter: 'all', // 'all' | 'modified' | 'zero' | 'low'
   inventoryPendingUpdates: new Map(), // productId -> newStock
   inventoryPageSize: 40,
@@ -220,7 +271,10 @@ function actuallySwitchTab(tabId) {
   } else if (tabId === 'dashboard') {
     loadDashboard();
   } else if (tabId === 'catalog') {
-    loadProducts().then(() => renderCatalog());
+    loadProducts().then(() => {
+      renderBrandsRibbon('catalog');
+      renderCatalog();
+    });
   } else if (tabId === 'create-invoice') {
     updateInvoiceDropdown();
   } else if (tabId === 'receipts') {
@@ -229,7 +283,10 @@ function actuallySwitchTab(tabId) {
     const rcpEmp = document.getElementById('rcpEmployeeName');
     if (lastEmp && rcpEmp && !rcpEmp.value) rcpEmp.value = lastEmp;
   } else if (tabId === 'inventory') {
-    loadProducts().then(() => renderInventoryList());
+    loadProducts().then(() => {
+      renderBrandsRibbon('inventory');
+      renderInventoryList();
+    });
     const lastEmp = localStorage.getItem('last_employee_name');
     const auditEmp = document.getElementById('invAuditEmployeeName');
     if (lastEmp && auditEmp && !auditEmp.value) auditEmp.value = lastEmp;
@@ -383,12 +440,414 @@ async function loadProducts() {
     const data = await res.json();
     if (data.success) {
       state.products = data.products || [];
+      renderBrandsRibbon('catalog');
+      renderBrandsRibbon('inventory');
       renderCatalog();
       updateCategoryChips();
       updateInvoiceDropdown();
     }
   } catch (err) {
     console.error('فشل تحميل المنتجات:', err);
+  }
+}
+
+// -------------------------------------------------------------
+// الأيقونات المميزة للماركات
+// -------------------------------------------------------------
+// -------------------------------------------------------------
+// قائمة الماركات الأكثر طلباً وشهرة للوصول الفوري
+// -------------------------------------------------------------
+const POPULAR_BRANDS = [
+  'Simfer',
+  'Manger Home',
+  'RAF',
+  'LG',
+  'Samsung',
+  'Beko',
+  'Lawrence',
+  'Luxor',
+  'Universal',
+  'Haier',
+  'Midea',
+  'Sharp',
+  'TCL',
+  'Bompani',
+  'Crest',
+  'Trust',
+  'Zacash'
+];
+
+// الأيقونات المميزة والتسميات المعتمدة للماركات
+const BRAND_ICONS = {
+  'LG': { icon: '🔴', color: '#c41230', displayAr: 'ال جي (LG)' },
+  'Samsung': { icon: '🔷', color: '#1428a0', displayAr: 'سامسونج' },
+  'Beko': { icon: '🔵', color: '#0055a5', displayAr: 'بيكو' },
+  'Universal': { icon: '⭐', color: '#0284c7', displayAr: 'يونيفرسال' },
+  'Haier': { icon: '🌀', color: '#0066b2', displayAr: 'هاير' },
+  'Midea': { icon: '❄️', color: '#008ad2', displayAr: 'ميديا' },
+  'Sharp': { icon: '⚡', color: '#e60012', displayAr: 'شارب' },
+  'TCL': { icon: '📺', color: '#e50012', displayAr: 'تي سي ال' },
+  'Crest': { icon: '👑', color: '#d97706', displayAr: 'كريست' },
+  'Trust': { icon: '🛡️', color: '#4f46e5', displayAr: 'ترست' },
+  'Lawrence': { icon: '📻', color: '#7c3aed', displayAr: 'لورنس' },
+  'Atlantic': { icon: '🌊', color: '#0891b2', displayAr: 'اتلانتيك' },
+  'Samex': { icon: '🔥', color: '#ea580c', displayAr: 'سامكس' },
+  'Molar': { icon: '🧊', color: '#059669', displayAr: 'مولار' },
+  'General Lux': { icon: '✨', color: '#b45309', displayAr: 'جنرال لوكس' },
+  'General Queen': { icon: '👑', color: '#ca8a04', displayAr: 'جنرال كوين' },
+  'Bompani': { icon: '🍳', color: '#dc2626', displayAr: 'بومباني' },
+  'Simfer': { icon: '🍲', color: '#b91c1c', displayAr: 'سيمفير / سمفير' },
+  'Manger Home': { icon: '🏠', color: '#475569', displayAr: 'منجر هوم / مانجر' },
+  'Luxor': { icon: '💡', color: '#f59e0b', displayAr: 'لوكسر' },
+  'Zacash': { icon: '🍹', color: '#10b981', displayAr: 'زكش / زاكاش' },
+  'Candy': { icon: '🍬', color: '#ec4899', displayAr: 'كاندي' },
+  'Tefal': { icon: '🍳', color: '#e11d48', displayAr: 'تيفال' },
+  'Matrix': { icon: '🖥️', color: '#6366f1', displayAr: 'ماتركس' },
+  'Prestige': { icon: '🏆', color: '#8b5cf6', displayAr: 'برستيج' },
+  'KMG': { icon: '🧊', color: '#0284c7', displayAr: 'كي ام جي' },
+  'ADC': { icon: '🔌', color: '#64748b', displayAr: 'ADC' },
+  'iPlug': { icon: '🔌', color: '#06b6d4', displayAr: 'ايبلوج' },
+  'Dahua': { icon: '📹', color: '#0ea5e9', displayAr: 'دهوا' },
+  'Hisense': { icon: '📺', color: '#0d9488', displayAr: 'هايسنس' },
+  'RAF': { icon: '⚡', color: '#ea580c', displayAr: 'راف (RAF)' }
+};
+
+function handleBrandSearchInput(context, val) {
+  const term = (val || '').trim();
+  if (context === 'catalog') {
+    state.catalogBrandSearchTerm = term;
+    const btnClear = document.getElementById('btnCatalogClearBrandSearch');
+    if (btnClear) btnClear.style.display = term ? 'flex' : 'none';
+    renderBrandsRibbon('catalog', term);
+  } else {
+    state.inventoryBrandSearchTerm = term;
+    const btnClear = document.getElementById('btnInventoryClearBrandSearch');
+    if (btnClear) btnClear.style.display = term ? 'flex' : 'none';
+    renderBrandsRibbon('inventory', term);
+  }
+}
+
+function clearBrandSearchInput(context) {
+  if (context === 'catalog') {
+    const input = document.getElementById('catalogBrandSearchInput');
+    if (input) input.value = '';
+    handleBrandSearchInput('catalog', '');
+  } else {
+    const input = document.getElementById('inventoryBrandSearchInput');
+    if (input) input.value = '';
+    handleBrandSearchInput('inventory', '');
+  }
+}
+
+function setBrandTabFilter(context, tabName, btn) {
+  if (context === 'catalog') {
+    state.catalogBrandTabFilter = tabName;
+    const parent = document.getElementById('catalogBrandTabs');
+    if (parent) {
+      parent.querySelectorAll('.brand-tab-btn').forEach(b => b.classList.remove('active'));
+    }
+  } else {
+    state.inventoryBrandTabFilter = tabName;
+    const parent = document.getElementById('inventoryBrandTabs');
+    if (parent) {
+      parent.querySelectorAll('.brand-tab-btn').forEach(b => b.classList.remove('active'));
+    }
+  }
+  if (btn) btn.classList.add('active');
+  const term = context === 'catalog' ? state.catalogBrandSearchTerm : state.inventoryBrandSearchTerm;
+  renderBrandsRibbon(context, term);
+}
+
+function toggleBrandsViewMode(context) {
+  const isCatalog = context === 'catalog';
+  const displayArea = document.getElementById(isCatalog ? 'catalogBrandsDisplayArea' : 'inventoryBrandsDisplayArea');
+  const iconEl = document.getElementById(isCatalog ? 'catalogBrandsViewIcon' : 'inventoryBrandsViewIcon');
+  const textEl = document.getElementById(isCatalog ? 'catalogBrandsViewText' : 'inventoryBrandsViewText');
+
+  if (!displayArea) return;
+
+  const currentMode = isCatalog ? state.catalogBrandsViewMode : state.inventoryBrandsViewMode;
+  const newMode = currentMode === 'ribbon' ? 'grid' : 'ribbon';
+
+  if (isCatalog) {
+    state.catalogBrandsViewMode = newMode;
+  } else {
+    state.inventoryBrandsViewMode = newMode;
+  }
+
+  if (newMode === 'grid') {
+    displayArea.classList.remove('ribbon-mode');
+    displayArea.classList.add('grid-mode');
+    if (iconEl) iconEl.textContent = '⇄';
+    if (textEl) textEl.textContent = 'عرض كشريط أفقي';
+  } else {
+    displayArea.classList.remove('grid-mode');
+    displayArea.classList.add('ribbon-mode');
+    if (iconEl) iconEl.textContent = '⊞';
+    if (textEl) textEl.textContent = 'عرض كشبكة كاملة';
+  }
+}
+
+// -------------------------------------------------------------
+// إدارة أشرطة وبطاقات الماركات التفاعلية (Visual Brands Hub)
+// -------------------------------------------------------------
+function renderBrandsRibbon(context, searchTerm = '') {
+  const ribbonEl = document.getElementById(context === 'catalog' ? 'catalogBrandsRibbon' : 'inventoryBrandsRibbon');
+  if (!ribbonEl) return;
+
+  const currentActive = context === 'catalog' ? state.activeBrand : state.inventoryBrand;
+  const term = (searchTerm || '').trim();
+  const tabFilter = context === 'catalog' ? (state.catalogBrandTabFilter || 'all') : (state.inventoryBrandTabFilter || 'all');
+
+  // جمع إحصائيات الماركات بدقة
+  const brandCounts = {};
+  state.products.forEach(p => {
+    const b = p.brand || 'أخرى';
+    brandCounts[b] = (brandCounts[b] || 0) + 1;
+  });
+
+  const totalAll = state.products.length;
+
+  // 1. تحديث شريط الماركات الأكثر طلباً السريع (Popular Brands Bar)
+  const popChipsEl = document.getElementById(context === 'catalog' ? 'catalogPopularBrandsChips' : 'inventoryPopularBrandsChips');
+  if (popChipsEl) {
+    let popHtml = `
+      <div class="popular-chip ${currentActive === 'all' ? 'active' : ''}" onclick="selectBrandFilter('${context}', 'all')">
+        <span>✨</span>
+        <span>الكل</span>
+      </div>
+    `;
+
+    POPULAR_BRANDS.forEach(bName => {
+      const bCount = brandCounts[bName];
+      if (!bCount) return;
+      const meta = BRAND_ICONS[bName] || { icon: '🏷️' };
+      let label = meta.displayAr || bName;
+      if (bName === 'Simfer') label = 'سيمفير (Simfer)';
+      else if (bName === 'Manger Home') label = 'منجر هوم';
+      else if (bName === 'RAF') label = 'راف (RAF)';
+      else if (bName === 'LG') label = 'LG (ال جي)';
+
+      const isActive = currentActive === bName;
+      popHtml += `
+        <div class="popular-chip ${isActive ? 'active' : ''}" onclick="selectBrandFilter('${context}', '${escapeHtml(bName)}')">
+          <span>${meta.icon}</span>
+          <span>${escapeHtml(label)}</span>
+          <span style="opacity: 0.75; font-size: 0.72rem;">(${bCount})</span>
+        </div>
+      `;
+    });
+    popChipsEl.innerHTML = popHtml;
+  }
+
+  // 2. تحديث القائمة المنسدلة السريعة (Dropdown Select)
+  const dropdownEl = document.getElementById(context === 'catalog' ? 'catalogBrandSelectDropdown' : 'inventoryBrandSelectDropdown');
+  if (dropdownEl) {
+    let dropHtml = `<option value="all" ${currentActive === 'all' ? 'selected' : ''}>✨ كل الماركات (${totalAll.toLocaleString('en-US')} صنف)</option>`;
+    const allSortedForDrop = Object.entries(brandCounts)
+      .filter(([b]) => b !== 'أخرى')
+      .sort((a, b) => b[1] - a[1]);
+
+    allSortedForDrop.forEach(([bName, bCount]) => {
+      const meta = BRAND_ICONS[bName];
+      const sample = state.products.find(p => p.brand === bName);
+      const ar = (meta && meta.displayAr) ? meta.displayAr : (sample ? (sample.brandAr || '') : '');
+      const display = ar && ar !== bName ? `${bName} - ${ar}` : bName;
+      const isSel = currentActive === bName ? 'selected' : '';
+      dropHtml += `<option value="${escapeHtml(bName)}" ${isSel}>🏢 ${escapeHtml(display)} (${bCount} صنف)</option>`;
+    });
+
+    if (brandCounts['أخرى']) {
+      const isSel = currentActive === 'أخرى' ? 'selected' : '';
+      dropHtml += `<option value="أخرى" ${isSel}>📦 أصناف أخرى / عام (${brandCounts['أخرى']} صنف)</option>`;
+    }
+    dropdownEl.innerHTML = dropHtml;
+  }
+
+  // ترتيب الماركات بحسب عدد الأصناف، مع وضع "أخرى" في النهاية
+  let sortedBrands = Object.entries(brandCounts)
+    .filter(([b]) => b !== 'أخرى')
+    .sort((a, b) => b[1] - a[1]);
+
+  if (brandCounts['أخرى']) {
+    sortedBrands.push(['أخرى', brandCounts['أخرى']]);
+  }
+
+  // 3. تطبيق فلترة التبويبات (Tabs Filter)
+  if (tabFilter === 'popular') {
+    sortedBrands = sortedBrands.filter(([brandName]) => POPULAR_BRANDS.includes(brandName));
+  } else if (tabFilter === 'ar_1') { // أ - ج
+    const regex = /^[أإآابتثج]/;
+    sortedBrands = sortedBrands.filter(([brandName]) => {
+      const sample = state.products.find(p => p.brand === brandName);
+      const meta = BRAND_ICONS[brandName];
+      const ar = (meta && meta.displayAr) || (sample ? sample.brandAr : '') || brandName;
+      return regex.test(ar.trim());
+    });
+  } else if (tabFilter === 'ar_2') { // ح - ض
+    const regex = /^[حخدذرزسشصض]/;
+    sortedBrands = sortedBrands.filter(([brandName]) => {
+      const sample = state.products.find(p => p.brand === brandName);
+      const meta = BRAND_ICONS[brandName];
+      const ar = (meta && meta.displayAr) || (sample ? sample.brandAr : '') || brandName;
+      return regex.test(ar.trim());
+    });
+  } else if (tabFilter === 'ar_3') { // ط - ي
+    const regex = /^[طظعغفقكلمنهوي]/;
+    sortedBrands = sortedBrands.filter(([brandName]) => {
+      const sample = state.products.find(p => p.brand === brandName);
+      const meta = BRAND_ICONS[brandName];
+      const ar = (meta && meta.displayAr) || (sample ? sample.brandAr : '') || brandName;
+      return regex.test(ar.trim());
+    });
+  } else if (tabFilter === 'en') { // A - Z
+    sortedBrands = [...sortedBrands].sort((a, b) => a[0].localeCompare(b[0]));
+  }
+
+  // 4. تطبيق البحث الفوري مع دعم كامل لتوحيد النصوص والمرادفات
+  if (term) {
+    const termNorm = normalizeArabic(term);
+    sortedBrands = sortedBrands.filter(([brandName]) => {
+      const sample = state.products.find(p => p.brand === brandName);
+      const meta = BRAND_ICONS[brandName];
+      const arName = (meta && meta.displayAr) || (sample ? sample.brandAr : '') || '';
+
+      const bNorm = normalizeArabic(brandName);
+      const arNorm = normalizeArabic(arName);
+
+      return matchArabicTerm(bNorm, termNorm) || matchArabicTerm(arNorm, termNorm);
+    });
+  }
+
+  // تحديث عداد نتائج بحث الماركات
+  const countBadge = document.getElementById(context === 'catalog' ? 'catalogBrandSearchCount' : 'inventoryBrandSearchCount');
+  if (countBadge) {
+    if (term) {
+      countBadge.style.display = 'inline-block';
+      countBadge.textContent = `${sortedBrands.length} ماركة`;
+    } else {
+      countBadge.style.display = 'none';
+    }
+  }
+
+  let html = '';
+
+  // كرت "الكل" يظهر عند عدم وجود بحث مخصص للماركات أو مطابقة الكل
+  if (!term || 'الكل'.includes(term) || 'all'.includes(term.toLowerCase())) {
+    html += `
+      <div class="brand-chip-card ${currentActive === 'all' ? 'active' : ''}" onclick="selectBrandFilter('${context}', 'all')">
+        <span class="brand-chip-icon">✨</span>
+        <div class="brand-chip-names">
+          <span class="brand-chip-primary">الكل</span>
+          <span class="brand-chip-secondary">جميع الماركات</span>
+        </div>
+        <span class="brand-chip-count">${totalAll.toLocaleString('en-US')}</span>
+      </div>
+    `;
+  }
+
+  if (sortedBrands.length === 0) {
+    html += `
+      <div class="brand-no-results" style="grid-column: 1 / -1; padding: 1.5rem; text-align: center; color: var(--text-muted);">
+        <span>🔍 لم نجد ماركة مطابقة لـ "<strong>${escapeHtml(term)}</strong>"</span>
+        <button type="button" class="btn btn-sm btn-secondary" style="margin-inline-start: 0.5rem;" onclick="clearBrandSearchInput('${context}')">مسح البحث</button>
+      </div>
+    `;
+  } else {
+    sortedBrands.forEach(([brandName, count]) => {
+      const sample = state.products.find(p => p.brand === brandName);
+      const meta = BRAND_ICONS[brandName] || { icon: '🏷️', color: '#6366f1' };
+      const arName = meta.displayAr || (sample ? sample.brandAr : brandName);
+      const isActive = currentActive === brandName;
+
+      html += `
+        <div class="brand-chip-card ${isActive ? 'active' : ''}" onclick="selectBrandFilter('${context}', '${escapeHtml(brandName)}')">
+          <span class="brand-chip-icon">${meta.icon}</span>
+          <div class="brand-chip-names">
+            <span class="brand-chip-primary">${escapeHtml(brandName)}</span>
+            <span class="brand-chip-secondary">${escapeHtml(arName)}</span>
+          </div>
+          <span class="brand-chip-count">${count.toLocaleString('en-US')}</span>
+        </div>
+      `;
+    });
+  }
+
+  ribbonEl.innerHTML = html;
+
+  // 5. تحديث شريط حالة الماركة المحددة (Brand Lock Banner)
+  const hintEl = document.getElementById(context === 'catalog' ? 'catalogBrandActiveHint' : 'invBrandActiveHint');
+  const nameEl = document.getElementById(context === 'catalog' ? 'catalogBrandActiveName' : 'invBrandActiveName');
+  const countEl = document.getElementById(context === 'catalog' ? 'catalogBrandActiveCount' : 'invBrandActiveCount');
+
+  if (hintEl && nameEl) {
+    if (currentActive && currentActive !== 'all') {
+      const sample = state.products.find(p => p.brand === currentActive);
+      const meta = BRAND_ICONS[currentActive];
+      const title = meta && meta.displayAr ? `${currentActive} (${meta.displayAr})` : (sample && sample.brandAr ? `${sample.brand} (${sample.brandAr})` : currentActive);
+      const brandItemCount = state.products.filter(p => (p.brand || 'أخرى') === currentActive).length;
+
+      hintEl.style.display = 'flex';
+      nameEl.textContent = title;
+      if (countEl) countEl.textContent = `${brandItemCount.toLocaleString('en-US')} صنف متوفر`;
+    } else {
+      hintEl.style.display = 'none';
+    }
+  }
+}
+
+function selectBrandFilter(context, brandName) {
+  if (context === 'catalog') {
+    state.activeBrand = brandName;
+    state.catalogCurrentPage = 1;
+    // عند اختيار ماركة محددة، نصفر أي فلاتر تصنيفات كانت نشطة لكي تظهر جميع أصناف هذه الماركة
+    state.activeMainCategory = 'all';
+    state.activeCategory = 'all';
+    renderHierarchicalCategories();
+
+    // تحديث placeholder حقل البحث ليوضح للموظف أنه يبحث داخل هذه الماركة حصراً
+    const searchInput = document.getElementById('catalogSearchInput');
+    if (searchInput) {
+      if (brandName !== 'all') {
+        const meta = BRAND_ICONS[brandName];
+        const sample = state.products.find(p => p.brand === brandName);
+        const title = meta && meta.displayAr ? `${brandName} (${meta.displayAr})` : (sample && sample.brandAr ? `${sample.brand} (${sample.brandAr})` : brandName);
+        searchInput.placeholder = `🔍 ابحث داخل منتجات ${title} فقط (مثال: غسالة، فرن، 50 بوصة)...`;
+      } else {
+        searchInput.placeholder = 'ابحث باسم المنتج، الموديل، أو الكود مع الماركة المختارة...';
+      }
+    }
+
+    renderBrandsRibbon('catalog', state.catalogBrandSearchTerm);
+    renderCatalog();
+  } else if (context === 'inventory') {
+    state.inventoryBrand = brandName;
+    state.inventoryCurrentPage = 1;
+    state.inventoryCategory = 'all';
+    const catSelect = document.getElementById('invCategoryFilter');
+    if (catSelect) catSelect.value = 'all';
+
+    const invSearchInput = document.getElementById('inventorySearchInput');
+    if (invSearchInput) {
+      if (brandName !== 'all') {
+        const meta = BRAND_ICONS[brandName];
+        const sample = state.products.find(p => p.brand === brandName);
+        const title = meta && meta.displayAr ? `${brandName} (${meta.displayAr})` : (sample && sample.brandAr ? `${sample.brand} (${sample.brandAr})` : brandName);
+        invSearchInput.placeholder = `🔍 ابحث داخل مخزون ${title} فقط...`;
+      } else {
+        invSearchInput.placeholder = 'ابحث باسم الصنف، الموديل، الماركة، أو الكود...';
+      }
+    }
+
+    renderBrandsRibbon('inventory', state.inventoryBrandSearchTerm);
+    renderInventoryList();
+  }
+}
+
+function scrollBrandsRibbon(context, offset) {
+  const ribbon = document.getElementById(context === 'catalog' ? 'catalogBrandsRibbon' : 'inventoryBrandsRibbon');
+  if (ribbon) {
+    ribbon.scrollBy({ left: offset, behavior: 'smooth' });
   }
 }
 
@@ -526,27 +985,50 @@ function renderCatalog() {
 
   const currency = state.settings.currency || 'شيكل';
 
-  // تصفية المنتجات بالتصنيف الرئيسي أولاً
-  let filtered = state.products;
+  // تصفية المنتجات مع دمج الماركة والتصنيف الرئيسي والفرعي والبحث النصي معاً
+  let filtered = state.products.filter(p => {
+    // 1. فلتر الماركة المختارة (محصور داخل الماركة حصراً)
+    if (state.activeBrand && state.activeBrand !== 'all') {
+      if ((p.brand || 'أخرى') !== state.activeBrand) return false;
+    }
 
-  if (state.activeMainCategory && state.activeMainCategory !== 'all') {
-    filtered = filtered.filter(p => (p.mainCategory || 'أخرى') === state.activeMainCategory);
-  }
+    // 2. فلتر القسم الرئيسي
+    if (state.activeMainCategory && state.activeMainCategory !== 'all') {
+      if ((p.mainCategory || 'أخرى') !== state.activeMainCategory) return false;
+    }
 
-  // ثم بالتصنيف الفرعي
-  if (state.activeCategory && state.activeCategory !== 'all') {
-    filtered = filtered.filter(p => p.category === state.activeCategory);
-  }
+    // 3. فلتر القسم الفرعي
+    if (state.activeCategory && state.activeCategory !== 'all') {
+      if (p.category !== state.activeCategory) return false;
+    }
 
-  if (state.catalogSearch) {
-    // عند البحث: نبحث في كل المنتجات بدون فلتر التصنيف
-    filtered = state.products.filter(p => 
-      (p.name && p.name.toLowerCase().includes(state.catalogSearch)) ||
-      (p.code && p.code.toLowerCase().includes(state.catalogSearch)) ||
-      (p.category && p.category.toLowerCase().includes(state.catalogSearch)) ||
-      (p.mainCategory && p.mainCategory.toLowerCase().includes(state.catalogSearch))
-    );
-  }
+    // 4. فلتر البحث النصي (مدمج ومحصور داخل الماركة مع تطبيع كامل للغة العربية والمرادفات)
+    if (state.catalogSearch) {
+      const qNorm = normalizeArabic(state.catalogSearch);
+      const searchWords = qNorm.split(/\s+/).filter(w => w.length > 0);
+      if (searchWords.length > 0) {
+        const pNameNorm = normalizeArabic(p.name);
+        const pCodeNorm = normalizeArabic(p.code);
+        const pCatNorm = normalizeArabic(p.category);
+        const pMainNorm = normalizeArabic(p.mainCategory);
+        const pBrandNorm = normalizeArabic(p.brand);
+        const pBrandArNorm = normalizeArabic(p.brandAr);
+
+        const allWordsMatch = searchWords.every(word => {
+          return matchArabicTerm(pNameNorm, word) ||
+                 matchArabicTerm(pCodeNorm, word) ||
+                 matchArabicTerm(pCatNorm, word) ||
+                 matchArabicTerm(pMainNorm, word) ||
+                 matchArabicTerm(pBrandNorm, word) ||
+                 matchArabicTerm(pBrandArNorm, word);
+        });
+
+        if (!allWordsMatch) return false;
+      }
+    }
+
+    return true;
+  });
 
   const totalCount = filtered.length;
 
@@ -555,7 +1037,7 @@ function renderCatalog() {
       <div class="empty-state" style="grid-column: 1 / -1;">
         <div class="empty-state-icon">📦</div>
         <h3>لم يتم العثور على أي منتجات مطابقة</h3>
-        <p>جرب البحث بكلمات أخرى أو أضف منتجاً جديداً للكتالوج</p>
+        <p>جرب تغيير الماركة أو القسم أو البحث بكلمات أخرى</p>
       </div>
     `;
     return;
@@ -581,6 +1063,7 @@ function renderCatalog() {
         <div class="product-img-wrapper">
           <img src="${imageUrl}" alt="${prod.name}" loading="lazy" onerror="this.src='https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80'">
           <span class="product-category-tag">${prod.category || 'عام'}</span>
+          ${prod.brand && prod.brand !== 'أخرى' ? `<span class="product-brand-tag">🏷️ ${escapeHtml(prod.brand)}</span>` : ''}
           <span class="product-stock-tag">المتوفر: ${prod.stock ?? 0}</span>
         </div>
 
@@ -2314,16 +2797,66 @@ function renderInventoryList() {
   // تحديث الشريط العائم لحفظ الجرد
   updateInventoryFloatingBar(modifiedCount);
 
-  // تصفية المنتجات
+  // تحديث شريط ملخص رأس مال وجرد الماركة المختارة
+  const brandBanner = document.getElementById('invBrandSummaryBanner');
+  if (brandBanner) {
+    if (state.inventoryBrand && state.inventoryBrand !== 'all') {
+      const brandProducts = state.products.filter(p => (p.brand || 'أخرى') === state.inventoryBrand);
+      let bUnits = 0;
+      let bCapital = 0;
+      let bZero = 0;
+
+      brandProducts.forEach(p => {
+        const s = state.inventoryPendingUpdates.has(p.id) ? state.inventoryPendingUpdates.get(p.id) : (p.stock || 0);
+        bUnits += s;
+        bCapital += s * (parseFloat(p.costPrice) || 0);
+        if (s === 0) bZero++;
+      });
+
+      const sample = brandProducts[0];
+      const displayTitle = sample && sample.brandAr && sample.brandAr !== sample.brand 
+        ? `${sample.brand} (${sample.brandAr})` 
+        : state.inventoryBrand;
+
+      brandBanner.style.display = 'flex';
+      brandBanner.innerHTML = `
+        <div class="brand-summary-title">
+          <span style="font-size: 1.5rem;">🏢</span>
+          <div>
+            <div>تقرير جرد ورأس مال: <strong style="color: #fef08a;">${escapeHtml(displayTitle)}</strong></div>
+            <div style="font-size: 0.8rem; font-weight: 500; opacity: 0.85;">متابعة تفصيلية وفورية للكميات والتكلفة</div>
+          </div>
+        </div>
+        <div class="brand-summary-stats">
+          <div class="brand-summary-stat-item">
+            <span class="brand-summary-stat-label">عدد الأصناف</span>
+            <span class="brand-summary-stat-val">${brandProducts.length} صنف</span>
+          </div>
+          <div class="brand-summary-stat-item">
+            <span class="brand-summary-stat-label">إجمالي القطع المتوفرة</span>
+            <span class="brand-summary-stat-val">${bUnits.toLocaleString('en-US')} قطعة</span>
+          </div>
+          <div class="brand-summary-stat-item">
+            <span class="brand-summary-stat-label">رأس المال المستثمر في الماركة</span>
+            <span class="brand-summary-stat-val capital">${bCapital.toLocaleString('en-US')} ${cur}</span>
+          </div>
+          <div class="brand-summary-stat-item">
+            <span class="brand-summary-stat-label">أصناف نافدة (0)</span>
+            <span class="brand-summary-stat-val" style="color: ${bZero > 0 ? '#f87171' : '#a7f3d0'};">${bZero}</span>
+          </div>
+        </div>
+      `;
+    } else {
+      brandBanner.style.display = 'none';
+    }
+  }
+
+  // تصفية المنتجات بالجرد
   let filtered = state.products.filter(p => {
-    // 1. فلتر البحث
-    if (state.inventorySearch) {
-      const q = state.inventorySearch;
-      const matchName = (p.name || '').toLowerCase().includes(q);
-      const matchCode = (p.code || '').toLowerCase().includes(q);
-      const matchCat = (p.category || '').toLowerCase().includes(q);
-      const matchMain = (p.mainCategory || '').toLowerCase().includes(q);
-      if (!matchName && !matchCode && !matchCat && !matchMain) return false;
+    // 1. فلتر الماركة بالجرد أولاً وبشكل حازم
+    if (state.inventoryBrand && state.inventoryBrand !== 'all') {
+      const pBrand = p.brand || 'أخرى';
+      if (pBrand !== state.inventoryBrand) return false;
     }
 
     // 2. فلتر القسم الرئيسي
@@ -2332,17 +2865,42 @@ function renderInventoryList() {
       if (pMain !== state.inventoryCategory) return false;
     }
 
-    // 3. الفلتر السريع
+    // 3. الفلتر السريع (معدلة، نفدت، قليلة)
     const currentStock = state.inventoryPendingUpdates.has(p.id)
       ? state.inventoryPendingUpdates.get(p.id)
       : (p.stock || 0);
 
     if (state.inventoryQuickFilter === 'modified') {
-      return state.inventoryPendingUpdates.has(p.id);
+      if (!state.inventoryPendingUpdates.has(p.id)) return false;
     } else if (state.inventoryQuickFilter === 'zero') {
-      return currentStock === 0;
+      if (currentStock > 0) return false;
     } else if (state.inventoryQuickFilter === 'low') {
-      return currentStock > 0 && currentStock <= 3;
+      if (currentStock === 0 || currentStock > 3) return false;
+    }
+
+    // 4. فلتر البحث النصي بالجرد (محصور داخل الماركة مع تطبيع كامل للغة العربية والمرادفات)
+    if (state.inventorySearch) {
+      const qNorm = normalizeArabic(state.inventorySearch);
+      const searchWords = qNorm.split(/\s+/).filter(w => w.length > 0);
+      if (searchWords.length > 0) {
+        const pNameNorm = normalizeArabic(p.name);
+        const pCodeNorm = normalizeArabic(p.code);
+        const pCatNorm = normalizeArabic(p.category);
+        const pMainNorm = normalizeArabic(p.mainCategory);
+        const pBrandNorm = normalizeArabic(p.brand);
+        const pBrandArNorm = normalizeArabic(p.brandAr);
+
+        const allWordsMatch = searchWords.every(word => {
+          return matchArabicTerm(pNameNorm, word) ||
+                 matchArabicTerm(pCodeNorm, word) ||
+                 matchArabicTerm(pCatNorm, word) ||
+                 matchArabicTerm(pMainNorm, word) ||
+                 matchArabicTerm(pBrandNorm, word) ||
+                 matchArabicTerm(pBrandArNorm, word);
+        });
+
+        if (!allWordsMatch) return false;
+      }
     }
 
     return true;
@@ -2352,8 +2910,8 @@ function renderInventoryList() {
     container.innerHTML = `
       <div class="empty-state" style="background: white; border-radius: var(--radius-lg); padding: 3rem; border: 1px dashed var(--border-color);">
         <div class="empty-state-icon">🔍</div>
-        <h3>لا توجد أصناف مطابقة للبحث أو الفلتر المحدد</h3>
-        <p>جرب تغيير كلمات البحث أو اختيار تصنيف آخر</p>
+        <h3>لا توجد أصناف مطابقة للبحث أو الماركة أو الفلتر المحدد</h3>
+        <p>جرب تغيير الماركة أو اختيار تصنيف آخر</p>
       </div>
     `;
     renderInventoryPagination(0, 1, state.inventoryPageSize);
@@ -2408,6 +2966,7 @@ function renderInventoryList() {
           <div class="inv-prod-badges">
             <span class="inv-prod-code">🏷️ ${escapeHtml(p.code || 'PRD')}</span>
             <span class="inv-prod-category">${escapeHtml(p.mainCategory || 'عام')} ${p.category && p.category !== p.mainCategory ? `> ${escapeHtml(p.category)}` : ''}</span>
+            <span class="inv-prod-brand">🏢 ${escapeHtml(p.brand || 'عام')}</span>
             ${isModified ? `<span class="inv-delta-badge ${delta >= 0 ? 'pos' : 'neg'}">${delta > 0 ? '+' + delta : delta}</span>` : ''}
           </div>
           <div class="inv-prod-name">${escapeHtml(p.name)}</div>

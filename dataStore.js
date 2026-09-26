@@ -245,6 +245,8 @@ const dataStore = {
         product = {
           ...products[index],
           ...productData,
+          brand: productData.brand || products[index].brand || 'أخرى',
+          brandAr: productData.brandAr || products[index].brandAr || 'أخرى / عام',
           costPrice: parseFloat(productData.costPrice) || 0,
           sellPrice: parseFloat(productData.sellPrice) || 0,
           stock: parseInt(productData.stock) || 0,
@@ -260,6 +262,8 @@ const dataStore = {
         id: "prod-" + Date.now(),
         code: productData.code || "PRD-" + Math.floor(100 + Math.random() * 900),
         name: productData.name,
+        brand: productData.brand || "أخرى",
+        brandAr: productData.brandAr || "أخرى / عام",
         mainCategory: productData.mainCategory || "أجهزة كهربائية كبيرة",
         category: productData.category || "عام",
         costPrice: parseFloat(productData.costPrice) || 0,
