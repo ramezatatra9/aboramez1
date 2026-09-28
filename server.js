@@ -54,6 +54,12 @@ const upload = multer({
   }
 });
 
+// إعداد Multer لتخزين ملفات الـ PDF المؤقتة في الذاكرة للإرسال المباشر لتيليجرام
+const pdfUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 } // 25MB
+});
+
 // Middlewares
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
@@ -153,21 +159,25 @@ app.get('/api/invoices/:id', (req, res) => {
   }
 });
 
-// إنشاء فاتورة جديدة
+// إنشاء فاتورة جديدة (مبيعات أو مشتريات)
 app.post('/api/invoices', async (req, res) => {
   try {
     const {
+      invoiceType, // 'sales' or 'purchase'
       employeeName,
       customerName,
       customerPhone,
+      customerId,
       notes,
       items,
       paymentMethod,
       installmentDetails
     } = req.body;
 
+    const isPurchase = invoiceType === 'purchase';
+
     if (!customerName || customerName.trim() === '') {
-      return res.status(400).json({ success: false, error: 'اسم الزبون مطلوب' });
+      return res.status(400).json({ success: false, error: isPurchase ? 'اسم المورد مطلوب' : 'اسم الزبون مطلوب' });
     }
 
     if (!employeeName || employeeName.trim() === '') {
@@ -186,11 +196,11 @@ app.post('/api/invoices', async (req, res) => {
     const validatedItems = items.map(item => {
       const quantity = Math.max(1, parseInt(item.quantity) || 1);
       const costPrice = parseFloat(item.costPrice) || 0;
-      const sellPrice = parseFloat(item.sellPrice) || 0;
-      const unitProfit = sellPrice - costPrice;
+      const sellPrice = isPurchase ? costPrice : (parseFloat(item.sellPrice) || 0);
+      const unitProfit = isPurchase ? 0 : (sellPrice - costPrice);
       const totalItemCost = costPrice * quantity;
-      const totalItemSell = sellPrice * quantity;
-      const totalItemProfit = unitProfit * quantity;
+      const totalItemSell = isPurchase ? totalItemCost : (sellPrice * quantity);
+      const totalItemProfit = isPurchase ? 0 : (unitProfit * quantity);
 
       totalQuantity += quantity;
       totalCost += totalItemCost;
@@ -210,12 +220,12 @@ app.post('/api/invoices', async (req, res) => {
       };
     });
 
-    const totalProfit = totalAmount - totalCost;
-    const profitMarginPercentage = totalAmount > 0 ? parseFloat(((totalProfit / totalAmount) * 100).toFixed(1)) : 0;
+    const totalProfit = isPurchase ? 0 : (totalAmount - totalCost);
+    const profitMarginPercentage = (!isPurchase && totalAmount > 0) ? parseFloat(((totalProfit / totalAmount) * 100).toFixed(1)) : 0;
 
-    // معالجة الأقساط
+    // معالجة الأقساط (لفواتير المبيعات)
     let validatedInstallments = null;
-    if (paymentMethod === 'installments') {
+    if (!isPurchase && paymentMethod === 'installments') {
       const downPayment = parseFloat(installmentDetails?.downPayment) || 0;
       const remainingAmount = Math.max(0, totalAmount - downPayment);
       validatedInstallments = {
@@ -228,9 +238,11 @@ app.post('/api/invoices', async (req, res) => {
 
     // حفظ الفاتورة
     const newInvoice = dataStore.createInvoice({
+      invoiceType: isPurchase ? 'purchase' : 'sales',
       employeeName,
       customerName,
       customerPhone,
+      customerId,
       notes,
       items: validatedItems,
       summary: {
@@ -240,12 +252,19 @@ app.post('/api/invoices', async (req, res) => {
         totalProfit,
         profitMarginPercentage
       },
-      paymentMethod: paymentMethod === 'installments' ? 'installments' : 'cash',
+      paymentMethod: (!isPurchase && paymentMethod === 'installments') ? 'installments' : 'cash',
       installmentDetails: validatedInstallments
     });
 
-    // خصم الكميات المباعة من المخزون وتحديث السجلات في Supabase تلقائياً
-    const updatedStockProducts = dataStore.deductStockForInvoice(validatedItems, employeeName);
+    // تحديث المخزون:
+    // إذا كانت فاتورة مشتريات -> زيادة المخزون
+    // إذا كانت فاتورة مبيعات -> خصم المخزون
+    let updatedStockProducts = [];
+    if (isPurchase) {
+      updatedStockProducts = dataStore.addStockForPurchaseInvoice(validatedItems, employeeName);
+    } else {
+      updatedStockProducts = dataStore.deductStockForInvoice(validatedItems, employeeName);
+    }
 
     // إرسال إشعار تيليجرام فوراً
     const settings = dataStore.getSettings();
@@ -253,7 +272,11 @@ app.post('/api/invoices', async (req, res) => {
 
     if (settings.telegramBotToken && settings.telegramChatId) {
       try {
-        telegramResult = await telegramService.sendInvoiceNotification(newInvoice, settings);
+        if (isPurchase) {
+          telegramResult = await telegramService.sendPurchaseInvoiceNotification(newInvoice, settings);
+        } else {
+          telegramResult = await telegramService.sendInvoiceNotification(newInvoice, settings);
+        }
         dataStore.updateInvoiceTelegramStatus(newInvoice.id, telegramResult.ok, telegramResult.error);
         newInvoice.telegramStatus = {
           sent: telegramResult.ok,
@@ -472,15 +495,30 @@ app.post('/api/inventory/update', async (req, res) => {
     }
     const result = dataStore.updateInventoryBulk(updates, editorName);
 
-    // إشعار تيليجرام باجراء الجرد
+    // إشعار تيليجرام باجراء الجرد مع تفاصيل التعديلات التي حصلت
     const settings = dataStore.getSettings();
     if (settings.telegramBotToken && settings.telegramChatId && result.changedCount > 0) {
+      let detailsText = '';
+      (result.modifiedDetails || []).slice(0, 25).forEach((item, idx) => {
+        const diffSign = item.diff > 0 ? `+${item.diff}` : `${item.diff}`;
+        detailsText += `▫️ *${idx + 1}. ${item.name}* ${item.code ? `(#${item.code})` : ''}\n` +
+          `   الكمية: كانت *(${item.oldStock})* ⬅️ أصبحت *(${item.newStock})* [الفرق: ${diffSign}]\n`;
+      });
+
+      if ((result.modifiedDetails || []).length > 25) {
+        detailsText += `\n... وباقي ${result.modifiedDetails.length - 25} صنفاً آخر تم تعديله.`;
+      }
+
       const msg =
         `📦 *تحديث جرد المخزون - ${settings.companyName || 'رامز عطاطرة'}*\n` +
         `━━━━━━━━━━━━━━━━━━━━\n` +
         `👨‍💼 القائم بالجرد: *${editorName || 'غير محدد'}*\n` +
         `🔢 عدد الأصناف المعدلة: *${result.changedCount} صنف*\n` +
-        `🕐 الوقت: ${formatServerDateTime(new Date())}`;
+        `🕐 الوقت: ${formatServerDateTime(new Date())}\n` +
+        `━━━━━━━━━━━━━━━━━━━━\n` +
+        `📝 *قائمة التعديلات التي تمت بالمخزن:*\n` +
+        detailsText;
+
       try {
         const telegramService = require('./telegramService');
         await telegramService.sendRawMessage(settings.telegramBotToken, settings.telegramChatId, msg);
@@ -489,6 +527,116 @@ app.post('/api/inventory/update', async (req, res) => {
 
     res.json({ success: true, ...result });
   } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// إرسال تقرير نتائج الجرد إلى تيليجرام
+app.post('/api/inventory/send-report-telegram', async (req, res) => {
+  try {
+    const { title, searchQuery, category, brand, summary, items } = req.body;
+    const settings = dataStore.getSettings();
+
+    if (!settings.telegramBotToken || !settings.telegramChatId) {
+      return res.status(400).json({ success: false, error: 'لم يتم ضبط إعدادات تيليجرام بعد' });
+    }
+
+    const cur = settings.currency || 'شيكل';
+    const reportTitle = title || 'تقرير جرد المخزون';
+
+    let filterDesc = 'كامل المخزون';
+    if (searchQuery) filterDesc = `نتائج البحث عن: "${searchQuery}"`;
+    else if (category && category !== 'all') filterDesc = `قسم: ${category}`;
+    else if (brand && brand !== 'all') filterDesc = `ماركة: ${brand}`;
+
+    let itemsText = '';
+    (items || []).slice(0, 30).forEach((item, idx) => {
+      const stock = parseInt(item.stock) || 0;
+      const cost = parseFloat(item.costPrice) || 0;
+      const totalCost = stock * cost;
+      const zeroTag = stock === 0 ? ' [⚠️ نافد]' : '';
+
+      itemsText += `▫️ *${idx + 1}. ${item.name}* ${item.code ? `(#${item.code})` : ''}${zeroTag}\n` +
+        `   الكمية: *${stock}* | التكلفة: ${cost.toLocaleString('en-US')} ${cur} (إجمالي: *${totalCost.toLocaleString('en-US')}*)\n`;
+    });
+
+    if ((items || []).length > 30) {
+      itemsText += `\n... وباقي ${items.length - 30} صنفاً آخر ضمن نتائج التقرير.`;
+    }
+
+    const msg =
+      `📊 *${reportTitle} - ${settings.companyName || 'رامز عطاطرة'}*\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `🔍 نطاق التقرير: *${filterDesc}*\n` +
+      `📦 عدد الأصناف: *${summary?.count || (items || []).length} صنف*\n` +
+      `🔢 إجمالي القطع: *${(summary?.totalUnits || 0).toLocaleString('en-US')} قطعة*\n` +
+      `💰 إجمالي رأس المال: *${(summary?.totalCapital || 0).toLocaleString('en-US')} ${cur}*\n` +
+      `⚠️ أصناف نافدة (0): *${summary?.zeroCount || 0} صنف*\n` +
+      `🕐 وقت التقرير: ${formatServerDateTime(new Date())}\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `📋 *جدول الأصناف والتكلفة:*\n` +
+      itemsText;
+
+    const telegramService = require('./telegramService');
+    const result = await telegramService.sendRawMessage(settings.telegramBotToken, settings.telegramChatId, msg);
+
+    if (result.ok) {
+      res.json({ success: true, message: 'تم إرسال التقرير لتيليجرام بنجاح' });
+    } else {
+      res.status(500).json({ success: false, error: result.error || 'تعذر إرسال التقرير لتيليجرام' });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// إرسال ملف PDF الفعلي لتقرير الجرد إلى تيليجرام
+app.post('/api/inventory/send-pdf-telegram', pdfUpload.single('pdfFile'), async (req, res) => {
+  try {
+    const settings = dataStore.getSettings();
+
+    if (!settings.telegramBotToken || !settings.telegramChatId) {
+      return res.status(400).json({ success: false, error: 'لم يتم ضبط إعدادات تيليجرام بعد' });
+    }
+
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ success: false, error: 'لم يتم استلام ملف الـ PDF' });
+    }
+
+    const { scope, totalUnits, totalCapital, zeroCount, itemCount, title } = req.body;
+    const cur = settings.currency || 'شيكل';
+    const reportTitle = title || 'تقرير جرد المخزون ورأس المال';
+
+    const caption = 
+`📄 <b>${reportTitle} (ملف PDF رسمي مرفق)</b>
+🏢 <b>${settings.companyName || 'رامز عطاطرة'}</b>
+━━━━━━━━━━━━━━━━━━
+🔍 <b>نطاق الجرد:</b> ${scope || 'نتائج البحث الحالية'}
+📦 <b>عدد الأصناف:</b> <b>${itemCount || 0} صنف</b>
+🔢 <b>إجمالي القطع:</b> <b>${Number(totalUnits || 0).toLocaleString('en-US')} قطعة</b>
+💰 <b>إجمالي رأس المال:</b> <b>${Number(totalCapital || 0).toLocaleString('en-US')} ${cur}</b>
+⚠️ <b>أصناف نافدة (0):</b> <b>${zeroCount || 0} صنف</b>
+🕐 <b>وقت إصدار التقرير:</b> ${formatServerDateTime(new Date())}
+━━━━━━━━━━━━━━━━━━
+<i>📎 تجدون أعلاه ملف الـ PDF الكامل لجرد المخزون، جاهز للمعاينة والتحميل والطباعة.</i>`;
+
+    const fileName = req.file.originalname || `تقرير_جرد_${Date.now()}.pdf`;
+    const result = await telegramService.sendDocument(
+      settings.telegramBotToken,
+      settings.telegramChatId,
+      req.file.buffer,
+      fileName,
+      caption,
+      'HTML'
+    );
+
+    if (result.ok) {
+      res.json({ success: true, message: 'تم إرسال ملف الـ PDF إلى تيليجرام بنجاح' });
+    } else {
+      res.status(500).json({ success: false, error: result.error || 'تعذر إرسال ملف الـ PDF لتيليجرام' });
+    }
+  } catch (err) {
+    console.error('Error sending PDF to telegram:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -510,7 +658,19 @@ app.get('/api/receipts', (req, res) => {
 // إنشاء سند قبض جديد
 app.post('/api/receipts', async (req, res) => {
   try {
-    const { employeeName, customerName, customerPhone, amount, description, notes, paymentMethod } = req.body;
+    const {
+      employeeName,
+      customerName,
+      customerPhone,
+      customerId,
+      customerSystemNumber,
+      previousBalance,
+      remainingBalance,
+      amount,
+      description,
+      notes,
+      paymentMethod
+    } = req.body;
 
     if (!employeeName || !employeeName.trim()) {
       return res.status(400).json({ success: false, error: 'اسم الموظف مطلوب' });
@@ -522,22 +682,42 @@ app.post('/api/receipts', async (req, res) => {
       return res.status(400).json({ success: false, error: 'المبلغ يجب أن يكون أكبر من صفر' });
     }
 
-    const receipt = dataStore.createReceipt({ employeeName, customerName, customerPhone, amount, description, notes, paymentMethod });
+    const receipt = dataStore.createReceipt({
+      employeeName,
+      customerName,
+      customerPhone,
+      customerId,
+      customerSystemNumber,
+      previousBalance,
+      remainingBalance,
+      amount,
+      description,
+      notes,
+      paymentMethod
+    });
 
     // إشعار تيليجرام للسند
     const settings = dataStore.getSettings();
     if (settings.telegramBotToken && settings.telegramChatId) {
       const cur = settings.currency || 'شيكل';
       const method = { cash: '💵 نقداً', transfer: '🏦 تحويل بنكي', check: '📝 شيك' }[receipt.paymentMethod] || '💵 نقداً';
+      let balanceInfo = '';
+      if (previousBalance !== undefined && previousBalance > 0) {
+        balanceInfo =
+          `💳 الرصيد السابق: *${parseFloat(previousBalance).toLocaleString('en-US')} ${cur}*\n` +
+          `📉 الرصيد المتبقي: *${parseFloat(remainingBalance || 0).toLocaleString('en-US')} ${cur}*\n`;
+      }
+
       const msg =
-        `💰 *سند قبض جديد - ${settings.companyName || 'رامز عطاطرة'}*\n` +
+        `💰 *سند قبض مالي جديد - ${settings.companyName || 'رامز عطاطرة'}*\n` +
         `━━━━━━━━━━━━━━━━━━━━\n` +
         `📄 رقم السند: *#${receipt.receiptNumber.toLocaleString('en-US')}*\n` +
-        `👤 الزبون: *${receipt.customerName}*${receipt.customerPhone ? ` (${receipt.customerPhone})` : ''}\n` +
-        `💲 المبلغ: *${receipt.amount.toLocaleString('en-US')} ${cur}*\n` +
+        `👤 الزبون: *${receipt.customerName}*${receipt.customerSystemNumber ? ` [رقم الحساب: #${receipt.customerSystemNumber}]` : ''}${receipt.customerPhone ? ` (${receipt.customerPhone})` : ''}\n` +
+        `💲 المبلغ المقبوض: *${receipt.amount.toLocaleString('en-US')} ${cur}*\n` +
         `💳 طريقة الدفع: ${method}\n` +
+        balanceInfo +
         `${receipt.description ? `📝 البيان: ${receipt.description}\n` : ''}` +
-        `👨‍💼 الموظف: ${receipt.employeeName}\n` +
+        `👨‍💼 الموظف المحرر: ${receipt.employeeName}\n` +
         `🕐 التاريخ: ${formatServerDateTime(receipt.createdAt)}`;
 
       try {
@@ -547,6 +727,58 @@ app.post('/api/receipts', async (req, res) => {
     }
 
     res.json({ success: true, receipt });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// -------------------------------------------------------------
+// APIs: دليل ديون وأرصدة الزبائن (Customers & Debts)
+// -------------------------------------------------------------
+
+// جلب جميع الزبائن والأرصدة
+app.get('/api/customers', (req, res) => {
+  try {
+    const customers = dataStore.getCustomers();
+    res.json({ success: true, customers });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// إضافة أو تعديل زبون
+app.post('/api/customers', (req, res) => {
+  try {
+    const { id, systemNumber, name, phone, balance, notes } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ success: false, error: 'اسم الزبون مطلوب' });
+    }
+    const saved = dataStore.saveCustomer({ id, systemNumber, name, phone, balance, notes });
+    res.json({ success: true, customer: saved });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// استيراد جماعي من CSV
+app.post('/api/customers/bulk', (req, res) => {
+  try {
+    const { customers } = req.body;
+    if (!Array.isArray(customers) || customers.length === 0) {
+      return res.status(400).json({ success: false, error: 'قائمة الزبائن فارغة' });
+    }
+    const result = dataStore.importCustomersBulk(customers);
+    res.json({ success: true, ...result });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// حذف زبون
+app.delete('/api/customers/:id', (req, res) => {
+  try {
+    const deleted = dataStore.deleteCustomer(req.params.id);
+    res.json({ success: true, deleted });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -600,7 +832,7 @@ app.post('/api/reset-sales', (req, res) => {
 });
 
 // تشغيل الخادم
-app.listen(PORT, async () => {
+app.listen(PORT, '0.0.0.0', async () => {
   console.log(`=======================================================`);
   console.log(`🚀 نظام المبيعات وإصدار الفواتير يعمل بنجاح على:`);
   console.log(`🔗 الرابط المحلي: http://localhost:${PORT}`);

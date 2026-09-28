@@ -7,6 +7,7 @@ const PRODUCTS_FILE = path.join(DATA_DIR, 'products.json');
 const INVOICES_FILE = path.join(DATA_DIR, 'invoices.json');
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
 const RECEIPTS_FILE = path.join(DATA_DIR, 'receipts.json');
+const CUSTOMERS_FILE = path.join(DATA_DIR, 'customers.json');
 
 // مزامنة خلفية غير معطلة مع Supabase (Non-blocking background sync)
 async function syncProductToSupabase(product) {
@@ -316,6 +317,37 @@ const dataStore = {
     return modifiedProducts;
   },
 
+  // زيادة كميات المخزون عند إنشاء فاتورة مشتريات / توريد
+  addStockForPurchaseInvoice(items, editorName) {
+    if (!Array.isArray(items) || items.length === 0) return [];
+    const products = this.getProducts();
+    const now = new Date().toISOString();
+    const modifiedProducts = [];
+
+    items.forEach(item => {
+      const prodId = item.productId || item.id;
+      const qty = Math.max(1, parseInt(item.quantity) || 1);
+      const index = products.findIndex(p => p.id === prodId);
+      if (index !== -1) {
+        const currentStock = parseInt(products[index].stock) || 0;
+        products[index].stock = currentStock + qty;
+        // تحديث سعر التكلفة إذا ورد بسعر جديد
+        if (item.costPrice && parseFloat(item.costPrice) > 0) {
+          products[index].costPrice = parseFloat(item.costPrice);
+        }
+        products[index].lastStockUpdate = now;
+        products[index].lastStockEditor = editorName ? `فاتورة مشتريات (${editorName.trim()})` : 'فاتورة مشتريات وتوريد';
+        modifiedProducts.push(products[index]);
+      }
+    });
+
+    if (modifiedProducts.length > 0) {
+      writeJson(PRODUCTS_FILE, products);
+      modifiedProducts.forEach(p => syncProductToSupabase(p));
+    }
+    return modifiedProducts;
+  },
+
   // الفواتير
   getInvoices() {
     return readJson(INVOICES_FILE, []);
@@ -333,10 +365,12 @@ const dataStore = {
     const invoice = {
       id: "INV-" + nextNumber,
       invoiceNumber: nextNumber,
+      invoiceType: invoiceData.invoiceType === 'purchase' ? 'purchase' : 'sales', // 'sales' or 'purchase'
       createdAt: new Date().toISOString(),
       employeeName: invoiceData.employeeName?.trim() || "غير محدد",
-      customerName: invoiceData.customerName?.trim() || "زبون نقدي",
+      customerName: invoiceData.customerName?.trim() || (invoiceData.invoiceType === 'purchase' ? "مورد بضاعة" : "زبون نقدي"),
       customerPhone: invoiceData.customerPhone?.trim() || "",
+      customerId: invoiceData.customerId || null,
       notes: invoiceData.notes || "",
       items: invoiceData.items || [],
       summary: invoiceData.summary || {
@@ -363,6 +397,33 @@ const dataStore = {
     invoices.unshift(invoice);
     writeJson(INVOICES_FILE, invoices);
     syncInvoiceToSupabase(invoice);
+
+    // إذا كانت فاتورة مبيعات وزبون: يتم ربطه إذا وجد أو إضافته كزبون جديد تلقائياً
+    if (invoice.invoiceType === 'sales' && invoice.customerName && invoice.customerName !== 'زبون نقدي') {
+      const customers = this.getCustomers();
+      const existing = customers.find(c => 
+        (invoice.customerId && c.id === invoice.customerId) ||
+        (c.name && c.name.trim().toLowerCase() === invoice.customerName.trim().toLowerCase())
+      );
+      const remainingToAdd = (invoice.paymentMethod === 'installments' && invoice.installmentDetails?.remainingAmount) ? invoice.installmentDetails.remainingAmount : 0;
+      if (existing) {
+        if (remainingToAdd > 0) {
+          this.adjustCustomerBalance(existing.id, remainingToAdd);
+        }
+        invoice.customerId = existing.id;
+        invoice.customerSystemNumber = existing.systemNumber;
+      } else {
+        const newCust = this.saveCustomer({
+          name: invoice.customerName,
+          phone: invoice.customerPhone || '',
+          balance: remainingToAdd,
+          notes: 'أضيف تلقائياً من فاتورة مبيعات #' + invoice.invoiceNumber
+        });
+        invoice.customerId = newCust.id;
+        invoice.customerSystemNumber = newCust.systemNumber;
+      }
+    }
+
     return invoice;
   },
 
@@ -388,16 +449,26 @@ const dataStore = {
     const now = new Date().toISOString();
     let changedCount = 0;
     const modifiedProducts = [];
+    const modifiedDetails = [];
 
     updates.forEach(({ id, stock }) => {
       const index = products.findIndex(p => p.id === id);
       if (index !== -1) {
         const newStock = parseInt(stock);
         if (!isNaN(newStock) && newStock !== products[index].stock) {
+          const oldStock = products[index].stock || 0;
           products[index].stock = Math.max(0, newStock);
           products[index].lastStockUpdate = now;
           products[index].lastStockEditor = editorName || 'غير محدد';
           modifiedProducts.push(products[index]);
+          modifiedDetails.push({
+            id: products[index].id,
+            code: products[index].code,
+            name: products[index].name,
+            oldStock,
+            newStock: products[index].stock,
+            diff: products[index].stock - oldStock
+          });
           changedCount++;
         }
       }
@@ -410,7 +481,7 @@ const dataStore = {
       modifiedProducts.forEach(p => syncProductToSupabase(p));
     }
 
-    return { changedCount };
+    return { changedCount, modifiedDetails };
   },
 
   // سندات القبض
@@ -431,6 +502,10 @@ const dataStore = {
       employeeName: (data.employeeName || '').trim(),
       customerName: (data.customerName || '').trim(),
       customerPhone: (data.customerPhone || '').trim(),
+      customerId: data.customerId || null,
+      customerSystemNumber: data.customerSystemNumber || '',
+      previousBalance: parseFloat(data.previousBalance) || 0,
+      remainingBalance: parseFloat(data.remainingBalance) || 0,
       amount: parseFloat(data.amount) || 0,
       description: (data.description || '').trim(),
       notes: (data.notes || '').trim(),
@@ -440,6 +515,31 @@ const dataStore = {
     receipts.unshift(receipt);
     writeJson(RECEIPTS_FILE, receipts);
     syncReceiptToSupabase(receipt);
+
+    // ربط الزبون وتحديث رصيده أو إضافته كزبون جديد تلقائياً
+    if (receipt.customerName && receipt.customerName !== 'زبون نقدي') {
+      const customers = this.getCustomers();
+      const existing = customers.find(c =>
+        (receipt.customerId && c.id === receipt.customerId) ||
+        (receipt.customerSystemNumber && c.systemNumber === receipt.customerSystemNumber) ||
+        (c.name && c.name.trim().toLowerCase() === receipt.customerName.trim().toLowerCase())
+      );
+      if (existing) {
+        this.adjustCustomerBalance(existing.id, -receipt.amount);
+        receipt.customerId = existing.id;
+        receipt.customerSystemNumber = existing.systemNumber;
+      } else {
+        const newCust = this.saveCustomer({
+          name: receipt.customerName,
+          phone: receipt.customerPhone || '',
+          balance: 0,
+          notes: 'أضيف تلقائياً عند إصدار سند قبض #' + receipt.receiptNumber
+        });
+        receipt.customerId = newCust.id;
+        receipt.customerSystemNumber = newCust.systemNumber;
+      }
+    }
+
     return receipt;
   },
 
@@ -449,6 +549,131 @@ const dataStore = {
     writeJson(RECEIPTS_FILE, filtered);
     deleteReceiptFromSupabase(id);
     return filtered.length !== receipts.length;
+  },
+
+  // -------------------------------------------------------------
+  // دليل وأرصدة ديون الزبائن (Customers & Outstanding Balances)
+  // -------------------------------------------------------------
+  getCustomers() {
+    return readJson(CUSTOMERS_FILE, []);
+  },
+
+  saveCustomer(custData) {
+    const customers = this.getCustomers();
+    let customer = null;
+
+    if (custData.id) {
+      const idx = customers.findIndex(c => c.id === custData.id);
+      if (idx !== -1) {
+        customer = {
+          ...customers[idx],
+          systemNumber: String(custData.systemNumber || customers[idx].systemNumber || '').trim(),
+          name: String(custData.name || customers[idx].name).trim(),
+          phone: String(custData.phone || customers[idx].phone || '').trim(),
+          balance: parseFloat(custData.balance !== undefined ? custData.balance : customers[idx].balance) || 0,
+          notes: String(custData.notes !== undefined ? custData.notes : (customers[idx].notes || '')).trim(),
+          updatedAt: new Date().toISOString()
+        };
+        customers[idx] = customer;
+      }
+    }
+
+    if (!customer) {
+      customer = {
+        id: custData.id || 'cust-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+        systemNumber: String(custData.systemNumber || '').trim(),
+        name: String(custData.name || '').trim(),
+        phone: String(custData.phone || '').trim(),
+        balance: parseFloat(custData.balance) || 0,
+        notes: String(custData.notes || '').trim(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      customers.push(customer);
+    }
+
+    writeJson(CUSTOMERS_FILE, customers);
+    return customer;
+  },
+
+  deleteCustomer(id) {
+    const customers = this.getCustomers();
+    const filtered = customers.filter(c => c.id !== id && c.systemNumber !== id);
+    writeJson(CUSTOMERS_FILE, filtered);
+    return filtered.length !== customers.length;
+  },
+
+  // تعديل رصيد زبون (مثلاً عند سداد سند قبض أو إضافة دين جديد)
+  adjustCustomerBalance(idOrSysNumOrName, deltaAmount) {
+    const customers = this.getCustomers();
+    const query = String(idOrSysNumOrName).trim().toLowerCase();
+    const idx = customers.findIndex(c =>
+      c.id === idOrSysNumOrName ||
+      (c.systemNumber && String(c.systemNumber).trim() === query) ||
+      (c.name && c.name.trim().toLowerCase() === query)
+    );
+
+    if (idx !== -1) {
+      const current = parseFloat(customers[idx].balance) || 0;
+      const updated = current + parseFloat(deltaAmount);
+      customers[idx].balance = parseFloat(updated.toFixed(2));
+      customers[idx].updatedAt = new Date().toISOString();
+      writeJson(CUSTOMERS_FILE, customers);
+      return customers[idx];
+    }
+    return null;
+  },
+
+  // استيراد جماعي للأرصدة من CSV أو مصفوفة
+  importCustomersBulk(importedList) {
+    if (!Array.isArray(importedList) || importedList.length === 0) return { imported: 0, updated: 0 };
+    const customers = this.getCustomers();
+    let imported = 0;
+    let updated = 0;
+    const now = new Date().toISOString();
+
+    importedList.forEach(item => {
+      const name = String(item.name || item['اسم الزبون'] || item['الاسم'] || item['اسم الحساب'] || '').trim();
+      if (!name) return;
+
+      const sysNum = String(item.systemNumber || item.accountNo || item['رقم الزبون'] || item['رقم الحساب'] || item['رقم النظام'] || item['الرقم'] || '').trim();
+      const rawBalance = item.balance !== undefined ? item.balance : (item['الرصيد'] || item['رصيد'] || item['الرصيد النهائي'] || item['المبلغ'] || 0);
+      const cleanBalanceStr = String(rawBalance).replace(/,/g, '').replace(/[\sشيكل$]/g, '').trim();
+      const balance = parseFloat(cleanBalanceStr) || 0;
+      const phone = String(item.phone || item['الهاتف'] || item['الجوال'] || item['رقم الهاتف'] || '').trim();
+      const notes = String(item.notes || item['ملاحظات'] || '').trim();
+
+      // البحث إن كان الزبون موجوداً مسبقاً بالرقم أو الاسم
+      const existingIdx = customers.findIndex(c =>
+        (sysNum && c.systemNumber && c.systemNumber === sysNum) ||
+        (c.name.toLowerCase() === name.toLowerCase())
+      );
+
+      if (existingIdx !== -1) {
+        customers[existingIdx].systemNumber = sysNum || customers[existingIdx].systemNumber;
+        customers[existingIdx].name = name;
+        customers[existingIdx].balance = balance;
+        if (phone) customers[existingIdx].phone = phone;
+        if (notes) customers[existingIdx].notes = notes;
+        customers[existingIdx].updatedAt = now;
+        updated++;
+      } else {
+        customers.push({
+          id: 'cust-' + Date.now() + '-' + Math.floor(Math.random() * 100000),
+          systemNumber: sysNum,
+          name,
+          phone,
+          balance,
+          notes,
+          createdAt: now,
+          updatedAt: now
+        });
+        imported++;
+      }
+    });
+
+    writeJson(CUSTOMERS_FILE, customers);
+    return { imported, updated, total: customers.length };
   },
 
   // الإعدادات
@@ -470,29 +695,35 @@ const dataStore = {
   // مزامنة أولية عند تشغيل السيرفر
   async initFromSupabase() {
     if (!supabase) return;
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Supabase sync timeout')), 4000));
     try {
       console.log('🔄 جاري فحص ومزامنة البيانات مع Supabase...');
-      // 1. الإعدادات
-      const { data: stRow } = await supabase.from('settings').select('data').eq('id', 'general').maybeSingle();
-      if (stRow && stRow.data) {
-        writeJson(SETTINGS_FILE, stRow.data);
-      }
+      await Promise.race([
+        (async () => {
+          // 1. الإعدادات
+          const { data: stRow } = await supabase.from('settings').select('data').eq('id', 'general').maybeSingle();
+          if (stRow && stRow.data) {
+            writeJson(SETTINGS_FILE, stRow.data);
+          }
 
-      // 2. الفواتير
-      const { data: invRows } = await supabase.from('invoices').select('*').order('invoiceNumber', { ascending: false });
-      if (invRows && invRows.length > 0) {
-        writeJson(INVOICES_FILE, invRows);
-      }
+          // 2. الفواتير
+          const { data: invRows } = await supabase.from('invoices').select('*').order('invoiceNumber', { ascending: false });
+          if (invRows && invRows.length > 0) {
+            writeJson(INVOICES_FILE, invRows);
+          }
 
-      // 3. سندات القبض
-      const { data: rcpRows } = await supabase.from('receipts').select('*').order('receiptNumber', { ascending: false });
-      if (rcpRows && rcpRows.length > 0) {
-        writeJson(RECEIPTS_FILE, rcpRows);
-      }
+          // 3. سندات القبض
+          const { data: rcpRows } = await supabase.from('receipts').select('*').order('receiptNumber', { ascending: false });
+          if (rcpRows && rcpRows.length > 0) {
+            writeJson(RECEIPTS_FILE, rcpRows);
+          }
 
-      // 4. عدد المنتجات
-      const { count } = await supabase.from('products').select('*', { count: 'exact', head: true });
-      console.log(`✅ تم الاتصال بـ Supabase بنجاح! عدد المنتجات في السحابة: ${count || 0}`);
+          // 4. عدد المنتجات
+          const { count } = await supabase.from('products').select('*', { count: 'exact', head: true });
+          console.log(`✅ تم الاتصال بـ Supabase بنجاح! عدد المنتجات في السحابة: ${count || 0}`);
+        })(),
+        timeout
+      ]);
     } catch (err) {
       console.warn('⚠️ تنبيه: تعذر استرداد بيانات Supabase عند البدء، يتم الاعتماد على البيانات المحلية:', err.message);
     }

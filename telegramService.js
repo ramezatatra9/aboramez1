@@ -160,6 +160,70 @@ ${invoice.notes ? `\n📝 <b>ملاحظات:</b> ${escapeHtml(invoice.notes)}\n`
   },
 
   /**
+   * تنسيق وإرسال فاتورة مشتريات وتوريد بضاعة إلى تيليجرام
+   */
+  async sendPurchaseInvoiceNotification(invoice, settings) {
+    const botToken = settings?.telegramBotToken?.trim();
+    const chatId = settings?.telegramChatId?.trim();
+    const currency = settings?.currency || 'شيكل';
+
+    if (!botToken || !chatId) {
+      return { ok: false, error: 'لم يتم ضبط إعدادات تيليجرام' };
+    }
+
+    const companyName = settings.companyName || 'رامز عطاطرة';
+    const invoiceDate = formatDateTime(invoice.createdAt);
+
+    let itemsText = '';
+    (invoice.items || []).forEach((item, idx) => {
+      const itemCost = item.costPrice || 0;
+      const itemTotalCost = itemCost * (item.quantity || 1);
+      itemsText += 
+`▫️ <b>${idx + 1}. ${escapeHtml(item.productName)}</b>
+   الكمية المشتراة: <b>${item.quantity}</b> | سعر الشراء (التكلفة): ${formatCurrency(itemCost, currency)}
+   إجمالي الشراء للصنف: <b>${formatCurrency(itemTotalCost, currency)}</b>
+`;
+    });
+
+    const totalCost = invoice.summary?.totalCost || invoice.summary?.totalAmount || 0;
+    const totalQty = invoice.summary?.totalQuantity || 0;
+
+    const message = 
+`📥 <b>فاتورة مشتريات وتوريد بضاعة جديدة #${invoice.invoiceNumber || invoice.id}</b>
+🏢 <b>${escapeHtml(companyName)}</b>
+━━━━━━━━━━━━━━━━━━
+👨‍💼 <b>الموظف المستلم:</b> ${escapeHtml(invoice.employeeName || 'غير محدد')}
+🚚 <b>المورد / المصدر:</b> ${escapeHtml(invoice.customerName || 'مورد بضاعة')}
+${invoice.customerPhone ? `📞 <b>هاتف المورد:</b> ${escapeHtml(invoice.customerPhone)}\n` : ''}📅 <b>التاريخ:</b> ${invoiceDate}
+━━━━━━━━━━━━━━━━━━
+📦 <b>الأصناف المشتراة المضافة للمخزون:</b>
+${itemsText}
+━━━━━━━━━━━━━━━━━━
+💰 <b>إجمالي قيمة المشتريات:</b> <b>${formatCurrency(totalCost, currency)}</b>
+🔢 <b>إجمالي عدد القطع الواردة للمخزن:</b> <b>${totalQty} قطعة</b>
+${invoice.notes ? `\n📝 <b>ملاحظات التوريد:</b> ${escapeHtml(invoice.notes)}\n` : ''}
+<i>تمت زيادة المخزون تلقائياً بالكميات المشتراة</i>`;
+
+    const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: message,
+          parse_mode: 'HTML'
+        })
+      });
+      const result = await response.json();
+      return { ok: result.ok, data: result };
+    } catch (err) {
+      console.error('Error sending purchase invoice notification:', err);
+      return { ok: false, error: err.message };
+    }
+  },
+
+  /**
    * إرسال رسالة نصية عامة إلى تيليجرام
    */
   async sendRawMessage(botToken, chatId, text, parseMode = 'Markdown') {
@@ -181,6 +245,46 @@ ${invoice.notes ? `\n📝 <b>ملاحظات:</b> ${escapeHtml(invoice.notes)}\n`
       return { ok: result.ok, data: result };
     } catch (err) {
       console.error('Error in sendRawMessage:', err);
+      return { ok: false, error: err.message };
+    }
+  },
+
+  /**
+   * إرسال ملف مستند (PDF أو غيره) إلى محادثة تيليجرام عبر sendDocument
+   */
+  async sendDocument(botToken, chatId, fileBuffer, fileName = 'report.pdf', caption = '', parseMode = 'HTML') {
+    if (!botToken || !chatId) {
+      return { ok: false, error: 'لم يتم ضبط إعدادات تيليجرام (Bot Token أو Chat ID)' };
+    }
+
+    const cleanToken = botToken.trim();
+    const cleanChatId = chatId.trim();
+    const url = `https://api.telegram.org/bot${cleanToken}/sendDocument`;
+
+    try {
+      const form = new FormData();
+      form.append('chat_id', cleanChatId);
+      if (caption) {
+        form.append('caption', caption);
+        form.append('parse_mode', parseMode);
+      }
+      const blob = new Blob([fileBuffer], { type: 'application/pdf' });
+      form.append('document', blob, fileName);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        body: form
+      });
+
+      const result = await response.json();
+      if (!result.ok) {
+        console.error('Telegram sendDocument failed:', result.description);
+        return { ok: false, error: result.description || 'فشل إرسال ملف الـ PDF لتيليجرام' };
+      }
+
+      return { ok: true, data: result };
+    } catch (err) {
+      console.error('Error in sendDocument:', err);
       return { ok: false, error: err.message };
     }
   }

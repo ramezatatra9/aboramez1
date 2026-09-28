@@ -3,7 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>رامز عطاطرة</title>
+  <title>رامز عطاطرة - نظام المبيعات والفواتير</title>
+  <meta name="description" content="نظام إدارة وعرض منتجات الشركة وإنشاء الفواتير وحساب الأرباح وسندات القبض والمخزون مع إشعارات تيليجرام الفورية">
+  <meta property="og:title" content="رامز عطاطرة - نظام المبيعات والفواتير">
+  <meta property="og:description" content="نظام إدارة وعرض منتجات الشركة وإنشاء الفواتير وحساب الأرباح وسندات القبض والمخزون مع إشعارات تيليجرام الفورية">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💼</text></svg>">
 </head>
@@ -50,6 +56,12 @@
         <button class="nav-tab-btn" data-tab="receipts" id="tabBtnReceipts">
           <span>💰</span>
           <span>سند قبض</span>
+        </button>
+
+        <button class="nav-tab-btn" data-tab="customers" id="tabBtnCustomers">
+          <span>👥</span>
+          <span>ديون وأرصدة الزبائن</span>
+          <span class="badge badge-warning" id="customerDebtsBadgeNav" style="display:none;">0</span>
         </button>
 
         <button class="nav-tab-btn" data-tab="inventory" id="tabBtnInventory">
@@ -105,80 +117,50 @@
         </div>
       </div>
 
-      <!-- Smart Visual Brand Hub (مركز الماركات الذكي والفاخر) -->
-      <div class="brand-hub-card" id="catalogBrandHub">
-        <!-- Top Bar: Title & Actions -->
-        <div class="brand-hub-topbar">
-          <div class="brand-hub-title-group">
-            <span class="brand-hub-main-icon">🏷️</span>
-            <div>
-              <div class="brand-hub-title-text">ماركات الأجهزة والتقنية</div>
-              <div class="brand-hub-subtitle">اختر ماركة لعرض منتجاتها والبحث الحصري بداخلها</div>
-            </div>
+      <!-- Compact Brands Visual Grid (شبكة ماركات ذكية وصغيرة الحجم لسهولة وسرعة الوصول) -->
+      <div class="brand-compact-hub" id="catalogBrandHub">
+        <div class="brand-compact-header">
+          <div class="brand-compact-title-wrap">
+            <span class="brand-compact-icon">🏷️</span>
+            <span class="brand-compact-title">ماركات الأجهزة والتقنية:</span>
+            <span class="brand-compact-count" id="catalogBrandsTotalCountBadge"></span>
           </div>
 
-          <!-- Quick Actions: Search, Quick Select Dropdown, View Toggle -->
-          <div class="brand-hub-actions">
-            <!-- Quick Brand Search Input -->
-            <div class="brand-search-pill">
-              <span class="search-icon">🔍</span>
-              <input type="text" id="catalogBrandSearchInput" placeholder="ابحث عن ماركة (سيمفير، راف، مانجر، LG)..." oninput="handleBrandSearchInput('catalog', this.value)">
-              <span id="catalogBrandSearchCount" class="brand-search-count-badge" style="display:none;"></span>
-              <button type="button" class="btn-clear-input" id="btnCatalogClearBrandSearch" style="display:none;" onclick="clearBrandSearchInput('catalog')" title="مسح البحث">✕</button>
+          <div class="brand-compact-actions">
+            <div class="brand-search-box-mini">
+              <span>🔍</span>
+              <input type="text" id="catalogBrandSearchInput" placeholder="بحث سريع عن ماركة..." oninput="handleBrandSearchInput('catalog', this.value)">
+              <button type="button" class="btn-clear-mini" id="btnCatalogClearBrandSearch" style="display:none;" onclick="clearBrandSearchInput('catalog')">✕</button>
             </div>
 
-            <!-- Quick Select Dropdown -->
-            <select id="catalogBrandSelectDropdown" class="brand-select-dropdown" onchange="selectBrandFilter('catalog', this.value)">
-              <option value="all">✨ كل الماركات (1,312 صنف)</option>
-            </select>
+            <button type="button" class="btn-all-brands-mini" id="btnCatalogAllBrands" onclick="selectBrandFilter('catalog', 'all')">
+              <span>✨</span>
+              <span>كل الماركات</span>
+            </button>
 
-            <!-- Toggle View Mode (شبكة كاملة أو شريط) -->
-            <button type="button" class="btn-toggle-brands-view" id="btnCatalogToggleBrandsView" onclick="toggleBrandsViewMode('catalog')">
-              <span id="catalogBrandsViewIcon">⊞</span>
-              <span id="catalogBrandsViewText">عرض كشبكة كاملة</span>
+            <button type="button" class="btn-toggle-brands" id="btnToggleCatalogBrands" onclick="toggleBrandsCollapse('catalog')" title="إخفاء أو إظهار شبكة الماركات لتوفير مساحة على الشاشة">
+              <span class="toggle-icon">🔼</span>
+              <span class="toggle-text">إخفاء الماركات</span>
             </button>
           </div>
         </div>
 
-        <!-- Quick Access: Popular Brands Row (الماركات الأكثر طلباً لتسهيل الوصول الفوري) -->
-        <div class="popular-brands-bar" id="catalogPopularBrandsBar">
-          <span class="popular-bar-label">⭐ الأكثر طلباً:</span>
-          <div class="popular-chips-wrap" id="catalogPopularBrandsChips">
-            <!-- يتم تعبئتها تلقائياً بواسطة JavaScript -->
-          </div>
+        <!-- شبكة الماركات الصغيرة الحجم لسهولة وسرعة النقر -->
+        <div class="brands-small-grid" id="catalogBrandsGrid">
+          <!-- يتم ملؤها ديناميكياً بواسطة JavaScript -->
         </div>
 
-        <!-- Alphabetical / Group Filter Tabs (تبويبات تصفية سريعة للماركات) -->
-        <div class="brand-tabs-strip" id="catalogBrandTabs">
-          <button type="button" class="brand-tab-btn active" data-tab="all" onclick="setBrandTabFilter('catalog', 'all', this)">🔤 جميع الماركات</button>
-          <button type="button" class="brand-tab-btn" data-tab="popular" onclick="setBrandTabFilter('catalog', 'popular', this)">⭐ الأكثر طلباً</button>
-          <button type="button" class="brand-tab-btn" data-tab="ar_1" onclick="setBrandTabFilter('catalog', 'ar_1', this)">أ - ج</button>
-          <button type="button" class="brand-tab-btn" data-tab="ar_2" onclick="setBrandTabFilter('catalog', 'ar_2', this)">ح - ض</button>
-          <button type="button" class="brand-tab-btn" data-tab="ar_3" onclick="setBrandTabFilter('catalog', 'ar_3', this)">ط - ي</button>
-          <button type="button" class="brand-tab-btn" data-tab="en" onclick="setBrandTabFilter('catalog', 'en', this)">A - Z</button>
-        </div>
-
-        <!-- Active Brand Lock Banner (يظهر عند تثبيت ماركة) -->
+        <!-- إشعار الماركة المختارة لإلغاء الفلتر بنقرة واحدة -->
         <div class="brand-active-lock-bar" id="catalogBrandActiveHint" style="display: none;">
           <div class="lock-brand-content">
-            <span class="lock-indicator">🔒 تصفية وبحث محصور داخل ماركة:</span>
+            <span class="lock-indicator">🔒 الماركة المختارة:</span>
             <strong id="catalogBrandActiveName" class="active-brand-glow"></strong>
             <span id="catalogBrandActiveCount" class="active-brand-badge"></span>
-            <span class="lock-sub-hint">💡 أي بحث في خانة البحث بالأعلى سيبحث داخل هذه الماركة حصراً</span>
           </div>
           <button type="button" class="btn-reset-brand-filter" onclick="selectBrandFilter('catalog', 'all')">
             <span>✕</span>
-            <span>إلغاء الفلتر وعرض الكل</span>
+            <span>عرض جميع الماركات</span>
           </button>
-        </div>
-
-        <!-- Brands Scroll / Grid Container -->
-        <div class="brands-display-area ribbon-mode" id="catalogBrandsDisplayArea">
-          <button type="button" class="ribbon-arrow-btn prev" onclick="scrollBrandsRibbon('catalog', -260)" title="السابق">›</button>
-          <div class="brands-cards-scroll" id="catalogBrandsRibbon">
-            <!-- كروت الماركات تُنشأ ديناميكياً بواسطة JavaScript -->
-          </div>
-          <button type="button" class="ribbon-arrow-btn next" onclick="scrollBrandsRibbon('catalog', 260)" title="التالي">‹</button>
         </div>
       </div>
 
@@ -226,14 +208,45 @@
         <!-- Left / Main Column: Invoice Items & Customer Data -->
         <div class="invoice-main-col">
           
+          <!-- Invoice Type Selector (نوع الفاتورة: مبيعات أم مشتريات) -->
+          <div class="card invoice-type-card" style="margin-bottom: 1rem; padding: 0.85rem 1rem;">
+            <div class="invoice-type-toggle-bar">
+              <button type="button" class="invoice-type-tab-btn active sales-mode-btn" id="btnTypeSales" onclick="setInvoiceType('sales')">
+                <div class="type-btn-icon">🛒</div>
+                <div class="type-btn-content">
+                  <div class="type-btn-title">فاتورة مبيعات (بيع للزبائن)</div>
+                  <div class="type-btn-sub">يخصم من المخزن • يحسب الأرباح • كاش أو أقساط</div>
+                </div>
+                <span class="type-active-indicator">الوضع النشط</span>
+              </button>
+
+              <button type="button" class="invoice-type-tab-btn purchase-mode-btn" id="btnTypePurchase" onclick="setInvoiceType('purchase')">
+                <div class="type-btn-icon">📥</div>
+                <div class="type-btn-content">
+                  <div class="type-btn-title">فاتورة مشتريات (توريد بضاعة)</div>
+                  <div class="type-btn-sub">يزيد رصيد المخزن • سعر التكلفة • شراء من مورد</div>
+                </div>
+                <span class="type-active-indicator">الوضع النشط</span>
+              </button>
+            </div>
+
+            <!-- Dynamic Invoice Mode Explanatory Banner -->
+            <div id="invoiceModeBanner" class="invoice-mode-banner sales">
+              <div class="mode-banner-icon">ℹ️</div>
+              <div class="mode-banner-text" id="invoiceModeBannerText">
+                <strong>وضع فاتورة المبيعات النشط:</strong> بيع الأصناف للزبائن بسعر البيع، مع خصم الكميات من المخزون وحساب صافي الربح بدقة.
+              </div>
+            </div>
+          </div>
+
           <!-- Basic Info Card -->
           <div class="card">
             <div class="card-header">
               <h2 class="card-title">
-                <span>👤</span>
-                <span>بيانات الفاتورة والموظف</span>
+                <span id="invPartyIcon">👤</span>
+                <span id="invPartyTitle">بيانات الفاتورة والزبون</span>
               </h2>
-              <span class="badge badge-primary">بدون تسجيل دخول - اكتب اسمك فقط</span>
+              <span class="badge badge-primary" id="invPartyBadge">بدون تسجيل دخول - اكتب اسمك فقط</span>
             </div>
 
             <div class="grid-3">
@@ -247,20 +260,32 @@
 
               <div class="form-group">
                 <label class="form-label" for="invCustomerName">
-                  <span class="req">*</span> اسم الزبون:
+                  <span class="req">*</span> <span id="invCustomerNameLabel">اسم الزبون:</span>
                 </label>
-                <input type="text" id="invCustomerName" class="form-control" placeholder="اسم المشتري / الزبون..." required>
+                <div style="position: relative;">
+                  <input type="text" id="invCustomerName" class="form-control" placeholder="اسم المشتري / الزبون..." required autocomplete="off" oninput="handleInvoiceCustomerInput(this.value)">
+                  <div id="invCustomerDropdown" class="customer-autocomplete-list" style="display: none;"></div>
+                </div>
               </div>
 
               <div class="form-group">
-                <label class="form-label" for="invCustomerPhone">رقم هاتف الزبون:</label>
+                <label class="form-label" for="invCustomerPhone"><span id="invCustomerPhoneLabel">رقم هاتف الزبون:</span></label>
                 <input type="tel" id="invCustomerPhone" class="form-control" placeholder="05XXXXXXXX">
               </div>
             </div>
 
+            <!-- Customer Debt Alert (يظهر عند اختيار زبون مسجل لديه رصيد) -->
+            <div id="invCustomerDebtAlert" class="customer-debt-banner" style="display: none; margin-bottom: 0.75rem;">
+              <div>
+                <span>💳</span>
+                <span id="invCustomerDebtText">رصيد الزبون الحالي (الدين المستحق): <strong>0 شيكل</strong></span>
+              </div>
+              <button type="button" class="btn btn-sm btn-outline-warning" onclick="switchTab('receipts')">إصدار سند قبض له</button>
+            </div>
+
             <div class="form-group" style="margin-bottom: 0;">
               <label class="form-label" for="invNotes">ملاحظات إضافية على الفاتورة (اختياري):</label>
-              <input type="text" id="invNotes" class="form-control" placeholder="أي تفاصيل خاصة بالتسليم أو الكفالة...">
+              <input type="text" id="invNotes" class="form-control" placeholder="أي تفاصيل خاصة بالتسليم أو الكفالة أو التوريد...">
             </div>
           </div>
 
@@ -269,12 +294,16 @@
             <div class="card-header">
               <h2 class="card-title">
                 <span>🛒</span>
-                <span>المنتجات المختارة بالفاتورة</span>
+                <span id="invItemsCardTitle">المنتجات المختارة بالفاتورة</span>
               </h2>
-              <div>
+              <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                <button type="button" class="btn btn-sm btn-success" onclick="openAddProductModalForInvoice()">
+                  <span>➕</span>
+                  <span>إضافة صنف جديد بكامل تفاصيله</span>
+                </button>
                 <button class="btn btn-sm btn-secondary" onclick="switchTab('catalog')">
                   <span>📦</span>
-                  <span>تصفح الكتالوج لإضافة منتجات</span>
+                  <span>تصفح الكتالوج</span>
                 </button>
               </div>
             </div>
@@ -316,14 +345,14 @@
             <!-- Table of selected items -->
             <div style="overflow-x: auto;">
               <table class="items-table" id="selectedItemsTable">
-                <thead>
+                <thead id="selectedItemsTableHead">
                   <tr>
                     <th>المنتج</th>
                     <th>رأس المال (التكلفة)</th>
-                    <th>سعر البيع</th>
+                    <th class="col-sell-price">سعر البيع</th>
                     <th>الكمية</th>
-                    <th>إجمالي البيع</th>
-                    <th>ربح الصنف</th>
+                    <th id="thTotalItem">إجمالي البيع</th>
+                    <th class="col-profit">ربح الصنف</th>
                     <th>إجراء</th>
                   </tr>
                 </thead>
@@ -413,27 +442,27 @@
             <div class="card-header" style="background: #f8fafc; margin: -1.5rem -1.5rem 1.25rem -1.5rem; padding: 1.25rem 1.5rem;">
               <h2 class="card-title" style="color: var(--primary-dark);">
                 <span>💰</span>
-                <span>الحساب المالي والأرباح</span>
+                <span id="sumCardTitle">الحساب المالي والأرباح</span>
               </h2>
             </div>
 
             <div class="summary-row">
-              <span class="text-muted">إجمالي عدد القطع:</span>
+              <span class="text-muted" id="sumLabelTotalQty">إجمالي عدد القطع:</span>
               <strong id="sumTotalQty">0 قطعة</strong>
             </div>
 
-            <div class="summary-row">
+            <div class="summary-row" id="rowSumCost">
               <span class="text-muted">إجمالي رأس المال (التكلفة):</span>
               <strong id="sumTotalCost" style="color: #475569;">0 شيكل</strong>
             </div>
 
-            <div class="summary-row highlight">
+            <div class="summary-row highlight" id="rowSumProfit">
               <span style="color: var(--success-dark);">صافي أرباح الفاتورة:</span>
               <strong id="sumTotalProfit" style="color: var(--success-dark);">+0 شيكل (0%)</strong>
             </div>
 
             <div class="summary-row total-final">
-              <span>المبلغ النهائي للفاتورة:</span>
+              <span id="sumLabelFinalAmount">المبلغ النهائي للفاتورة:</span>
               <span id="sumTotalAmount">0 شيكل</span>
             </div>
 
@@ -451,11 +480,11 @@
             <div style="margin-top: 1.5rem;">
               <button class="btn btn-success btn-lg btn-block" id="btnSubmitInvoice" onclick="submitInvoice()">
                 <span>🚀</span>
-                <span>إنشاء الفاتورة وإرسال لتيليجرام</span>
+                <span id="btnSubmitInvoiceText">إنشاء الفاتورة وإرسال لتيليجرام</span>
               </button>
 
-              <p style="font-size: 0.78rem; text-align: center; color: var(--text-muted); margin-top: 0.75rem;">
-                ✈️ سيتم إرسال كافة تفاصيل الفاتورة، المنتجات، الموظف، الأرباح، وطريقة الدفع إلى حساب تيليجرام فوراً.
+              <p style="font-size: 0.78rem; text-align: center; color: var(--text-muted); margin-top: 0.75rem;" id="btnSubmitInvoiceHint">
+                ✈️ سيتم إرسال كافة تفاصيل الفاتورة، المنتجات، الموظف، وتفاصيل الحساب إلى حساب تيليجرام فوراً.
               </p>
             </div>
           </div>
@@ -468,17 +497,42 @@
     <!-- TAB: سند قبض لزبون -->
     <!-- ======================================================= -->
     <section id="tab-receipts" class="tab-content">
+      <!-- Toolbar for Customer Debts & CSV Import -->
+      <div class="receipts-top-actions-bar">
+        <div class="receipts-actions-title">
+          <span>💰</span>
+          <span>إدارة المقبوضات وأرصدة ديون الزبائن</span>
+        </div>
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+          <button type="button" class="btn btn-sm btn-primary" onclick="openCustomerDebtsModal()">
+            <span>👥</span>
+            <span>سجل ديون وأرصدة الزبائن</span>
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-success" onclick="triggerCustomerCsvUpload()">
+            <span>📂</span>
+            <span>استيراد ملف أرصدة الزبائن (CSV)</span>
+          </button>
+          <input type="file" id="customerCsvFileInput" accept=".csv,.txt" style="display:none;" onchange="handleCustomerCsvUpload(this)">
+        </div>
+      </div>
+
       <div class="receipts-layout">
         <!-- Form Column -->
         <div class="card" style="border-top: 4px solid var(--success);">
           <div class="card-header">
             <h2 class="card-title">
               <span>💰</span>
-              <span>إصدار سند قبض جديد لزبون</span>
+              <span>إصدار سند قبض مالي جديد</span>
             </h2>
+            <span class="badge badge-success">خصم فوري من دين الزبون</span>
           </div>
 
           <form id="receiptForm" onsubmit="handleReceiptSubmit(event)">
+            <input type="hidden" id="rcpCustomerId" value="">
+            <input type="hidden" id="rcpCustomerSystemNumber" value="">
+            <input type="hidden" id="rcpPreviousBalance" value="0">
+            <input type="hidden" id="rcpRemainingBalance" value="0">
+
             <div class="grid-2">
               <div class="form-group">
                 <label class="form-label" for="rcpEmployeeName">
@@ -489,13 +543,36 @@
 
               <div class="form-group">
                 <label class="form-label" for="rcpCustomerName">
-                  <span class="req">*</span> اسم الزبون:
+                  <span class="req">*</span> اختيار أو كتابة اسم الزبون:
                 </label>
-                <input type="text" id="rcpCustomerName" class="form-control" placeholder="اسم الزبون المسدد..." required>
+                <div style="position: relative;">
+                  <input type="text" id="rcpCustomerName" class="form-control" placeholder="ابحث باسم الزبون أو رقمه بالنظام..." required autocomplete="off" oninput="handleReceiptCustomerInput(this.value)">
+                  <div id="rcpCustomerDropdown" class="customer-autocomplete-list" style="display: none;"></div>
+                </div>
               </div>
             </div>
 
-            <div class="grid-2">
+            <!-- Customer Debt Info Banner (يظهر عند اختيار زبون مسجل) -->
+            <div id="rcpCustomerDebtCard" class="customer-debt-card" style="display: none;">
+              <div class="cust-debt-header">
+                <div>
+                  <div class="cust-debt-name" id="rcpDebtCustName">--</div>
+                  <div class="cust-debt-num" id="rcpDebtCustNum">رقم الحساب: #--</div>
+                </div>
+                <div class="cust-debt-badge">
+                  <span class="label">الدين الحالي:</span>
+                  <span class="val" id="rcpDebtCurrentVal">0 شيكل</span>
+                </div>
+              </div>
+              <div class="cust-debt-actions">
+                <button type="button" class="btn btn-xs btn-warning" onclick="fillReceiptFullBalance()">
+                  <span>⚡ سداد كامل الدين</span>
+                </button>
+                <span class="cust-debt-remaining" id="rcpDebtRemainingHint">الرصيد بعد السند: <strong>0 شيكل</strong></span>
+              </div>
+            </div>
+
+            <div class="grid-2" style="margin-top: 0.5rem;">
               <div class="form-group">
                 <label class="form-label" for="rcpCustomerPhone">رقم هاتف الزبون:</label>
                 <input type="text" id="rcpCustomerPhone" class="form-control" placeholder="مثال: 059xxxxxxx">
@@ -530,7 +607,7 @@
 
               <div class="form-group">
                 <label class="form-label" for="rcpDescription">البيان / مقابل:</label>
-                <input type="text" id="rcpDescription" class="form-control" placeholder="مثال: دفعة تحت الحساب، تسديد قسط شهر 9...">
+                <input type="text" id="rcpDescription" class="form-control" placeholder="مثال: تسديد دفعة من الحساب، قسط شهري...">
               </div>
             </div>
 
@@ -542,7 +619,7 @@
             <div style="display: flex; gap: 0.75rem; margin-top: 1.25rem;">
               <button type="submit" class="btn btn-success btn-lg" style="flex: 2;" id="btnSubmitReceipt">
                 <span>💾</span>
-                <span>حفظ وإصدار السند</span>
+                <span>حفظ وإصدار سند القبض</span>
               </button>
               <button type="button" class="btn btn-secondary" style="flex: 1;" onclick="resetReceiptForm()">
                 <span>🔄</span>
@@ -607,6 +684,120 @@
     </section>
 
     <!-- ======================================================= -->
+    <!-- TAB: ديون وأرصدة الزبائن (قسم منفصل ومتكامل) -->
+    <!-- ======================================================= -->
+    <section id="tab-customers" class="tab-content">
+      <div class="customers-section-container">
+        
+        <!-- KPIs Row: إحصائيات الديون والأرصدة -->
+        <div class="customers-kpi-grid">
+          <div class="card cust-kpi-card danger">
+            <div class="kpi-icon-wrap">💳</div>
+            <div>
+              <div class="kpi-label">إجمالي ديون الزبائن المستحقة</div>
+              <div class="kpi-value" id="custTabTotalDebts">0 شيكل</div>
+              <div class="kpi-sub">مجموع الأرصدة المدينة المطلوبة من الزبائن</div>
+            </div>
+          </div>
+
+          <div class="card cust-kpi-card primary">
+            <div class="kpi-icon-wrap">👥</div>
+            <div>
+              <div class="kpi-label">إجمالي الزبائن المسجلين</div>
+              <div class="kpi-value" id="custTabTotalCount">0 زبون</div>
+              <div class="kpi-sub">جميع الزبائن في قاعدة بيانات النظام</div>
+            </div>
+          </div>
+
+          <div class="card cust-kpi-card warning">
+            <div class="kpi-icon-wrap">⚠️</div>
+            <div>
+              <div class="kpi-label">زبائن عليهم ديون مستحقة</div>
+              <div class="kpi-value" id="custTabIndebtedCount">0 زبون</div>
+              <div class="kpi-sub">زبائن رصيدهم أكبر من 0 شيكل</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Toolbar: Search, Filters & Action Buttons -->
+        <div class="card" style="margin-bottom: 1rem; padding: 1rem 1.25rem;">
+          <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: space-between; align-items: center;">
+            
+            <!-- Live Search -->
+            <div class="search-box" style="flex: 1; min-width: 280px;">
+              <span>🔍</span>
+              <input type="text" id="custTabSearchInput" placeholder="ابحث باسم الزبون، رقمه بالنظام، أو رقم الهاتف..." oninput="handleCustomerTabSearch(this.value)">
+              <button type="button" class="btn-clear-input" id="btnCustClearSearch" style="display:none;" onclick="clearCustomerTabSearch()">✕</button>
+            </div>
+
+            <!-- Quick Filter Chips -->
+            <div class="category-chips" style="margin-bottom: 0;">
+              <button class="chip active" id="custFilterAll" onclick="setCustomerDebtFilter('all', this)">الكل</button>
+              <button class="chip" id="custFilterWithDebt" onclick="setCustomerDebtFilter('with_debt', this)">عليهم ديون (> 0)</button>
+              <button class="chip" id="custFilterSettled" onclick="setCustomerDebtFilter('settled', this)">مسددين وخالصين (0)</button>
+            </div>
+
+            <!-- Actions: Add Customer, Import CSV, Print -->
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+              <button type="button" class="btn btn-primary" onclick="openAddCustomerModal()">
+                <span>➕</span>
+                <span>إضافة زبون جديد</span>
+              </button>
+
+              <button type="button" class="btn btn-outline-success" onclick="triggerCustomerCsvUpload()">
+                <span>📂</span>
+                <span>استيراد ملف أرصدة الزبائن (CSV)</span>
+              </button>
+              <input type="file" id="customerCsvFileInput" accept=".csv,.txt" style="display:none;" onchange="handleCustomerCsvUpload(this)">
+
+              <button type="button" class="btn btn-secondary" onclick="printCustomerDebtsReport()">
+                <span>🖨️</span>
+                <span>طباعة كشف الديون</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Table of Customers & Balances -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">
+              <span>📋</span>
+              <span>سجل وأرصدة ديون الزبائن</span>
+            </h2>
+            <span class="badge badge-primary" id="custTableCountBadge">0 زبون</span>
+          </div>
+
+          <div style="overflow-x: auto;">
+            <table class="items-table" id="customersMainTable">
+              <thead>
+                <tr>
+                  <th style="width: 110px;">رقم النظام</th>
+                  <th>اسم الزبون</th>
+                  <th>الهاتف</th>
+                  <th style="min-width: 150px;">الرصيد الحالي (الدين)</th>
+                  <th>ملاحظات وتفاصيل الحساب</th>
+                  <th style="width: 220px; text-align: center;">إجراءات سريعة</th>
+                </tr>
+              </thead>
+              <tbody id="customersMainTableBody">
+                <!-- ديناميكي بواسطة JavaScript -->
+              </tbody>
+            </table>
+          </div>
+
+          <div id="emptyCustomersMessage" class="empty-state" style="display: none;">
+            <div class="empty-state-icon">👥</div>
+            <h3>لا يوجد زبائن مطابقين للبحث أو الفلتر</h3>
+            <p>يمكنك إضافة زبون جديد أو استيراد ملف الأرصدة CSV</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ======================================================= -->
     <!-- TAB: الجرد والمخزون -->
     <!-- ======================================================= -->
     <section id="tab-inventory" class="tab-content">
@@ -663,54 +854,60 @@
             </div>
           </div>
 
-          <!-- Smart Visual Brand Hub for Inventory (مركز الماركات للجرد والتدقيق المالي) -->
-          <div class="brand-hub-card inv-brand-hub" id="inventoryBrandHub" style="margin-top: 0.75rem; border-top: 1px dashed var(--border-color); padding-top: 0.75rem;">
-            <!-- Top Bar -->
-            <div class="brand-hub-topbar">
-              <div class="brand-hub-title-group">
-                <span class="brand-hub-main-icon">🏢</span>
-                <div>
-                  <div class="brand-hub-title-text">جرد وتدقيق مالي حسب الماركة</div>
-                  <div class="brand-hub-subtitle">اختر الماركة لعرض أرصدتها ورأس مالها وحصر عجزها</div>
-                </div>
+          <!-- Inventory Action Toolbar (تقرير PDF، إرسال تيليجرام، حفظ التعديلات) -->
+          <div class="inventory-actions-row" style="display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center; justify-content: space-between; padding-top: 0.5rem; border-top: 1px solid var(--border-color);">
+            <div style="display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center;">
+              <button type="button" class="btn btn-sm btn-primary" onclick="openInventoryReportModal()">
+                <span>📄</span>
+                <span>تصدير / معاينة تقرير PDF (حسب الفلتر والبحث)</span>
+              </button>
+
+              <button type="button" class="btn btn-sm btn-telegram" id="btnDirectSendPdfTelegram" onclick="generateAndSendInventoryPdfToTelegram()">
+                <span>✈️</span>
+                <span>إرسال ملف الـ PDF إلى تيليجرام</span>
+              </button>
+            </div>
+
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+              <button type="button" class="btn btn-sm btn-success btn-toolbar-save" id="btnToolbarSaveInventory" onclick="saveInventoryBulkChanges()">
+                <span>💾</span>
+                <span id="btnToolbarSaveText">حفظ تعديلات الجرد</span>
+                <span class="badge" id="btnToolbarSaveBadge" style="display:none; background: #fff; color: #047857; margin-right: 0.35rem;">0</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Compact Brands Visual Grid for Inventory (شبكة ماركات ذكية وصغيرة الحجم لسهولة وسرعة الوصول) -->
+          <div class="brand-compact-hub" id="inventoryBrandHub" style="margin-top: 0.75rem;">
+            <div class="brand-compact-header">
+              <div class="brand-compact-title-wrap">
+                <span class="brand-compact-icon">🏢</span>
+                <span class="brand-compact-title">ماركات الجرد والمخزن:</span>
+                <span class="brand-compact-count" id="inventoryBrandsTotalCountBadge"></span>
               </div>
 
-              <!-- Quick Actions -->
-              <div class="brand-hub-actions">
-                <div class="brand-search-pill">
-                  <span class="search-icon">🔍</span>
-                  <input type="text" id="inventoryBrandSearchInput" placeholder="ابحث عن ماركة (سيمفير، راف، مانجر، LG)..." oninput="handleBrandSearchInput('inventory', this.value)">
-                  <span id="inventoryBrandSearchCount" class="brand-search-count-badge" style="display:none;"></span>
-                  <button type="button" class="btn-clear-input" id="btnInventoryClearBrandSearch" style="display:none;" onclick="clearBrandSearchInput('inventory')" title="مسح البحث">✕</button>
+              <div class="brand-compact-actions">
+                <div class="brand-search-box-mini">
+                  <span>🔍</span>
+                  <input type="text" id="inventoryBrandSearchInput" placeholder="بحث سريع عن ماركة..." oninput="handleBrandSearchInput('inventory', this.value)">
+                  <button type="button" class="btn-clear-mini" id="btnInventoryClearBrandSearch" style="display:none;" onclick="clearBrandSearchInput('inventory')">✕</button>
                 </div>
 
-                <select id="inventoryBrandSelectDropdown" class="brand-select-dropdown" onchange="selectBrandFilter('inventory', this.value)">
-                  <option value="all">✨ كل الماركات (1,312 صنف)</option>
-                </select>
+                <button type="button" class="btn-all-brands-mini" id="btnInventoryAllBrands" onclick="selectBrandFilter('inventory', 'all')">
+                  <span>✨</span>
+                  <span>كل الماركات</span>
+                </button>
 
-                <button type="button" class="btn-toggle-brands-view" id="btnInventoryToggleBrandsView" onclick="toggleBrandsViewMode('inventory')">
-                  <span id="inventoryBrandsViewIcon">⊞</span>
-                  <span id="inventoryBrandsViewText">عرض كشبكة كاملة</span>
+                <button type="button" class="btn-toggle-brands" id="btnToggleInventoryBrands" onclick="toggleBrandsCollapse('inventory')" title="إخفاء أو إظهار شبكة الماركات لتوفير مساحة على الشاشة">
+                  <span class="toggle-icon">🔼</span>
+                  <span class="toggle-text">إخفاء الماركات</span>
                 </button>
               </div>
             </div>
 
-            <!-- Quick Access: Popular Brands Row -->
-            <div class="popular-brands-bar" id="inventoryPopularBrandsBar">
-              <span class="popular-bar-label">⭐ الأكثر طلباً:</span>
-              <div class="popular-chips-wrap" id="inventoryPopularBrandsChips">
-                <!-- يتم تعبئتها تلقائياً بواسطة JavaScript -->
-              </div>
-            </div>
-
-            <!-- Brand Filter Tabs Strip -->
-            <div class="brand-tabs-strip" id="inventoryBrandTabs">
-              <button type="button" class="brand-tab-btn active" data-tab="all" onclick="setBrandTabFilter('inventory', 'all', this)">🔤 جميع الماركات</button>
-              <button type="button" class="brand-tab-btn" data-tab="popular" onclick="setBrandTabFilter('inventory', 'popular', this)">⭐ الأكثر طلباً</button>
-              <button type="button" class="brand-tab-btn" data-tab="ar_1" onclick="setBrandTabFilter('inventory', 'ar_1', this)">أ - ج</button>
-              <button type="button" class="brand-tab-btn" data-tab="ar_2" onclick="setBrandTabFilter('inventory', 'ar_2', this)">ح - ض</button>
-              <button type="button" class="brand-tab-btn" data-tab="ar_3" onclick="setBrandTabFilter('inventory', 'ar_3', this)">ط - ي</button>
-              <button type="button" class="brand-tab-btn" data-tab="en" onclick="setBrandTabFilter('inventory', 'en', this)">A - Z</button>
+            <!-- شبكة الماركات الصغيرة بالجرد -->
+            <div class="brands-small-grid" id="inventoryBrandsGrid">
+              <!-- ديناميكي -->
             </div>
 
             <!-- Active Brand Lock Banner for Inventory -->
@@ -719,21 +916,11 @@
                 <span class="lock-indicator">🔒 جرد وبحث محصور داخل ماركة:</span>
                 <strong id="invBrandActiveName" class="active-brand-glow"></strong>
                 <span id="invBrandActiveCount" class="active-brand-badge"></span>
-                <span class="lock-sub-hint">💡 خانة البحث بالجرد الآن تبحث داخل منتجات هذه الماركة حصراً</span>
               </div>
               <button type="button" class="btn-reset-brand-filter" onclick="selectBrandFilter('inventory', 'all')">
                 <span>✕</span>
-                <span>إلغاء الفلتر وعرض الكل</span>
+                <span>عرض جميع الماركات</span>
               </button>
-            </div>
-
-            <!-- Brands Scroll / Grid Container -->
-            <div class="brands-display-area ribbon-mode" id="inventoryBrandsDisplayArea">
-              <button type="button" class="ribbon-arrow-btn prev" onclick="scrollBrandsRibbon('inventory', -260)" title="السابق">›</button>
-              <div class="brands-cards-scroll" id="inventoryBrandsRibbon">
-                <!-- يتم التوليد ديناميكياً بواسطة JavaScript -->
-              </div>
-              <button type="button" class="ribbon-arrow-btn next" onclick="scrollBrandsRibbon('inventory', 260)" title="التالي">‹</button>
             </div>
           </div>
         </div>
@@ -1336,31 +1523,154 @@
     </div>
   </div>
 
-  <!-- Floating Save Bar for Inventory Audit -->
-  <div class="inventory-floating-bar" id="inventoryFloatingBar" style="display: none;">
-    <div class="audit-info-col">
-      <div class="audit-icon-pulse">📋</div>
-      <div>
-        <div class="audit-title">جلسة جرد المخزون الفعلي</div>
-        <div class="audit-subtitle" id="inventoryModifiedCountText">لم يتم تعديل أي صنف بعد</div>
+  <!-- Floating Save Pill for Inventory (أنيق ومصغر وخفيف وسهل بدون حجب الشاشة) -->
+  <div class="inventory-floating-pill" id="inventoryFloatingPill" style="display: none;">
+    <div class="pill-info">
+      <span class="pill-pulse-dot"></span>
+      <span id="inventoryFloatingPillCount">0 أصناف معدلة</span>
+    </div>
+    <button type="button" class="btn-pill-save" id="btnFloatingPillSave" onclick="saveInventoryBulkChanges()">
+      <span>💾</span>
+      <span>حفظ التعديلات</span>
+    </button>
+    <button type="button" class="btn-pill-undo" onclick="resetInventoryChanges()" title="تراجع عن التعديلات">
+      <span>↩️</span>
+    </button>
+  </div>
+
+  <!-- ======================================================= -->
+  <!-- MODAL: تقرير جرد المخزون والطباعة / PDF -->
+  <!-- ======================================================= -->
+  <div class="modal-backdrop" id="inventoryReportModal">
+    <div class="modal-card" style="max-width: 950px;">
+      <div class="modal-header no-print">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <h3 style="font-weight: 700;" id="invReportModalTitle">📄 تقرير جرد المخزون ورأس المال</h3>
+          <span class="badge badge-primary" id="invReportFilterScopeBadge">نتائج البحث</span>
+        </div>
+        <button class="close-btn" onclick="closeInventoryReportModal()">✕</button>
+      </div>
+
+      <div class="modal-body" style="padding: 0;">
+        <div id="printableInventoryReportArea" class="printable-inventory-report">
+          <!-- ديناميكي -->
+        </div>
+      </div>
+
+      <div class="modal-footer no-print">
+        <button class="btn btn-telegram" id="btnModalSendPdfTelegram" onclick="generateAndSendInventoryPdfToTelegram()">
+          <span>✈️</span>
+          <span>إرسال ملف الـ PDF إلى تيليجرام</span>
+        </button>
+        <button class="btn btn-outline-primary" onclick="downloadInventoryPdfDirectly()">
+          <span>📥</span>
+          <span>تحميل ملف PDF</span>
+        </button>
+        <button class="btn btn-secondary" onclick="closeInventoryReportModal()">إغلاق</button>
+        <button class="btn btn-primary" onclick="printInventoryReport()">
+          <span>🖨️</span>
+          <span>طباعة عادية</span>
+        </button>
       </div>
     </div>
+  </div>
 
-    <div class="audit-emp-col">
-      <label for="invAuditEmployeeName">اسم الموظف القائم بالجرد:</label>
-      <input type="text" id="invAuditEmployeeName" class="audit-input" placeholder="اسمك (مثال: رامز)...">
+  <!-- ======================================================= -->
+  <!-- MODAL: سجل ديون وأرصدة الزبائن -->
+  <!-- ======================================================= -->
+  <div class="modal-backdrop" id="customerDebtsModal">
+    <div class="modal-card" style="max-width: 920px;">
+      <div class="modal-header no-print">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <h3 style="font-weight: 700;">👥 سجل وأرصدة ديون الزبائن</h3>
+          <span class="badge badge-warning" id="custTotalDebtsBadge">إجمالي الديون: 0 شيكل</span>
+        </div>
+        <button class="close-btn" onclick="closeCustomerDebtsModal()">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <div class="search-box" style="flex: 1; min-width: 250px;">
+            <span>🔍</span>
+            <input type="text" id="custDebtSearchInput" placeholder="بحث بالاسم أو رقم الزبون بالنظام..." oninput="handleCustomerDebtsSearch(this.value)">
+          </div>
+
+          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <button type="button" class="btn btn-success btn-sm" onclick="openAddCustomerModal()">
+              <span>➕</span>
+              <span>إضافة زبون جديد</span>
+            </button>
+            <button type="button" class="btn btn-outline-primary btn-sm" onclick="triggerCustomerCsvUpload()">
+              <span>📂</span>
+              <span>استيراد ملف CSV</span>
+            </button>
+          </div>
+        </div>
+
+        <div style="overflow-x: auto; max-height: 480px;">
+          <table class="items-table" id="customerDebtsTable">
+            <thead>
+              <tr>
+                <th>رقم النظام</th>
+                <th>اسم الزبون</th>
+                <th>الهاتف</th>
+                <th>الرصيد (الدين المستحق)</th>
+                <th>ملاحظات</th>
+                <th>إجراءات</th>
+              </tr>
+            </thead>
+            <tbody id="customerDebtsTableBody">
+              <!-- ديناميكي -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="modal-footer no-print">
+        <button class="btn btn-secondary" onclick="closeCustomerDebtsModal()">إغلاق</button>
+      </div>
     </div>
+  </div>
 
-    <div class="audit-actions-col">
-      <button class="btn btn-success btn-floating-save" id="btnSaveInventory" onclick="saveInventoryBulkChanges()">
-        <span>💾</span>
-        <span>حفظ التعديلات في المخزن</span>
-      </button>
-
-      <button class="btn btn-secondary-dark" onclick="resetInventoryChanges()" title="إلغاء التعديلات غير المحفوظة">
-        <span>↩️</span>
-        <span>تراجع</span>
-      </button>
+  <!-- MODAL: إضافة أو تعديل زبون -->
+  <div class="modal-backdrop" id="customerEditModal">
+    <div class="modal-card" style="max-width: 500px;">
+      <div class="modal-header">
+        <h3 id="custEditModalTitle">إضافة زبون جديد</h3>
+        <button class="close-btn" onclick="closeCustomerEditModal()">✕</button>
+      </div>
+      <form id="customerEditForm" onsubmit="handleCustomerSaveSubmit(event)">
+        <input type="hidden" id="custEditId">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" for="custEditSysNum">رقم الزبون بالنظام:</label>
+            <input type="text" id="custEditSysNum" class="form-control" placeholder="مثال: 1045">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="custEditName"><span class="req">*</span> اسم الزبون:</label>
+            <input type="text" id="custEditName" class="form-control" placeholder="اسم الزبون الكامل..." required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="custEditPhone">رقم الهاتف:</label>
+            <input type="tel" id="custEditPhone" class="form-control" placeholder="05XXXXXXXX">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="custEditBalance"><span class="req">*</span> الرصيد الحالي (الدين):</label>
+            <div style="position: relative;">
+              <input type="number" id="custEditBalance" class="form-control" step="any" placeholder="0.00" required>
+              <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-weight: 700;">شيكل</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="custEditNotes">ملاحظات:</label>
+            <input type="text" id="custEditNotes" class="form-control" placeholder="أي تفاصيل تخص الحساب...">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeCustomerEditModal()">إلغاء</button>
+          <button type="submit" class="btn btn-primary">حفظ الزبون</button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -1423,6 +1733,7 @@
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- JavaScript -->
+  <script src="js/html2pdf.bundle.min.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
