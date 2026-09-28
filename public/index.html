@@ -150,6 +150,15 @@
           <!-- يتم ملؤها ديناميكياً بواسطة JavaScript -->
         </div>
 
+        <!-- إشعار عند طي الماركات -->
+        <div class="brand-compact-collapsed-notice" id="catalogBrandsCollapsedNotice" style="display:none;" onclick="toggleBrandsCollapse('catalog')">
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span>🏷️</span>
+            <span><strong>تم إخفاء قائمة الماركات لتوفير مساحة العرض</strong> (انقر هنا أو على الزر أعلاه لإظهارها مجدداً)</span>
+          </div>
+          <button type="button" class="btn btn-xs btn-primary">إظهار شبكة الماركات 🔽</button>
+        </div>
+
         <!-- إشعار الماركة المختارة لإلغاء الفلتر بنقرة واحدة -->
         <div class="brand-active-lock-bar" id="catalogBrandActiveHint" style="display: none;">
           <div class="lock-brand-content">
@@ -583,8 +592,17 @@
                   <span class="req">*</span> المبلغ المقبوض:
                 </label>
                 <div style="position: relative;">
-                  <input type="number" id="rcpAmount" class="form-control" min="0.01" step="any" placeholder="0.00" required oninput="updateReceiptTafqeet(this.value)">
+                  <input type="number" id="rcpAmount" class="form-control" min="0.01" step="any" placeholder="0.00" required oninput="handleReceiptAmountChange(this.value)">
                   <span id="rcpCurrencyBadge" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-weight: 700; color: var(--text-muted);">شيكل</span>
+                </div>
+                <!-- Quick Amount Presets -->
+                <div class="rcp-quick-amounts" style="display: flex; gap: 0.35rem; flex-wrap: wrap; margin-top: 0.4rem; align-items: center;">
+                  <span style="font-size: 0.75rem; color: #64748b; font-weight: 700;">مبالغ سريعة:</span>
+                  <button type="button" class="btn-amt-preset" onclick="addReceiptAmountPreset(50)">+50</button>
+                  <button type="button" class="btn-amt-preset" onclick="addReceiptAmountPreset(100)">+100</button>
+                  <button type="button" class="btn-amt-preset" onclick="addReceiptAmountPreset(200)">+200</button>
+                  <button type="button" class="btn-amt-preset" onclick="addReceiptAmountPreset(500)">+500</button>
+                  <button type="button" class="btn-amt-preset" onclick="addReceiptAmountPreset(1000)">+1000</button>
                 </div>
               </div>
             </div>
@@ -714,7 +732,16 @@
             <div>
               <div class="kpi-label">زبائن عليهم ديون مستحقة</div>
               <div class="kpi-value" id="custTabIndebtedCount">0 زبون</div>
-              <div class="kpi-sub">زبائن رصيدهم أكبر من 0 شيكل</div>
+              <div class="kpi-sub">زبائن رصيدهم أكبر من 0 (عليهم)</div>
+            </div>
+          </div>
+
+          <div class="card cust-kpi-card info" style="background: #f0f9ff; border: 1.5px solid #bae6fd;">
+            <div class="kpi-icon-wrap" style="background: #e0f2fe; color: #0284c7;">💰</div>
+            <div>
+              <div class="kpi-label" style="color: #0369a1;">أرصدة زبائن دائنة (لك / له)</div>
+              <div class="kpi-value" id="custTabCreditTotal" style="color: #0284c7;">0 شيكل</div>
+              <div class="kpi-sub" style="color: #0284c7;">مجموع الأرصدة المدفوعة مقدماً من الزبائن</div>
             </div>
           </div>
         </div>
@@ -733,8 +760,9 @@
             <!-- Quick Filter Chips -->
             <div class="category-chips" style="margin-bottom: 0;">
               <button class="chip active" id="custFilterAll" onclick="setCustomerDebtFilter('all', this)">الكل</button>
-              <button class="chip" id="custFilterWithDebt" onclick="setCustomerDebtFilter('with_debt', this)">عليهم ديون (> 0)</button>
-              <button class="chip" id="custFilterSettled" onclick="setCustomerDebtFilter('settled', this)">مسددين وخالصين (0)</button>
+              <button class="chip" id="custFilterWithDebt" onclick="setCustomerDebtFilter('with_debt', this)">🔴 عليه دين (> 0)</button>
+              <button class="chip" id="custFilterWithCredit" onclick="setCustomerDebtFilter('with_credit', this)">🔵 له رصيد / لك (&lt; 0)</button>
+              <button class="chip" id="custFilterSettled" onclick="setCustomerDebtFilter('settled', this)">🟢 مسدد وخالص (0)</button>
             </div>
 
             <!-- Actions: Add Customer, Import CSV, Print -->
@@ -773,12 +801,13 @@
             <table class="items-table" id="customersMainTable">
               <thead>
                 <tr>
-                  <th style="width: 110px;">رقم النظام</th>
+                  <th style="width: 100px;">رقم النظام</th>
                   <th>اسم الزبون</th>
                   <th>الهاتف</th>
-                  <th style="min-width: 150px;">الرصيد الحالي (الدين)</th>
+                  <th style="min-width: 140px;">الرصيد الحالي (الدين)</th>
+                  <th style="min-width: 170px;">مؤقت آخر دفعة / سند</th>
                   <th>ملاحظات وتفاصيل الحساب</th>
-                  <th style="width: 220px; text-align: center;">إجراءات سريعة</th>
+                  <th style="width: 270px; text-align: center;">إجراءات سريعة وتذكير</th>
                 </tr>
               </thead>
               <tbody id="customersMainTableBody">
@@ -868,7 +897,14 @@
               </button>
             </div>
 
-            <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+              <!-- حقل إدخال اسم القائم على الجرد -->
+              <div class="inv-audit-emp-wrap" style="display: flex; align-items: center; gap: 0.4rem; background: #ffffff; border: 1.5px solid #10b981; border-radius: 8px; padding: 0.35rem 0.75rem; box-shadow: 0 1px 3px rgba(0,0,0,0.06);">
+                <span style="font-size: 1.15rem;">👨‍💼</span>
+                <label for="invAuditEmployeeName" style="font-size: 0.82rem; font-weight: 700; color: #065f46; white-space: nowrap; margin: 0;">القائم بالجرد:</label>
+                <input type="text" id="invAuditEmployeeName" placeholder="اكتب اسمك هنا (مطلوب لحفظ الجرد)..." style="border: none; outline: none; font-size: 0.85rem; font-weight: 700; color: #0f172a; min-width: 190px; background: transparent;" oninput="syncAuditEmployeeName(this.value)">
+              </div>
+
               <button type="button" class="btn btn-sm btn-success btn-toolbar-save" id="btnToolbarSaveInventory" onclick="saveInventoryBulkChanges()">
                 <span>💾</span>
                 <span id="btnToolbarSaveText">حفظ تعديلات الجرد</span>
@@ -908,6 +944,15 @@
             <!-- شبكة الماركات الصغيرة بالجرد -->
             <div class="brands-small-grid" id="inventoryBrandsGrid">
               <!-- ديناميكي -->
+            </div>
+
+            <!-- إشعار عند طي ماركات الجرد -->
+            <div class="brand-compact-collapsed-notice" id="inventoryBrandsCollapsedNotice" style="display:none;" onclick="toggleBrandsCollapse('inventory')">
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <span>🏢</span>
+                <span><strong>تم إخفاء قائمة ماركات الجرد لتوفير مساحة العرض</strong> (انقر هنا أو على الزر أعلاه لإظهارها مجدداً)</span>
+              </div>
+              <button type="button" class="btn btn-xs btn-primary">إظهار شبكة الماركات 🔽</button>
             </div>
 
             <!-- Active Brand Lock Banner for Inventory -->
@@ -1054,6 +1099,21 @@
           <button class="btn btn-sm btn-primary" onclick="applyCustomDateFilter()">
             <span>🔍</span>
             <span>تطبيق الفلترة</span>
+          </button>
+        </div>
+
+        <!-- أزرار تصدير وإرسال التقرير المالي والأرباح PDF -->
+        <div class="dash-pdf-actions-row" style="display: flex; gap: 0.6rem; margin-top: 0.85rem; padding-top: 0.85rem; border-top: 1px solid var(--border-color); justify-content: flex-end; flex-wrap: wrap; align-items: center;">
+          <div style="font-size: 0.82rem; color: var(--text-muted); margin-left: auto;">
+            📊 تقرير مالي رسمي شامل للفترة المحددة مع حساب الأرباح والمبيعات ورأس المال
+          </div>
+          <button type="button" class="btn btn-sm btn-primary" onclick="downloadFinancialReportPdf()">
+            <span>📄</span>
+            <span>معاينة وتحميل PDF</span>
+          </button>
+          <button type="button" class="btn btn-sm btn-telegram" onclick="generateAndSendFinancialPdfToTelegram()">
+            <span>✈️</span>
+            <span>إرسال التقرير المالي PDF لتيليجرام</span>
           </button>
         </div>
       </div>
@@ -1483,7 +1543,11 @@
       <div class="modal-footer no-print">
         <button class="btn btn-telegram" id="btnModalResendTelegram" onclick="resendCurrentInvoiceTelegram()">
           <span>✈️</span>
-          <span>إعادة الإرسال لتيليجرام</span>
+          <span>إرسال الفاتورة PDF لتيليجرام</span>
+        </button>
+        <button class="btn btn-success" onclick="downloadCurrentInvoicePdf()">
+          <span>📥</span>
+          <span>تحميل الفاتورة PDF</span>
         </button>
         <button class="btn btn-secondary" onclick="closeInvoiceModal()">إغلاق</button>
         <button class="btn btn-primary" onclick="window.print()">
@@ -1515,6 +1579,14 @@
 
       <div class="modal-footer no-print">
         <button class="btn btn-secondary" onclick="closeReceiptModal()">إغلاق</button>
+        <button class="btn btn-telegram" id="btnModalSendReceiptTelegram" onclick="resendCurrentReceiptPdfTelegram()">
+          <span>✈️</span>
+          <span>إرسال السند PDF لتيليجرام</span>
+        </button>
+        <button class="btn btn-success" onclick="downloadCurrentReceiptPdf()">
+          <span>📥</span>
+          <span>تحميل السند PDF</span>
+        </button>
         <button class="btn btn-primary" onclick="printReceiptVoucher()">
           <span>🖨️</span>
           <span>طباعة سند القبض</span>
@@ -1529,6 +1601,13 @@
       <span class="pill-pulse-dot"></span>
       <span id="inventoryFloatingPillCount">0 أصناف معدلة</span>
     </div>
+
+    <!-- حقل إدخال اسم القائم بالجرد بالشريط العائم -->
+    <div class="pill-emp-wrap" style="display: flex; align-items: center; gap: 0.35rem; background: #ffffff; border: 1.5px solid #10b981; border-radius: 9999px; padding: 0.2rem 0.65rem;">
+      <span style="font-size: 0.95rem;">👨‍💼</span>
+      <input type="text" id="floatingInvAuditEmployeeName" placeholder="اسمك (القائم بالجرد)..." style="border: none; outline: none; font-size: 0.8rem; font-weight: 700; color: #0f172a; width: 145px; background: transparent;" oninput="syncAuditEmployeeName(this.value)">
+    </div>
+
     <button type="button" class="btn-pill-save" id="btnFloatingPillSave" onclick="saveInventoryBulkChanges()">
       <span>💾</span>
       <span>حفظ التعديلات</span>
@@ -1536,6 +1615,36 @@
     <button type="button" class="btn-pill-undo" onclick="resetInventoryChanges()" title="تراجع عن التعديلات">
       <span>↩️</span>
     </button>
+  </div>
+
+  <!-- ======================================================= -->
+  <!-- MODAL: تحديد اسم القائم بالجرد في حال عدم كتابته -->
+  <!-- ======================================================= -->
+  <div class="modal-backdrop" id="inventoryAuditorModal" style="z-index: 10002;">
+    <div class="modal-card" style="max-width: 460px; text-align: right; padding: 1.75rem;">
+      <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem;">
+        <span style="font-size: 2.2rem;">👨‍💼</span>
+        <div>
+          <h3 style="margin: 0; font-size: 1.2rem; font-weight: 800; color: #0f172a;">اسم القائم بعملية الجرد</h3>
+          <p style="margin: 0.25rem 0 0 0; font-size: 0.84rem; color: #64748b;">يرجى كتابة اسمك لتوثيق وحفظ تعديلات المخزون ومحضر الجرد</p>
+        </div>
+      </div>
+      <form onsubmit="handleAuditorModalSubmit(event)">
+        <div class="form-group" style="margin-bottom: 1.25rem;">
+          <label class="form-label" for="modalAuditEmployeeName" style="font-weight: 700; color: #065f46;">
+            <span class="req">*</span> اسم الموظف / القائم بالجرد:
+          </label>
+          <input type="text" id="modalAuditEmployeeName" class="form-control" placeholder="اكتب اسمك هنا..." required autofocus style="font-size: 1rem; font-weight: 700; border: 2px solid #10b981;">
+        </div>
+        <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+          <button type="button" class="btn btn-secondary" onclick="closeAuditorModal()">إلغاء</button>
+          <button type="submit" class="btn btn-success" style="padding: 0.55rem 1.4rem; font-weight: 800;">
+            <span>💾</span>
+            <span>تأكيد وحفظ الجرد</span>
+          </button>
+        </div>
+      </form>
+    </div>
   </div>
 
   <!-- ======================================================= -->
@@ -1655,10 +1764,28 @@
             <input type="tel" id="custEditPhone" class="form-control" placeholder="05XXXXXXXX">
           </div>
           <div class="form-group">
-            <label class="form-label" for="custEditBalance"><span class="req">*</span> الرصيد الحالي (الدين):</label>
+            <label class="form-label" style="font-weight: 700; color: #0f172a; margin-bottom: 0.35rem;">
+              <span class="req">*</span> حالة الرصيد المالي:
+            </label>
+            <div class="balance-type-selector" style="display: flex; gap: 0.5rem; margin-bottom: 0.6rem;">
+              <label class="balance-type-option active" id="lblBalTypeDebit" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 0.4rem; padding: 0.55rem 0.75rem; border: 2px solid #ef4444; border-radius: 8px; cursor: pointer; font-weight: 800; font-size: 0.88rem; background: #fef2f2; color: #b91c1c; transition: all 0.2s ease;">
+                <input type="radio" name="custBalType" id="custBalTypeDebit" value="debit" checked onchange="handleCustomerBalTypeChange('debit')" style="accent-color: #ef4444; width: 16px; height: 16px;">
+                <span>🔴 عليه (دين مستحق بذمته)</span>
+              </label>
+
+              <label class="balance-type-option" id="lblBalTypeCredit" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 0.4rem; padding: 0.55rem 0.75rem; border: 2px solid #cbd5e1; border-radius: 8px; cursor: pointer; font-weight: 800; font-size: 0.88rem; background: #ffffff; color: #475569; transition: all 0.2s ease;">
+                <input type="radio" name="custBalType" id="custBalTypeCredit" value="credit" onchange="handleCustomerBalTypeChange('credit')" style="accent-color: #2563eb; width: 16px; height: 16px;">
+                <span>🔵 لك / له (رصيد مالي دائن لصالحه)</span>
+              </label>
+            </div>
+
+            <label class="form-label" for="custEditBalance" id="lblCustEditBalanceVal" style="font-size: 0.82rem; font-weight: 700; color: #475569;">مبلغ الرصيد:</label>
             <div style="position: relative;">
-              <input type="number" id="custEditBalance" class="form-control" step="any" placeholder="0.00" required>
-              <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-weight: 700;">شيكل</span>
+              <input type="number" id="custEditBalance" class="form-control" min="0" step="any" placeholder="0.00" required>
+              <span id="custEditCurrencyBadge" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-weight: 700;">شيكل</span>
+            </div>
+            <div id="custEditBalanceHint" style="font-size: 0.8rem; font-weight: 700; color: #dc2626; margin-top: 0.35rem;">
+              ⚠️ الحالة الافتراضية: الزبون عليه دين ومطلوب منه هذا المبلغ
             </div>
           </div>
           <div class="form-group">
@@ -1726,6 +1853,79 @@
           </button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- ======================================================= -->
+  <!-- MODAL: تأكيد آمن للأفعال (Universal In-App Confirm Dialog) -->
+  <!-- ======================================================= -->
+  <div class="modal-backdrop" id="universalConfirmModal" style="z-index: 10000;">
+    <div class="modal-card" style="max-width: 440px; text-align: center; padding: 2rem 1.75rem;">
+      <div id="confirmModalIcon" style="font-size: 2.8rem; margin-bottom: 0.5rem; line-height: 1;">⚠️</div>
+      <h3 id="confirmModalTitle" style="font-size: 1.25rem; font-weight: 800; margin-bottom: 0.5rem; color: #0f172a;">تأكيد الإجراء</h3>
+      <p id="confirmModalMessage" style="font-size: 0.92rem; color: #64748b; margin-bottom: 1.5rem; line-height: 1.6;"></p>
+      <div style="display: flex; gap: 0.75rem; justify-content: center;">
+        <button type="button" class="btn btn-secondary" id="confirmModalCancelBtn" style="min-width: 105px;">إلغاء</button>
+        <button type="button" class="btn btn-danger" id="confirmModalActionBtn" style="min-width: 130px;">تأكيد الحذف</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================= -->
+  <!-- MODAL: إدخال اسم القائم بالجرد لتوثيق الحفظ -->
+  <!-- ======================================================= -->
+  <div class="modal-backdrop" id="auditEmployeeModal" style="z-index: 9999;">
+    <div class="modal-card" style="max-width: 460px;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <span style="font-size: 1.3rem;">👨‍💼</span>
+          <h3 style="font-weight: 700;">اسم القائم على عملية الجرد</h3>
+        </div>
+        <button class="close-btn" onclick="closeAuditEmployeeModal()">✕</button>
+      </div>
+      <div class="modal-body" style="padding: 1.25rem;">
+        <p style="font-size: 0.88rem; color: #475569; margin-bottom: 1.25rem; line-height: 1.5;">
+          يُرجى إدخال اسم الموظف المسؤول عن الجرد لتوثيق الحركة وتاريخ التعديل وإرسال التقرير الرسمي لتيليجرام:
+        </p>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label class="form-label" for="modalAuditEmployeeInput">
+            <span class="req">*</span> اسم القائم بالجرد:
+          </label>
+          <input type="text" id="modalAuditEmployeeInput" class="form-control" placeholder="اكتب اسمك هنا (مثال: رامي، أحمد، خالد...)" autofocus>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeAuditEmployeeModal()">إلغاء</button>
+        <button type="button" class="btn btn-success" onclick="confirmAuditEmployeeAndSave()">
+          <span>💾</span>
+          <span>متابعة وحفظ التعديلات الآن</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================= -->
+  <!-- MODAL: معاينة وتأكيد إرسال تذكير الدفعة للزبون -->
+  <!-- ======================================================= -->
+  <div class="modal-backdrop" id="customerReminderModal" style="z-index: 9998;">
+    <div class="modal-card" style="max-width: 520px;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <span style="font-size: 1.3rem;">⏰</span>
+          <h3 style="font-weight: 700;">تذكير استحقاق دفعة مالية لزبون</h3>
+        </div>
+        <button class="close-btn" onclick="closeCustomerReminderModal()">✕</button>
+      </div>
+      <div class="modal-body" style="padding: 1.25rem;" id="customerReminderModalBody">
+        <!-- ديناميكي -->
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeCustomerReminderModal()">إلغاء</button>
+        <button type="button" class="btn btn-telegram" id="btnConfirmSendCustomerReminder" onclick="executeSendCustomerReminderTelegram()">
+          <span>✈️</span>
+          <span>إرسال التذكير مع كشف الحساب لتيليجرام</span>
+        </button>
+      </div>
     </div>
   </div>
 

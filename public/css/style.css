@@ -4328,6 +4328,209 @@ textarea.form-control {
   color: #065f46;
 }
 
+/* =========================================================
+   Brand Toggle Button Enhancement
+   ========================================================= */
+.btn-toggle-brands {
+  background: #f1f5f9;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 9999px;
+  padding: 0.35rem 0.9rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #334155;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.btn-toggle-brands:hover {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+  color: #0f172a;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.08);
+}
+
+.btn-toggle-brands.collapsed-state {
+  background: #eff6ff;
+  border-color: #3b82f6;
+  color: #1d4ed8;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.btn-toggle-brands .toggle-icon {
+  font-size: 0.85rem;
+  transition: transform 0.25s ease;
+}
+
+.btn-toggle-brands.collapsed-state .toggle-icon {
+  transform: rotate(180deg);
+}
+
+/* =========================================================
+   Zero Stock Separator & Badges
+   ========================================================= */
+.zero-stock-divider {
+  grid-column: 1 / -1;
+  margin: 1.25rem 0 0.75rem 0;
+  padding: 0.75rem 1.25rem;
+  background: #fff1f2;
+  border: 1.5px dashed #f43f5e;
+  border-radius: var(--radius-md);
+  color: #9f1239;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 800;
+  box-shadow: 0 2px 4px rgba(244, 63, 94, 0.06);
+}
+
+.zero-stock-divider .zero-title {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.95rem;
+}
+
+.zero-stock-divider .zero-badge {
+  background: #ffe4e6;
+  color: #be123c;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.inventory-zero-separator {
+  background: #fff1f2 !important;
+  color: #9f1239 !important;
+  font-weight: 800 !important;
+  text-align: right !important;
+  padding: 0.75rem 1.25rem !important;
+  border-top: 2px dashed #f43f5e !important;
+  border-bottom: 2px dashed #f43f5e !important;
+  font-size: 0.9rem !important;
+}
+
+/* =========================================================
+   Customer Last Receipt Timer Badges
+   ========================================================= */
+.cust-timer-badge {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-align: right;
+  line-height: 1.3;
+}
+
+.cust-timer-badge.timer-recent {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.cust-timer-badge.timer-warning {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.cust-timer-badge.timer-danger {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+  animation: pulseLight 2s infinite;
+}
+
+.cust-timer-badge.timer-none {
+  background: #f8fafc;
+  color: #64748b;
+  border: 1px dashed #cbd5e1;
+}
+
+.cust-timer-badge.timer-settled {
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+@keyframes pulseLight {
+  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.2); }
+  70% { box-shadow: 0 0 0 4px rgba(239, 68, 68, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+
+.btn-cust-reminder {
+  background: linear-gradient(135deg, #0ea5e9, #0284c7);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 0.28rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(2, 132, 199, 0.3);
+}
+
+.btn-cust-reminder:hover {
+  background: linear-gradient(135deg, #0284c7, #0369a1);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 6px rgba(2, 132, 199, 0.4);
+}
+
+/* =========================================================
+   Auditor Input Wrap
+   ========================================================= */
+.inv-audit-emp-wrap {
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.inv-audit-emp-wrap:focus-within {
+  border-color: #059669 !important;
+  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.18) !important;
+}
+
+/* Preset Amount Buttons */
+.btn-amt-preset {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-amt-preset:hover {
+  background: #e0f2fe;
+  border-color: #38bdf8;
+  color: #0369a1;
+  transform: translateY(-1px);
+}
+
+.pill-emp-wrap {
+  transition: all 0.2s ease;
+}
+
+.pill-emp-wrap:focus-within {
+  border-color: #047857 !important;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25) !important;
+}
+
 
 
 

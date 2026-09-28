@@ -598,7 +598,12 @@ const dataStore = {
 
   deleteCustomer(id) {
     const customers = this.getCustomers();
-    const filtered = customers.filter(c => c.id !== id && c.systemNumber !== id);
+    const strId = String(id || '').trim();
+    const filtered = customers.filter(c => {
+      const matchId = String(c.id || '').trim() === strId;
+      const matchSys = c.systemNumber && String(c.systemNumber).trim() === strId;
+      return !matchId && !matchSys;
+    });
     writeJson(CUSTOMERS_FILE, filtered);
     return filtered.length !== customers.length;
   },

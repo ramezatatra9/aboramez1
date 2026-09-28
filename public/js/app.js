@@ -35,6 +35,541 @@ function formatAppDateTime(dateInput) {
 }
 
 // -------------------------------------------------------------
+// نافذة تأكيد آمنة وعصرية داخل التطبيق (تتوافق 100% مع بيئة الـ iFrame)
+// -------------------------------------------------------------
+function showConfirmDialog({ title, message, icon = '⚠️', confirmText = 'تأكيد', cancelText = 'إلغاء', isDanger = true, onConfirm }) {
+  const modal = document.getElementById('universalConfirmModal');
+  if (!modal) {
+    if (onConfirm) onConfirm();
+    return;
+  }
+  const iconEl = document.getElementById('confirmModalIcon');
+  const titleEl = document.getElementById('confirmModalTitle');
+  const msgEl = document.getElementById('confirmModalMessage');
+  const actionBtn = document.getElementById('confirmModalActionBtn');
+  const cancelBtn = document.getElementById('confirmModalCancelBtn');
+
+  if (iconEl) iconEl.textContent = icon;
+  if (titleEl) titleEl.textContent = title || 'تأكيد الإجراء';
+  if (msgEl) msgEl.textContent = message || '';
+
+  if (actionBtn) {
+    actionBtn.textContent = confirmText;
+    actionBtn.className = isDanger ? 'btn btn-danger' : 'btn btn-primary';
+  }
+  if (cancelBtn) {
+    cancelBtn.textContent = cancelText;
+  }
+
+  const cleanup = () => {
+    modal.classList.remove('active');
+    if (actionBtn) actionBtn.onclick = null;
+    if (cancelBtn) cancelBtn.onclick = null;
+  };
+
+  if (cancelBtn) cancelBtn.onclick = cleanup;
+  if (actionBtn) {
+    actionBtn.onclick = () => {
+      cleanup();
+      if (onConfirm) onConfirm();
+    };
+  }
+
+  modal.classList.add('active');
+}
+
+// -------------------------------------------------------------
+// محرك توليد ملفات PDF رسمي وموحد مع إرسال تيليجرام
+// -------------------------------------------------------------
+async function generatePdfBlobFromHtml(htmlContent, fileName = 'document.pdf') {
+  if (typeof html2pdf === 'undefined') {
+    throw new Error('مكتبة تصدير الـ PDF غير محملة في المتصفح');
+  }
+
+  const wrapper = document.createElement('div');
+  wrapper.style.position = 'fixed';
+  wrapper.style.left = '-9999px';
+  wrapper.style.top = '0';
+  wrapper.style.width = '794px'; // القياس القياسي لصفحة A4
+  wrapper.style.padding = '0';
+  wrapper.style.margin = '0';
+  wrapper.style.background = '#ffffff';
+  wrapper.style.color = '#0f172a';
+  wrapper.style.direction = 'rtl';
+  wrapper.style.fontFamily = "'Cairo', 'IBM Plex Sans Arabic', sans-serif";
+  wrapper.innerHTML = htmlContent;
+  document.body.appendChild(wrapper);
+
+  try {
+    const opt = {
+      margin: [8, 8, 8, 8],
+      filename: fileName,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true, letterRendering: true, logging: false },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    const worker = html2pdf().set(opt).from(wrapper);
+    let blob = null;
+    try {
+      blob = await worker.output('blob');
+    } catch (e) {
+      const pdf = await worker.toPdf().get('pdf');
+      blob = pdf.output('blob');
+    }
+    return blob;
+  } finally {
+    if (wrapper.parentNode) {
+      wrapper.parentNode.removeChild(wrapper);
+    }
+  }
+}
+
+async function sendPdfDocumentToTelegram(pdfBlob, fileName, caption) {
+  try {
+    const formData = new FormData();
+    formData.append('pdfFile', pdfBlob, fileName);
+    formData.append('fileName', fileName);
+    formData.append('caption', caption || '');
+
+    const res = await fetch('/api/telegram/send-pdf-document', {
+      method: 'POST',
+      body: formData
+    });
+    return await res.json();
+  } catch (err) {
+    console.error('sendPdfDocumentToTelegram error:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+// بناء كشف رسمي لفاتورة مبيعات أو مشتريات بصيغة PDF
+function buildPrintableInvoiceHtml(inv) {
+  const cur = state.settings.currency || 'شيكل';
+  const isPurchase = inv.invoiceType === 'purchase';
+  const typeTitle = isPurchase ? 'فاتورة مشتريات وتوريد مخزون' : 'فاتورة مبيعات ضريبية';
+  const dateStr = formatAppDateTime(inv.createdAt);
+
+  const itemsHtml = (inv.items || []).map((item, idx) => {
+    const qty = item.quantity || 1;
+    const price = isPurchase ? (item.costPrice || 0) : (item.sellPrice || 0);
+    const total = qty * price;
+    return `
+      <tr>
+        <td style="border: 1px solid #cbd5e1; padding: 7px 10px; text-align: center; font-weight: 700;">${idx + 1}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 7px 10px;">
+          <div style="font-weight: 800; color: #0f172a;">${escapeHtml(item.productName)}</div>
+          ${item.code ? `<div style="font-size: 0.75rem; color: #64748b; font-family: monospace;">كود: ${escapeHtml(item.code)}</div>` : ''}
+        </td>
+        <td style="border: 1px solid #cbd5e1; padding: 7px 10px; text-align: center; font-weight: 800; font-size: 1rem;">${qty}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 7px 10px; text-align: left; font-weight: 700;">${price.toLocaleString('en-US')} ${cur}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 7px 10px; text-align: left; font-weight: 800; color: #0f172a;">${total.toLocaleString('en-US')} ${cur}</td>
+      </tr>
+    `;
+  }).join('');
+
+  const totalAmount = inv.summary?.totalAmount || 0;
+  const words = tafqeetArabic(totalAmount, cur);
+
+  let paymentBlock = '';
+  if (!isPurchase && inv.paymentMethod === 'installments') {
+    const inst = inv.installmentDetails || {};
+    paymentBlock = `
+      <div style="margin-top: 1rem; padding: 0.85rem; background: #fffbeb; border: 1.5px solid #fde68a; border-radius: 8px; font-size: 0.85rem;">
+        <strong style="color: #b45309; display: block; margin-bottom: 0.35rem;">⏳ تفاصيل نظام الأقساط المجدولة:</strong>
+        <div>• الدفعة الأولى المسددة: <strong>${(inst.downPayment || 0).toLocaleString('en-US')} ${cur}</strong></div>
+        <div>• المبلغ المتبقي المستحق: <strong style="color: #dc2626;">${(inst.remainingAmount || 0).toLocaleString('en-US')} ${cur}</strong></div>
+        <div>• مدة السداد المتفق عليها: <strong>${escapeHtml(inst.duration || 'غير محدد')}</strong></div>
+        ${inst.scheduleNotes ? `<div>• ملاحظات الأقساط: ${escapeHtml(inst.scheduleNotes)}</div>` : ''}
+      </div>
+    `;
+  }
+
+  return `
+    <div style="padding: 1.75rem; font-family: 'Cairo', 'IBM Plex Sans Arabic', sans-serif; direction: rtl; color: #0f172a; line-height: 1.5;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2.5px solid #0f172a; padding-bottom: 1.25rem; margin-bottom: 1.25rem;">
+        <div style="display: flex; align-items: center; gap: 0.85rem;">
+          <div style="font-size: 2.5rem;">💼</div>
+          <div>
+            <h1 style="font-size: 1.6rem; font-weight: 900; margin: 0; color: #0f172a;">${escapeHtml(state.settings.companyName || 'رامز عطاطرة')}</h1>
+            <div style="font-size: 0.85rem; color: #475569; margin-top: 0.2rem;">
+              ${escapeHtml(state.settings.companyAddress || 'المركز التجاري الرئيسي')} | هاتف: ${escapeHtml(state.settings.companyPhone || '')}
+            </div>
+          </div>
+        </div>
+
+        <div style="text-align: left;">
+          <div style="display: inline-block; background: ${isPurchase ? '#ecfdf5' : '#eff6ff'}; color: ${isPurchase ? '#047857' : '#1d4ed8'}; border: 1.5px solid ${isPurchase ? '#a7f3d0' : '#bfdbfe'}; font-size: 0.95rem; font-weight: 800; padding: 0.35rem 0.9rem; border-radius: 6px;">
+            ${typeTitle}
+          </div>
+          <div style="margin-top: 0.4rem; font-weight: 800; font-family: monospace; font-size: 1.2rem; color: #0f172a;">
+            #${inv.invoiceNumber || inv.id}
+          </div>
+          <div style="font-size: 0.8rem; color: #64748b;">${dateStr}</div>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 1rem; margin-bottom: 1.25rem; font-size: 0.88rem;">
+        <div>
+          <div><span style="color: #64748b;">${isPurchase ? 'المورد / التوريد:' : 'الزبون / السيد:'}</span> <strong style="font-size: 1rem; color: #0f172a;">${escapeHtml(inv.customerName)}</strong></div>
+          ${inv.customerPhone ? `<div style="margin-top: 0.3rem;"><span style="color: #64748b;">رقم الهاتف:</span> <strong style="direction: ltr; display: inline-block;">${escapeHtml(inv.customerPhone)}</strong></div>` : ''}
+          ${inv.customerSystemNumber ? `<div><span style="color: #64748b;">رقم الحساب بالنظام:</span> <strong>#${escapeHtml(inv.customerSystemNumber)}</strong></div>` : ''}
+        </div>
+        <div>
+          <div><span style="color: #64748b;">الموظف المحرر:</span> <strong>${escapeHtml(inv.employeeName || 'غير محدد')}</strong></div>
+          <div><span style="color: #64748b;">طريقة الدفع:</span> <strong>${isPurchase ? 'نقداً (مشتريات)' : (inv.paymentMethod === 'installments' ? 'أقساط مجدولة' : 'نقداً (كاش)')}</strong></div>
+        </div>
+      </div>
+
+      <table style="width: 100%; border-collapse: collapse; font-size: 0.88rem; margin-bottom: 1.25rem;">
+        <thead>
+          <tr style="background: #e2e8f0; color: #0f172a;">
+            <th style="border: 1px solid #94a3b8; padding: 8px; width: 40px; text-align: center;">#</th>
+            <th style="border: 1px solid #94a3b8; padding: 8px; text-align: right;">الصنف / المنتج</th>
+            <th style="border: 1px solid #94a3b8; padding: 8px; width: 80px; text-align: center;">الكمية</th>
+            <th style="border: 1px solid #94a3b8; padding: 8px; width: 110px; text-align: left;">السعر</th>
+            <th style="border: 1px solid #94a3b8; padding: 8px; width: 130px; text-align: left;">الإجمالي</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${itemsHtml}
+        </tbody>
+      </table>
+
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; margin-bottom: 1.25rem;">
+        <div style="flex: 1; padding: 0.75rem 1rem; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.88rem;">
+          <div style="color: #047857; font-weight: 700;">المبلغ كتابةً:</div>
+          <div style="font-weight: 800; font-size: 0.95rem; margin-top: 0.25rem;">${words}</div>
+          ${inv.notes ? `<div style="margin-top: 0.5rem; color: #475569; font-size: 0.82rem;"><strong>ملاحظات:</strong> ${escapeHtml(inv.notes)}</div>` : ''}
+        </div>
+
+        <div style="min-width: 250px; background: #f1f5f9; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 0.85rem;">
+          <div style="display: flex; justify-content: space-between; padding: 0.35rem 0; font-weight: 700; font-size: 0.88rem;">
+            <span>عدد القطع الإجمالي:</span>
+            <span>${(inv.summary?.totalQuantity || 0)} قطعة</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; padding: 0.5rem 0; font-weight: 900; font-size: 1.15rem; color: #047857; border-top: 1.5px solid #94a3b8;">
+            <span>المجموع النهائي:</span>
+            <span>${totalAmount.toLocaleString('en-US')} ${cur}</span>
+          </div>
+        </div>
+      </div>
+
+      ${paymentBlock}
+
+      <div style="margin-top: 2rem; border-top: 1px solid #cbd5e1; padding-top: 1rem; display: flex; justify-content: space-between; font-size: 0.82rem; color: #475569;">
+        <div>توقيع المستلم: _________________</div>
+        <div>اعتماد المحل / الشركة: _________________</div>
+        <div>${escapeHtml(state.settings.invoiceFooterText || 'بضاعة الشركة مكفولة')}</div>
+      </div>
+    </div>
+  `;
+}
+
+// بناء كشف رسمي لسند قبض مالي بصيغة PDF
+function buildPrintableReceiptHtml(receipt) {
+  const cur = state.settings.currency || 'شيكل';
+  const words = tafqeetArabic(receipt.amount, cur);
+  const dateStr = formatAppDateTime(receipt.createdAt);
+  const methodLabel = {
+    cash: 'نقداً (Cash)',
+    transfer: 'تحويل بنكي (Bank Transfer)',
+    check: 'شيك مصرفي (Bank Cheque)'
+  }[receipt.paymentMethod] || 'نقداً';
+
+  const prevBal = parseFloat(receipt.previousBalance) || 0;
+  const remBal = parseFloat(receipt.remainingBalance) || 0;
+
+  return `
+    <div style="padding: 2rem; font-family: 'Cairo', 'IBM Plex Sans Arabic', sans-serif; direction: rtl; color: #0f172a; line-height: 1.6; border: 2px solid #0f172a; border-radius: 8px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0f172a; padding-bottom: 1.25rem; margin-bottom: 1.25rem;">
+        <div style="display: flex; align-items: center; gap: 0.85rem;">
+          <div style="font-size: 2.6rem;">💼</div>
+          <div>
+            <h1 style="font-size: 1.55rem; font-weight: 900; margin: 0; color: #0f172a;">${escapeHtml(state.settings.companyName || 'رامز عطاطرة')}</h1>
+            <div style="font-size: 0.85rem; color: #475569;">${escapeHtml(state.settings.companyAddress || 'المركز التجاري')} | هاتف: ${escapeHtml(state.settings.companyPhone || '')}</div>
+          </div>
+        </div>
+
+        <div style="text-align: left;">
+          <div style="background: #ecfdf5; color: #047857; border: 1.5px solid #a7f3d0; padding: 0.35rem 0.9rem; border-radius: 6px; font-weight: 800; font-size: 1.05rem;">
+            سند قبض مالي معتمد
+          </div>
+          <div style="font-family: monospace; font-size: 1.2rem; font-weight: 900; margin-top: 0.4rem; color: #0f172a;">
+            رقم السند: #${receipt.receiptNumber}
+          </div>
+          <div style="font-size: 0.8rem; color: #64748b;">التاريخ: ${dateStr}</div>
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1.5rem;">
+        <span style="font-size: 1.05rem; font-weight: 700; color: #166534;">المبلغ المقبوض:</span>
+        <span style="font-size: 1.6rem; font-weight: 900; color: #15803d;">${Number(receipt.amount || 0).toLocaleString('en-US')} ${cur}</span>
+      </div>
+
+      <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 1.25rem; font-size: 0.95rem; margin-bottom: 1.5rem;">
+        <div style="padding: 0.5rem 0; border-bottom: 1px dashed #cbd5e1; display: flex;">
+          <span style="width: 170px; color: #64748b; font-weight: 700;">وصلنا من السيد / السادة:</span>
+          <span style="font-weight: 800; color: #0f172a; flex: 1;">${escapeHtml(receipt.customerName)} ${receipt.customerSystemNumber ? `[رقم الحساب: #${escapeHtml(receipt.customerSystemNumber)}]` : ''} ${receipt.customerPhone ? `(هاتف: ${escapeHtml(receipt.customerPhone)})` : ''}</span>
+        </div>
+
+        <div style="padding: 0.5rem 0; border-bottom: 1px dashed #cbd5e1; display: flex;">
+          <span style="width: 170px; color: #64748b; font-weight: 700;">مبلغ وقدره بالأحرف:</span>
+          <span style="font-weight: 800; color: #047857; flex: 1;">${words || `${receipt.amount} ${cur}`}</span>
+        </div>
+
+        <div style="padding: 0.5rem 0; border-bottom: 1px dashed #cbd5e1; display: flex;">
+          <span style="width: 170px; color: #64748b; font-weight: 700;">طريقة الدفع:</span>
+          <span style="font-weight: 800; flex: 1;">${methodLabel}</span>
+        </div>
+
+        ${receipt.description ? `
+        <div style="padding: 0.5rem 0; border-bottom: 1px dashed #cbd5e1; display: flex;">
+          <span style="width: 170px; color: #64748b; font-weight: 700;">وذلك لقاء (البيان):</span>
+          <span style="font-weight: 700; color: #0f172a; flex: 1;">${escapeHtml(receipt.description)}</span>
+        </div>` : ''}
+
+        ${(prevBal > 0 || remBal >= 0) ? `
+        <div style="padding: 0.6rem 0; display: flex; justify-content: space-between; font-size: 0.88rem; background: #f8fafc; padding: 0.6rem 0.8rem; border-radius: 6px; margin-top: 0.5rem;">
+          <div>الدين السابق قبل السند: <strong>${prevBal.toLocaleString('en-US')} ${cur}</strong></div>
+          <div>المسدد الآن: <strong style="color: #047857;">-${Number(receipt.amount || 0).toLocaleString('en-US')} ${cur}</strong></div>
+          <div>الرصيد المتبقي بذمته: <strong style="color: ${remBal > 0 ? '#dc2626' : '#059669'}; font-size: 0.95rem;">${remBal.toLocaleString('en-US')} ${cur}</strong></div>
+        </div>` : ''}
+
+        ${receipt.notes ? `
+        <div style="padding: 0.5rem 0; display: flex;">
+          <span style="width: 170px; color: #64748b; font-weight: 700;">ملاحظات:</span>
+          <span style="font-size: 0.85rem; color: #475569; flex: 1;">${escapeHtml(receipt.notes)}</span>
+        </div>` : ''}
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; border-top: 1.5px solid #cbd5e1; padding-top: 1.5rem; text-align: center; font-size: 0.85rem; color: #475569;">
+        <div>
+          <div>اسم وتوقيع المستلم</div>
+          <div style="margin-top: 1.5rem; font-weight: 800; color: #0f172a;">${escapeHtml(receipt.employeeName || 'الموظف المسؤول')}</div>
+        </div>
+        <div>
+          <div>توقيع الزبون / المودع</div>
+          <div style="margin-top: 1.5rem;">_________________</div>
+        </div>
+        <div>
+          <div>ختم واعتماد الشركة</div>
+          <div style="margin-top: 1.5rem;">_________________</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// بناء محضر جرد المخزون الفعلي وتعديل الكميات بصيغة PDF
+function buildInventoryAuditHtml(modifiedItems, editorName) {
+  const nowStr = formatAppDateTime(new Date());
+
+  const rows = modifiedItems.map((item, idx) => {
+    const diff = item.diff;
+    const diffSign = diff > 0 ? `+${diff}` : `${diff}`;
+    const diffColor = diff > 0 ? '#047857' : '#dc2626';
+    return `
+      <tr>
+        <td style="border: 1px solid #cbd5e1; padding: 7px; text-align: center; font-weight: 700;">${idx + 1}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 7px; font-family: monospace; font-weight: 800; text-align: center;">${escapeHtml(item.code || '--')}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 7px; font-weight: 800; color: #0f172a;">${escapeHtml(item.name)}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 7px; text-align: center; font-weight: 700; color: #64748b;">${item.oldStock}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 7px; text-align: center; font-weight: 900; font-size: 1rem; color: #0f172a;">${item.newStock}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 7px; text-align: center; font-weight: 800; color: ${diffColor};">${diffSign}</td>
+      </tr>
+    `;
+  }).join('');
+
+  return `
+    <div style="padding: 2rem; font-family: 'Cairo', 'IBM Plex Sans Arabic', sans-serif; direction: rtl; color: #0f172a; line-height: 1.6;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2.5px solid #0f172a; padding-bottom: 1.25rem; margin-bottom: 1.5rem;">
+        <div>
+          <h1 style="font-size: 1.6rem; font-weight: 900; margin: 0; color: #0f172a;">${escapeHtml(state.settings.companyName || 'رامز عطاطرة')}</h1>
+          <div style="font-size: 0.85rem; color: #475569; margin-top: 0.2rem;">محضر توثيق وتعديل جرد المخزون الفعلي</div>
+        </div>
+        <div style="text-align: left;">
+          <div style="background: #f0fdf4; color: #166534; border: 1.5px solid #86efac; padding: 0.35rem 0.85rem; border-radius: 6px; font-weight: 800;">
+            محضر جرد معتمد
+          </div>
+          <div style="font-size: 0.8rem; color: #64748b; margin-top: 0.3rem;">التاريخ: ${nowStr}</div>
+        </div>
+      </div>
+
+      <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 1rem; margin-bottom: 1.25rem; font-size: 0.92rem; display: flex; justify-content: space-between;">
+        <div>القائم بالجرد والتوثيق: <strong style="font-size: 1rem; color: #065f46;">${escapeHtml(editorName)}</strong></div>
+        <div>عدد الأصناف المعدلة: <strong>${modifiedItems.length} صنف</strong></div>
+      </div>
+
+      <table style="width: 100%; border-collapse: collapse; font-size: 0.88rem; margin-bottom: 1.5rem;">
+        <thead>
+          <tr style="background: #e2e8f0; color: #0f172a;">
+            <th style="border: 1px solid #94a3b8; padding: 8px; width: 40px; text-align: center;">#</th>
+            <th style="border: 1px solid #94a3b8; padding: 8px; width: 110px; text-align: center;">كود الصنف</th>
+            <th style="border: 1px solid #94a3b8; padding: 8px; text-align: right;">اسم الصنف</th>
+            <th style="border: 1px solid #94a3b8; padding: 8px; width: 90px; text-align: center;">الكمية السابقة</th>
+            <th style="border: 1px solid #94a3b8; padding: 8px; width: 100px; text-align: center;">الكمية بعد الجرد</th>
+            <th style="border: 1px solid #94a3b8; padding: 8px; width: 90px; text-align: center;">فارق الجرد</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows}
+        </tbody>
+      </table>
+
+      <div style="margin-top: 2.5rem; border-top: 1px solid #cbd5e1; padding-top: 1rem; display: flex; justify-content: space-between; font-size: 0.85rem; color: #475569;">
+        <div>توقيع القائم بالجرد: <strong>${escapeHtml(editorName)}</strong></div>
+        <div>اعتماد إدارة المستودع: _________________</div>
+        <div>نظام إدارة المخزون والمبيعات</div>
+      </div>
+    </div>
+  `;
+}
+
+// بناء التقرير المالي والأرباح التنفيذي بصيغة PDF
+function buildFinancialReportHtml(stats, periodTitle) {
+  const cur = state.settings.currency || 'شيكل';
+  const nowStr = formatAppDateTime(new Date());
+
+  return `
+    <div style="padding: 2rem; font-family: 'Cairo', 'IBM Plex Sans Arabic', sans-serif; direction: rtl; color: #0f172a; line-height: 1.6;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2.5px solid #0f172a; padding-bottom: 1.25rem; margin-bottom: 1.5rem;">
+        <div>
+          <h1 style="font-size: 1.6rem; font-weight: 900; margin: 0; color: #0f172a;">${escapeHtml(state.settings.companyName || 'رامز عطاطرة')}</h1>
+          <div style="font-size: 0.85rem; color: #475569; margin-top: 0.2rem;">التقرير المالي التنفيذي الشامل وحساب الأرباح والمبيعات</div>
+        </div>
+        <div style="text-align: left;">
+          <div style="background: #eff6ff; color: #1d4ed8; border: 1.5px solid #bfdbfe; padding: 0.35rem 0.9rem; border-radius: 6px; font-weight: 800; font-size: 0.95rem;">
+            فترة التقرير: ${escapeHtml(periodTitle || 'كل الأوقات')}
+          </div>
+          <div style="font-size: 0.8rem; color: #64748b; margin-top: 0.3rem;">تاريخ الاستخراج: ${nowStr}</div>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1.5rem;">
+        <div style="background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 1rem;">
+          <span style="font-size: 0.85rem; color: #64748b; font-weight: 700; display: block;">💵 إجمالي المبيعات المحققة</span>
+          <strong style="font-size: 1.45rem; color: #0f172a; display: block; margin-top: 0.25rem;">${(stats.totalSales || 0).toLocaleString('en-US')} ${cur}</strong>
+          <small style="color: #64748b;">من إجمالي ${stats.totalInvoicesCount || 0} فاتورة صادرة</small>
+        </div>
+
+        <div style="background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 1rem;">
+          <span style="font-size: 0.85rem; color: #64748b; font-weight: 700; display: block;">📉 تكلفة البضاعة المباعة (رأس المال)</span>
+          <strong style="font-size: 1.45rem; color: #475569; display: block; margin-top: 0.25rem;">${(stats.totalCost || 0).toLocaleString('en-US')} ${cur}</strong>
+          <small style="color: #64748b;">رأس المال المسترد من المبيعات</small>
+        </div>
+
+        <div style="background: #ecfdf5; border: 1.5px solid #86efac; border-radius: 8px; padding: 1rem;">
+          <span style="font-size: 0.85rem; color: #065f46; font-weight: 700; display: block;">📈 صافي الأرباح المحققة</span>
+          <strong style="font-size: 1.45rem; color: #047857; display: block; margin-top: 0.25rem;">+${(stats.totalProfit || 0).toLocaleString('en-US')} ${cur}</strong>
+          <small style="color: #059669; font-weight: 700;">هامش ربح: ${stats.profitMarginPercentage || 0}%</small>
+        </div>
+      </div>
+
+      <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 1.25rem; margin-bottom: 1.5rem;">
+        <h3 style="margin: 0 0 1rem 0; font-size: 1.05rem; font-weight: 800; color: #0f172a;">💳 تفاصيل التحصيل وطرق الدفع:</h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; font-size: 0.92rem;">
+          <div style="background: #f8fafc; padding: 0.85rem; border-radius: 6px; border: 1px solid #e2e8f0;">
+            <div>• مبيعات نقدية فورية (كاش): <strong>${(stats.cashSales || 0).toLocaleString('en-US')} ${cur}</strong></div>
+            <div style="font-size: 0.8rem; color: #64748b; margin-top: 0.25rem;">تم استلامها بالكامل دون ديون</div>
+          </div>
+          <div style="background: #fffbeb; padding: 0.85rem; border-radius: 6px; border: 1px solid #fde68a;">
+            <div>• إجمالي مبيعات الأقساط: <strong>${(stats.installmentsTotal || 0).toLocaleString('en-US')} ${cur}</strong></div>
+            <div style="margin-top: 0.25rem;">  - الدفعة الأولى المحصلة: <strong>${(stats.installmentsDownPayments || 0).toLocaleString('en-US')} ${cur}</strong></div>
+            <div style="color: #dc2626; font-weight: 700;">  - المتبقي للتحصيل بذمة الزبائن: <strong>${(stats.installmentsRemaining || 0).toLocaleString('en-US')} ${cur}</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="background: #f0fdfa; border: 1.5px solid #99f6e4; border-radius: 8px; padding: 1.25rem; margin-bottom: 1.5rem;">
+        <h3 style="margin: 0 0 0.75rem 0; font-size: 1.05rem; font-weight: 800; color: #115e59;">🏬 تقييم رأس مال المخزون الحالي بالمستودع:</h3>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; font-size: 0.92rem;">
+          <div>• إجمالي رأس المال المخزن: <strong style="color: #0f766e;">${(stats.totalInventoryCapital || 0).toLocaleString('en-US')} ${cur}</strong></div>
+          <div>• عدد القطع المتوفرة: <strong>${(stats.totalStockUnits || 0).toLocaleString('en-US')} قطعة</strong></div>
+          <div>• القيمة البيعية المتوقعة: <strong>${(stats.totalInventoryRetail || 0).toLocaleString('en-US')} ${cur}</strong></div>
+        </div>
+      </div>
+
+      <div style="margin-top: 2.5rem; border-top: 1px solid #cbd5e1; padding-top: 1rem; display: flex; justify-content: space-between; font-size: 0.85rem; color: #475569;">
+        <div>المسؤول المالي: _________________</div>
+        <div>اعتماد المدير العام: _________________</div>
+        <div>تاريخ الاعتماد: ${nowStr}</div>
+      </div>
+    </div>
+  `;
+}
+
+// إرسال ملف PDF الفاتورة إلى تيليجرام
+async function sendInvoicePdfToTelegram(invoice) {
+  try {
+    const isPurchase = invoice.invoiceType === 'purchase';
+    const html = buildPrintableInvoiceHtml(invoice);
+    const fileName = `فاتورة_${invoice.invoiceNumber || invoice.id}.pdf`;
+    const pdfBlob = await generatePdfBlobFromHtml(html, fileName);
+    const cur = state.settings.currency || 'شيكل';
+    const totalAmount = invoice.summary?.totalAmount || 0;
+
+    const caption = 
+`📄 <b>فاتورة ${isPurchase ? 'مشتريات وتوريد' : 'مبيعات'} #${invoice.invoiceNumber || invoice.id} (ملف PDF رسمي)</b>
+🏢 <b>${state.settings.companyName || 'رامز عطاطرة'}</b>
+━━━━━━━━━━━━━━━━━━
+👤 <b>${isPurchase ? 'المورد:' : 'الزبون:'}</b> ${invoice.customerName}
+💰 <b>إجمالي الفاتورة:</b> <b>${totalAmount.toLocaleString('en-US')} ${cur}</b>
+📅 <b>التاريخ:</b> ${formatAppDateTime(invoice.createdAt)}
+<i>📎 مرفق أعلاه ملف الفاتورة الرسمي بصيغة PDF جاهز للطباعة.</i>`;
+
+    await sendPdfDocumentToTelegram(pdfBlob, fileName, caption);
+  } catch (err) {
+    console.warn('sendInvoicePdfToTelegram error:', err);
+  }
+}
+
+// إرسال ملف PDF سند القبض إلى تيليجرام
+async function sendReceiptPdfToTelegram(receipt) {
+  try {
+    const html = buildPrintableReceiptHtml(receipt);
+    const fileName = `سند_قبض_${receipt.receiptNumber}.pdf`;
+    const pdfBlob = await generatePdfBlobFromHtml(html, fileName);
+    const cur = state.settings.currency || 'شيكل';
+
+    const caption = 
+`📄 <b>سند قبض مالي معتمد #${receipt.receiptNumber} (ملف PDF رسمي)</b>
+🏢 <b>${state.settings.companyName || 'رامز عطاطرة'}</b>
+━━━━━━━━━━━━━━━━━━
+👤 <b>الزبون:</b> ${receipt.customerName}
+💰 <b>المبلغ المقبوض:</b> 🟢 <b>${Number(receipt.amount || 0).toLocaleString('en-US')} ${cur}</b>
+📅 <b>التاريخ:</b> ${formatAppDateTime(receipt.createdAt)}
+<i>📎 مرفق أعلاه ملف سند القبض الرسمي المعتمد بصيغة PDF.</i>`;
+
+    await sendPdfDocumentToTelegram(pdfBlob, fileName, caption);
+  } catch (err) {
+    console.warn('sendReceiptPdfToTelegram error:', err);
+  }
+}
+
+// إرسال ملف PDF محضر الجرد إلى تيليجرام
+async function sendInventoryAuditPdfToTelegram(modifiedDetails, editorName) {
+  try {
+    const html = buildInventoryAuditHtml(modifiedDetails, editorName);
+    const fileName = `محضر_جرد_${Date.now()}.pdf`;
+    const pdfBlob = await generatePdfBlobFromHtml(html, fileName);
+
+    const caption = 
+`📄 <b>محضر جرد وتحديث كميات المخزون (ملف PDF رسمي)</b>
+🏢 <b>${state.settings.companyName || 'رامز عطاطرة'}</b>
+━━━━━━━━━━━━━━━━━━
+👨‍💼 <b>القائم بالجرد:</b> <b>${editorName}</b>
+🔢 <b>الأصناف المعدلة:</b> <b>${modifiedDetails.length} صنف</b>
+🕐 <b>الوقت:</b> ${formatAppDateTime(new Date())}
+<i>📎 مرفق أعلاه كشف الجرد التفصيلي بالكميات السابقة والفعلية والفروقات.</i>`;
+
+    await sendPdfDocumentToTelegram(pdfBlob, fileName, caption);
+  } catch (err) {
+    console.warn('sendInventoryAuditPdfToTelegram error:', err);
+  }
+}
+
+// -------------------------------------------------------------
 // توحيد وتطبيع النصوص العربية والإنجليزية لمطابقة الماركات والبحث الذكي
 // -------------------------------------------------------------
 function normalizeArabic(text) {
@@ -155,7 +690,12 @@ async function initApp() {
     if (rcpInput) rcpInput.value = lastEmployee;
     const auditInput = document.getElementById('invAuditEmployeeName');
     if (auditInput) auditInput.value = lastEmployee;
+    const floatingAuditInput = document.getElementById('floatingInvAuditEmployeeName');
+    if (floatingAuditInput) floatingAuditInput.value = lastEmployee;
   }
+
+  // تطبيق حالة طي شبكة الماركات المحفوظة
+  applyStoredBrandCollapseStates();
 
   // إعداد التنقل بين التبويبات
   setupNavigation();
@@ -597,6 +1137,122 @@ function toggleBrandsViewMode(context) {
 }
 
 // -------------------------------------------------------------
+// زر طي وإخفاء شبكة الماركات الذكي (لتوفير المساحة)
+// -------------------------------------------------------------
+function toggleBrandsCollapse(context) {
+  const isCatalog = context === 'catalog';
+  const gridEl = document.getElementById(isCatalog ? 'catalogBrandsGrid' : 'inventoryBrandsGrid');
+  const btnEl = document.getElementById(isCatalog ? 'btnToggleCatalogBrands' : 'btnToggleInventoryBrands');
+  const noticeEl = document.getElementById(isCatalog ? 'catalogBrandsCollapsedNotice' : 'inventoryBrandsCollapsedNotice');
+
+  if (!gridEl) return;
+
+  const isCurrentlyCollapsed = gridEl.classList.contains('collapsed');
+  const willCollapse = !isCurrentlyCollapsed;
+
+  if (willCollapse) {
+    gridEl.classList.add('collapsed');
+    if (noticeEl) noticeEl.style.display = 'flex';
+    if (btnEl) {
+      btnEl.classList.add('collapsed-state');
+      const icon = btnEl.querySelector('.toggle-icon');
+      const text = btnEl.querySelector('.toggle-text');
+      if (icon) icon.textContent = '🔽';
+      if (text) text.textContent = 'إظهار الماركات';
+      btnEl.title = 'إظهار شبكة الماركات لتصفحها واختيار الماركة';
+    }
+    localStorage.setItem(`${context}_brands_collapsed`, 'true');
+    showToast('تم طي شبكة الماركات لتوفير مساحة العمل على الشاشة', 'info');
+  } else {
+    gridEl.classList.remove('collapsed');
+    if (noticeEl) noticeEl.style.display = 'none';
+    if (btnEl) {
+      btnEl.classList.remove('collapsed-state');
+      const icon = btnEl.querySelector('.toggle-icon');
+      const text = btnEl.querySelector('.toggle-text');
+      if (icon) icon.textContent = '🔼';
+      if (text) text.textContent = 'إخفاء الماركات';
+      btnEl.title = 'إخفاء شبكة الماركات لتوفير مساحة على الشاشة';
+    }
+    localStorage.removeItem(`${context}_brands_collapsed`);
+  }
+}
+
+function applyStoredBrandCollapseStates() {
+  if (localStorage.getItem('catalog_brands_collapsed') === 'true') {
+    const gridEl = document.getElementById('catalogBrandsGrid');
+    const btnEl = document.getElementById('btnToggleCatalogBrands');
+    const noticeEl = document.getElementById('catalogBrandsCollapsedNotice');
+    if (gridEl) gridEl.classList.add('collapsed');
+    if (noticeEl) noticeEl.style.display = 'flex';
+    if (btnEl) {
+      btnEl.classList.add('collapsed-state');
+      const icon = btnEl.querySelector('.toggle-icon');
+      const text = btnEl.querySelector('.toggle-text');
+      if (icon) icon.textContent = '🔽';
+      if (text) text.textContent = 'إظهار الماركات';
+    }
+  }
+  if (localStorage.getItem('inventory_brands_collapsed') === 'true') {
+    const gridEl = document.getElementById('inventoryBrandsGrid');
+    const btnEl = document.getElementById('btnToggleInventoryBrands');
+    const noticeEl = document.getElementById('inventoryBrandsCollapsedNotice');
+    if (gridEl) gridEl.classList.add('collapsed');
+    if (noticeEl) noticeEl.style.display = 'flex';
+    if (btnEl) {
+      btnEl.classList.add('collapsed-state');
+      const icon = btnEl.querySelector('.toggle-icon');
+      const text = btnEl.querySelector('.toggle-text');
+      if (icon) icon.textContent = '🔽';
+      if (text) text.textContent = 'إظهار الماركات';
+    }
+  }
+}
+
+// -------------------------------------------------------------
+// إدارة وتوثيق اسم القائم على عملية الجرد
+// -------------------------------------------------------------
+function syncAuditEmployeeName(val) {
+  const clean = (val || '').trim();
+  const toolbarInput = document.getElementById('invAuditEmployeeName');
+  const floatingInput = document.getElementById('invAuditEmployeeNameFloating');
+  const modalInput = document.getElementById('modalAuditEmployeeInput');
+  if (toolbarInput && toolbarInput.value !== val) toolbarInput.value = val;
+  if (floatingInput && floatingInput.value !== val) floatingInput.value = val;
+  if (modalInput && modalInput.value !== val) modalInput.value = val;
+  if (clean) localStorage.setItem('last_employee_name', clean);
+}
+
+function openAuditEmployeeModal() {
+  const modal = document.getElementById('auditEmployeeModal');
+  const input = document.getElementById('modalAuditEmployeeInput');
+  const saved = localStorage.getItem('last_employee_name') || '';
+  if (input) {
+    input.value = saved;
+    setTimeout(() => input.focus(), 150);
+  }
+  if (modal) modal.classList.add('active');
+}
+
+function closeAuditEmployeeModal() {
+  const modal = document.getElementById('auditEmployeeModal');
+  if (modal) modal.classList.remove('active');
+}
+
+function confirmAuditEmployeeAndSave() {
+  const input = document.getElementById('modalAuditEmployeeInput');
+  const name = (input ? input.value : '').trim();
+  if (!name) {
+    showToast('⚠️ يرجى كتابة اسم القائم بالجرد للمتابعة', 'error');
+    if (input) input.focus();
+    return;
+  }
+  syncAuditEmployeeName(name);
+  closeAuditEmployeeModal();
+  saveInventoryBulkChanges();
+}
+
+// -------------------------------------------------------------
 // إدارة شبكة الماركات الصغيرة الذكية (Compact Small Brands Grid)
 // -------------------------------------------------------------
 function renderBrandsRibbon(context, searchTerm = '') {
@@ -936,6 +1592,17 @@ function renderCatalog() {
     return true;
   });
 
+  // فرز الأصناف: جعل جميع الأصناف المتوفرة أولاً، وجميع الأصناف التي كميتها = صفر بالأسفل تماماً
+  filtered.sort((a, b) => {
+    const stockA = Math.max(0, parseInt(a.stock) || 0);
+    const stockB = Math.max(0, parseInt(b.stock) || 0);
+    const aAvailable = stockA > 0;
+    const bAvailable = stockB > 0;
+    if (aAvailable && !bAvailable) return -1;
+    if (!aAvailable && bAvailable) return 1;
+    return stockB - stockA; // المتوفر بكميات أكبر يظهر أولاً
+  });
+
   const totalCount = filtered.length;
 
   if (totalCount === 0) {
@@ -952,6 +1619,7 @@ function renderCatalog() {
   const displayedCount = state.catalogCurrentPage * state.catalogPageSize;
   const pageProducts = filtered.slice(0, displayedCount);
 
+  let zeroDividerAdded = false;
   let cardsHtml = pageProducts.map(prod => {
     const cost = parseFloat(prod.costPrice) || 0;
     const sell = parseFloat(prod.sellPrice) || 0;
@@ -962,11 +1630,27 @@ function renderCatalog() {
     const cartItem = state.cart.find(item => item.productId === prod.id);
     const inCartQty = cartItem ? cartItem.quantity : 0;
 
-    const currentStock = prod.stock ?? 0;
+    const currentStock = Math.max(0, parseInt(prod.stock) || 0);
     const isZeroStock = currentStock === 0;
     const imageUrl = prod.image || 'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80';
 
+    let dividerHtml = '';
+    if (isZeroStock && !zeroDividerAdded) {
+      zeroDividerAdded = true;
+      const zeroCount = filtered.filter(p => (parseInt(p.stock) || 0) <= 0).length;
+      dividerHtml = `
+        <div class="zero-stock-divider">
+          <div class="zero-title">
+            <span style="font-size: 1.3rem;">⚠️</span>
+            <span>أصناف نفدت كميتها من المخزون (الكمية = 0):</span>
+          </div>
+          <span class="zero-badge">${zeroCount} صنف نافد حالياً</span>
+        </div>
+      `;
+    }
+
     return `
+      ${dividerHtml}
       <div class="product-card ${isZeroStock ? 'is-out-of-stock' : ''}">
         <div class="product-img-wrapper">
           <img src="${imageUrl}" alt="${prod.name}" loading="lazy" onerror="this.src='https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80'">
@@ -1838,6 +2522,9 @@ async function submitInvoice() {
         showToast(`⚠️ تنبيه تيليجرام: ${data.invoice.telegramStatus.error || 'لم يتم الإرسال'}`, 'warning');
       }
 
+      // إرسال ملف الـ PDF الرسمي للفاتورة تلقائياً إلى تيليجرام
+      sendInvoicePdfToTelegram(data.invoice);
+
       // تفريغ السلة والمدخلات مع الإبقاء على اسم الموظف
       state.cart = [];
       state.selectedInvoiceCustomer = null;
@@ -2396,6 +3083,31 @@ function updateReceiptTafqeet(val) {
   if (box) box.style.display = 'flex';
 }
 
+function addReceiptAmountPreset(amt) {
+  const input = document.getElementById('rcpAmount');
+  if (!input) return;
+  const current = parseFloat(input.value) || 0;
+  const updated = current + amt;
+  input.value = updated;
+  handleReceiptAmountChange(updated);
+}
+
+function handleReceiptAmountChange(val) {
+  updateReceiptTafqeet(val);
+  const amount = parseFloat(val) || 0;
+  const prevBalInput = document.getElementById('rcpPreviousBalance');
+  const remHint = document.getElementById('rcpDebtRemainingHint');
+  const remInput = document.getElementById('rcpRemainingBalance');
+  const cur = state.settings.currency || 'شيكل';
+
+  if (prevBalInput && remHint) {
+    const prev = parseFloat(prevBalInput.value) || 0;
+    const rem = Math.max(0, prev - amount);
+    if (remInput) remInput.value = rem;
+    remHint.innerHTML = `الرصيد بعد السند: <strong style="color: ${rem === 0 ? '#059669' : '#dc2626'};">${rem.toLocaleString('en-US')} ${cur}</strong>`;
+  }
+}
+
 async function handleReceiptSubmit(event) {
   event.preventDefault();
 
@@ -2446,10 +3158,16 @@ async function handleReceiptSubmit(event) {
 
     const data = await res.json();
     if (data.success && data.receipt) {
-      showToast(`تم إصدار سند القبض رقم #${data.receipt.receiptNumber} بنجاح`, 'success');
+      showToast(`🎉 تم إصدار سند القبض رقم #${data.receipt.receiptNumber} بنجاح`, 'success');
       state.receipts.unshift(data.receipt);
       renderReceiptsTable();
+
+      // إرسال ملف PDF لسند القبض المعتمد تلقائياً إلى تيليجرام
+      showToast('✈️ جاري إرسال سند القبض الرسمي كملف PDF إلى تيليجرام...', 'info');
+      sendReceiptPdfToTelegram(data.receipt);
+
       resetReceiptForm();
+      await loadCustomers();
       viewReceipt(data.receipt.id);
     } else {
       showToast(data.error || 'حدث خطأ أثناء إصدار السند', 'error');
@@ -2469,10 +3187,48 @@ function resetReceiptForm() {
   if (form) form.reset();
   const tafqeetBox = document.getElementById('rcpTafqeetBox');
   if (tafqeetBox) tafqeetBox.style.display = 'none';
+  const debtCard = document.getElementById('rcpCustomerDebtCard');
+  if (debtCard) debtCard.style.display = 'none';
   const lastEmp = localStorage.getItem('last_employee_name');
   if (lastEmp) {
     const empInput = document.getElementById('rcpEmployeeName');
     if (empInput) empInput.value = lastEmp;
+  }
+}
+
+async function downloadCurrentReceiptPdf() {
+  if (!state.currentViewingReceipt) return;
+  const r = state.currentViewingReceipt;
+  showToast('جاري تجهيز وتحميل سند القبض PDF...', 'info');
+  try {
+    const html = buildPrintableReceiptHtml(r);
+    const fileName = `سند_قبض_${r.receiptNumber}.pdf`;
+    const blob = await generatePdfBlobFromHtml(html, fileName);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 1000);
+    showToast('تم تحميل سند القبض PDF بنجاح', 'success');
+  } catch (err) {
+    showToast('تعذر تحميل ملف الـ PDF', 'error');
+  }
+}
+
+async function resendCurrentReceiptPdfTelegram() {
+  if (!state.currentViewingReceipt) return;
+  const r = state.currentViewingReceipt;
+  showToast('جاري إرسال سند القبض PDF لتيليجرام...', 'info');
+  try {
+    await sendReceiptPdfToTelegram(r);
+    showToast('✈️ تم إرسال سند القبض PDF بنجاح إلى تيليجرام!', 'success');
+  } catch (err) {
+    showToast('فشل إرسال السند لتيليجرام', 'error');
   }
 }
 
@@ -2911,6 +3667,23 @@ function renderInventoryList() {
     return true;
   });
 
+  // فرز أصناف الجرد: جعل جميع الأصناف المتوفرة أولاً، وجميع الأصناف التي كميتها = صفر بالأسفل تماماً
+  filtered.sort((a, b) => {
+    const stockA = state.inventoryPendingUpdates.has(a.id)
+      ? state.inventoryPendingUpdates.get(a.id)
+      : Math.max(0, parseInt(a.stock) || 0);
+    const stockB = state.inventoryPendingUpdates.has(b.id)
+      ? state.inventoryPendingUpdates.get(b.id)
+      : Math.max(0, parseInt(b.stock) || 0);
+
+    const aAvail = stockA > 0;
+    const bAvail = stockB > 0;
+    if (aAvail && !bAvail) return -1;
+    if (!aAvail && bAvail) return 1;
+    if (aAvail && bAvail) return stockB - stockA; // الأكثر توفراً أولاً
+    return 0;
+  });
+
   if (filtered.length === 0) {
     container.innerHTML = `
       <div class="empty-state" style="background: white; border-radius: var(--radius-lg); padding: 3rem; border: 1px dashed var(--border-color);">
@@ -2930,11 +3703,26 @@ function renderInventoryList() {
   const startIndex = (state.inventoryCurrentPage - 1) * pageSize;
   const pageItems = filtered.slice(startIndex, startIndex + pageSize);
 
+  let zeroDividerAdded = false;
   container.innerHTML = pageItems.map(p => {
     const isModified = state.inventoryPendingUpdates.has(p.id);
     const originalStock = p.stock || 0;
     const currentStock = isModified ? state.inventoryPendingUpdates.get(p.id) : originalStock;
     const delta = currentStock - originalStock;
+
+    let zeroDividerHtml = '';
+    if (currentStock === 0 && !zeroDividerAdded) {
+      zeroDividerAdded = true;
+      zeroDividerHtml = `
+        <div class="zero-stock-divider" style="grid-column: 1 / -1; margin: 1rem 0;">
+          <div class="zero-title">
+            <span>⚠️</span>
+            <span>الأصناف التالية نفدت وكميتها = صفر (مفصولة بالأسفل)</span>
+          </div>
+          <span class="zero-badge">غير متوفر بالمستودع</span>
+        </div>
+      `;
+    }
 
     // صياغة جملة التعديل المطلوبة بدقة:
     // مثلاً: "الكمية 3 | آخر تعديل قام به رامز أمس"
@@ -2964,7 +3752,7 @@ function renderInventoryList() {
       `;
     }
 
-    return `
+    return (zeroDividerHtml || '') + `
       <div class="inventory-item-card ${isModified ? 'is-modified' : ''} ${currentStock === 0 ? 'is-zero-stock' : ''}" id="invCard-${p.id}">
         <!-- معلومات المنتج -->
         <div class="inv-prod-info">
@@ -3066,16 +3854,66 @@ function setInventoryStockDirect(id, val) {
   renderInventoryList();
 }
 
+function syncAuditEmployeeName(val) {
+  const clean = val || '';
+  const topInput = document.getElementById('invAuditEmployeeName');
+  const floatingInput = document.getElementById('floatingInvAuditEmployeeName');
+  const modalInput = document.getElementById('modalAuditEmployeeName');
+  if (topInput && topInput.value !== clean) topInput.value = clean;
+  if (floatingInput && floatingInput.value !== clean) floatingInput.value = clean;
+  if (modalInput && modalInput.value !== clean) modalInput.value = clean;
+  if (clean.trim()) {
+    localStorage.setItem('last_employee_name', clean.trim());
+  }
+}
+
+function openAuditorModal() {
+  const modal = document.getElementById('inventoryAuditorModal');
+  const modalInput = document.getElementById('modalAuditEmployeeName');
+  const saved = localStorage.getItem('last_employee_name') || '';
+  if (modalInput) modalInput.value = saved;
+  if (modal) modal.classList.add('active');
+  setTimeout(() => {
+    if (modalInput) modalInput.focus();
+  }, 100);
+}
+
+function closeAuditorModal() {
+  const modal = document.getElementById('inventoryAuditorModal');
+  if (modal) modal.classList.remove('active');
+}
+
+async function handleAuditorModalSubmit(event) {
+  if (event) event.preventDefault();
+  const modalInput = document.getElementById('modalAuditEmployeeName');
+  const name = modalInput ? modalInput.value.trim() : '';
+  if (!name) {
+    showToast('يرجى كتابة اسمك لحفظ الجرد', 'error');
+    return;
+  }
+  syncAuditEmployeeName(name);
+  closeAuditorModal();
+  await executeSaveInventory(name);
+}
+
 function resetInventoryChanges() {
   if (state.inventoryPendingUpdates.size === 0) {
     showToast('لا توجد تعديلات معلقة للتراجع عنها', 'info');
     return;
   }
-  if (confirm(`هل أنت متأكد من إلغاء وتجاهل التعديلات على ${state.inventoryPendingUpdates.size} أصناف؟`)) {
-    state.inventoryPendingUpdates.clear();
-    renderInventoryList();
-    showToast('تم التراجع عن التعديلات وإعادة الكميات الأصلية', 'info');
-  }
+  showConfirmDialog({
+    title: 'تجاهل تعديلات الجرد',
+    message: `هل أنت متأكد من إلغاء وتجاهل التعديلات على ${state.inventoryPendingUpdates.size} أصناف وإعادة الكميات السابقة؟`,
+    icon: '↩️',
+    confirmText: 'نعم، إلغاء التعديلات',
+    cancelText: 'تراجع',
+    isDanger: true,
+    onConfirm: () => {
+      state.inventoryPendingUpdates.clear();
+      renderInventoryList();
+      showToast('تم التراجع عن التعديلات وإعادة الكميات الأصلية', 'info');
+    }
+  });
 }
 
 async function saveInventoryBulkChanges() {
@@ -3085,21 +3923,30 @@ async function saveInventoryBulkChanges() {
   }
 
   const auditEmpInput = document.getElementById('invAuditEmployeeName');
-  const editorName = (auditEmpInput ? auditEmpInput.value : '').trim();
+  const floatingEmpInput = document.getElementById('floatingInvAuditEmployeeName');
+  let editorName = (auditEmpInput?.value || floatingEmpInput?.value || localStorage.getItem('last_employee_name') || '').trim();
 
   if (!editorName) {
-    showToast('⚠️ يرجى إدخال اسم الموظف القائم بالجرد أولاً في الشريط الثابت لحفظ التعديلات وتوثيق العملية', 'error');
-    if (auditEmpInput) auditEmpInput.focus();
+    openAuditorModal();
     return;
   }
 
-  // حفظ اسم الموظف في الذاكرة المحلية
-  localStorage.setItem('last_employee_name', editorName);
+  await executeSaveInventory(editorName);
+}
 
-  const saveBtn = document.getElementById('btnSaveInventory');
+async function executeSaveInventory(editorName) {
+  localStorage.setItem('last_employee_name', editorName);
+  syncAuditEmployeeName(editorName);
+
+  const saveBtn = document.getElementById('btnToolbarSaveInventory');
+  const floatingSaveBtn = document.getElementById('btnFloatingPillSave');
   if (saveBtn) {
     saveBtn.disabled = true;
-    saveBtn.innerHTML = '<span>⏳</span><span>جاري حفظ تعديلات الجرد في الخادم...</span>';
+    saveBtn.innerHTML = '<span>⏳</span><span>جاري حفظ الجرد...</span>';
+  }
+  if (floatingSaveBtn) {
+    floatingSaveBtn.disabled = true;
+    floatingSaveBtn.innerHTML = '<span>⏳</span><span>جاري الحفظ...</span>';
   }
 
   const updates = Array.from(state.inventoryPendingUpdates.entries()).map(([id, stock]) => ({
@@ -3128,6 +3975,12 @@ async function saveInventoryBulkChanges() {
         }
       });
 
+      // إرسال كشف PDF للأصناف المعدلة في الجرد لتيليجرام تلقائياً
+      if (data.modifiedDetails && data.modifiedDetails.length > 0) {
+        showToast('✈️ جاري إرسال محضر أصناف الجرد كملف PDF إلى تيليجرام...', 'info');
+        sendInventoryAuditPdfToTelegram(data.modifiedDetails, editorName);
+      }
+
       state.inventoryPendingUpdates.clear();
       renderInventoryList();
       renderCatalog();
@@ -3140,8 +3993,13 @@ async function saveInventoryBulkChanges() {
   } finally {
     if (saveBtn) {
       saveBtn.disabled = false;
-      updateInventoryFloatingBar(state.inventoryPendingUpdates.size);
+      saveBtn.innerHTML = '<span>💾</span><span id="btnToolbarSaveText">حفظ تعديلات الجرد</span><span class="badge" id="btnToolbarSaveBadge" style="display:none; background: #fff; color: #047857; margin-right: 0.35rem;">0</span>';
     }
+    if (floatingSaveBtn) {
+      floatingSaveBtn.disabled = false;
+      floatingSaveBtn.innerHTML = '<span>💾</span><span>حفظ التعديلات</span>';
+    }
+    updateInventoryFloatingBar(state.inventoryPendingUpdates.size);
   }
 }
 
@@ -3473,6 +4331,55 @@ function renderCustomerTab() {
       debtBadgeHtml = `<span style="font-weight: 700; color: #059669;">0 ${cur} (خالص)</span>`;
     }
 
+    // حساب مؤقت وتاريخ آخر سند قبض للزبون
+    const custReceipts = state.receipts.filter(r =>
+      (c.id && r.customerId === c.id) ||
+      (c.systemNumber && String(r.customerSystemNumber) === String(c.systemNumber)) ||
+      (r.customerName && r.customerName.trim().toLowerCase() === c.name.trim().toLowerCase())
+    );
+    custReceipts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const lastReceipt = custReceipts[0] || null;
+
+    let timerHtml = '';
+    if (lastReceipt) {
+      const diffMs = Date.now() - new Date(lastReceipt.createdAt).getTime();
+      const daysSince = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      let timeText = '';
+      if (daysSince === 0) timeText = 'اليوم';
+      else if (daysSince === 1) timeText = 'أمس';
+      else if (daysSince === 2) timeText = 'منذ يومين';
+      else if (daysSince <= 10) timeText = `منذ ${daysSince} أيام`;
+      else if (daysSince < 30) timeText = `منذ ${daysSince} يوماً`;
+      else {
+        const months = Math.floor(daysSince / 30);
+        timeText = `منذ أكثر من ${months === 1 ? 'شهر' : `${months} أشهر`} (${daysSince} يوم)`;
+      }
+
+      const isLate = hasDebt && daysSince >= 15;
+      const isExtreme = hasDebt && daysSince >= 30;
+
+      timerHtml = `
+        <div class="cust-timer-badge ${isExtreme ? 'timer-danger' : isLate ? 'timer-warning' : hasDebt ? 'timer-recent' : 'timer-settled'}">
+          <div style="font-weight: 800; display: flex; align-items: center; gap: 0.25rem;">
+            <span>${isExtreme ? '🚨' : isLate ? '⏳' : hasDebt ? '⏱️' : '✅'}</span>
+            <span>${timeText}</span>
+          </div>
+          <div style="font-size: 0.72rem; opacity: 0.9; margin-top: 0.1rem;">
+            سند #${lastReceipt.receiptNumber} (${(lastReceipt.amount || 0).toLocaleString('en-US')} ${cur})
+          </div>
+        </div>
+      `;
+    } else {
+      const custCreatedMs = c.createdAt ? new Date(c.createdAt).getTime() : Date.now();
+      const daysSince = Math.floor((Date.now() - custCreatedMs) / (1000 * 60 * 60 * 24));
+      timerHtml = `
+        <div class="cust-timer-badge ${hasDebt ? 'timer-warning' : 'timer-none'}">
+          <span style="font-weight: 700;">⚠️ لا يوجد سداد سابق</span>
+          ${daysSince > 0 ? `<span style="font-size: 0.7rem; opacity: 0.85;">مسجل منذ ${daysSince} يوماً</span>` : ''}
+        </div>
+      `;
+    }
+
     return `
       <tr>
         <td style="font-family: monospace; font-weight: 700; color: #475569;">#${escapeHtml(c.systemNumber || '--')}</td>
@@ -3483,6 +4390,7 @@ function renderCustomerTab() {
           ${c.phone ? `<span style="direction: ltr; display: inline-block;">📞 ${escapeHtml(c.phone)}</span>` : '<span style="color:#94a3b8;">--</span>'}
         </td>
         <td>${debtBadgeHtml}</td>
+        <td>${timerHtml}</td>
         <td style="font-size: 0.85rem; color: #64748b;">${escapeHtml(c.notes || '--')}</td>
         <td>
           <div style="display: flex; gap: 0.35rem; justify-content: center; flex-wrap: wrap;">
@@ -3492,10 +4400,15 @@ function renderCustomerTab() {
             <button class="btn btn-xs btn-primary" onclick="quickCreateInvoiceForCustomer('${c.id}')" title="إنشاء فاتورة جديدة باسمه">
               <span>🧾 فاتورة</span>
             </button>
+            ${hasDebt ? `
+              <button class="btn btn-xs btn-warning btn-cust-reminder" onclick="sendCustomerDebtReminder('${c.id}')" title="إرسال تذكير استحقاق دفعة مالية لتيليجرام">
+                <span>🔔 تذكير دفعة</span>
+              </button>
+            ` : ''}
             <button class="btn btn-xs btn-secondary" onclick="openAddCustomerModal('${c.id}')" title="تعديل">
               <span>✏️</span>
             </button>
-            <button class="btn btn-xs btn-danger" onclick="confirmDeleteCustomer('${c.id}')" title="حذف">
+            <button class="btn btn-xs btn-danger" onclick="confirmDeleteCustomer('${c.id}')" title="حذف الزبون">
               <span>🗑️</span>
             </button>
           </div>
@@ -3824,20 +4737,65 @@ async function confirmDeleteCustomer(id) {
   const c = state.customers.find(cust => cust.id === id);
   if (!c) return;
 
-  if (!confirm(`هل أنت متأكد من حذف الزبون "${c.name}" نهائياً من النظام؟`)) return;
-
-  try {
-    const res = await fetch(`/api/customers/${id}`, { method: 'DELETE' });
-    const data = await res.json();
-    if (data.success) {
-      showToast('تم حذف الزبون بنجاح', 'success');
-      await loadCustomers();
-    } else {
-      showToast(data.error || 'فشل حذف الزبون', 'error');
+  showConfirmDialog({
+    title: 'حذف الزبون من النظام',
+    message: `هل أنت متأكد من حذف الزبون "${c.name}" نهائياً من سجلات النظام؟ لن تتمكن من التراجع عن هذه العملية.`,
+    icon: '🗑️',
+    confirmText: 'نعم، حذف الزبون',
+    cancelText: 'تراجع وإلغاء',
+    isDanger: true,
+    onConfirm: async () => {
+      try {
+        const res = await fetch(`/api/customers/${id}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`تم حذف الزبون "${c.name}" بنجاح`, 'success');
+          await loadCustomers();
+        } else {
+          showToast(data.error || 'فشل حذف الزبون', 'error');
+        }
+      } catch (err) {
+        showToast('تعذر الاتصال بالخادم لحذف الزبون', 'error');
+      }
     }
-  } catch (err) {
-    showToast('تعذر الاتصال بالخادم', 'error');
+  });
+}
+
+async function sendCustomerDebtReminder(id) {
+  const c = state.customers.find(cust => cust.id === id);
+  if (!c) return;
+
+  const debt = parseFloat(c.balance) || 0;
+  if (debt <= 0) {
+    showToast('الزبون ليس عليه أي ديون مستحقة', 'info');
+    return;
   }
+
+  const cur = state.settings.currency || 'شيكل';
+  showConfirmDialog({
+    title: 'تذكير استحقاق دفعة مالية',
+    message: `هل تود إرسال إشعار تذكير استحقاق دفعة للزبون "${c.name}" بمبلغ (${debt.toLocaleString('en-US')} ${cur}) مباشرة إلى حساب تيليجرام؟`,
+    icon: '🔔',
+    confirmText: 'إرسال التذكير الآن',
+    cancelText: 'إلغاء',
+    isDanger: false,
+    onConfirm: async () => {
+      showToast('جاري إرسال إشعار التذكير لتيليجرام...', 'info');
+      try {
+        const res = await fetch(`/api/customers/${id}/send-reminder-telegram`, {
+          method: 'POST'
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('✈️ تم إرسال تذكير استحقاق الدفعة للزبون بنجاح إلى تيليجرام!', 'success');
+        } else {
+          showToast(data.error || 'تعذر إرسال التذكير لتيليجرام', 'error');
+        }
+      } catch (err) {
+        showToast('فشل الاتصال بالخادم لإرسال التذكير', 'error');
+      }
+    }
+  });
 }
 
 // -------------------------------------------------------------
@@ -4234,5 +5192,226 @@ async function sendCurrentInventoryReportTelegram() {
   } catch (err) {
     showToast('تعذر الاتصال بالخادم لإرسال التقرير لتيليجرام', 'error');
   }
+}
+
+// إرسال ملف PDF لجرد المخزون الفعلي إلى تيليجرام
+async function generateAndSendInventoryPdfToTelegram() {
+  const modal = document.getElementById('inventoryReportModal');
+  const printableArea = document.getElementById('printableInventoryReportArea');
+  if (!modal || !modal.classList.contains('active')) {
+    openInventoryReportModal();
+  }
+
+  showToast('جاري إنشاء ملف PDF لجرد المخزون وإرساله لتيليجرام...', 'info');
+
+  try {
+    const html = printableArea ? printableArea.innerHTML : '';
+    if (!html) {
+      showToast('تعذر استخراج بيانات التقرير', 'error');
+      return;
+    }
+    const fileName = `تقرير_جرد_${Date.now()}.pdf`;
+    const blob = await generatePdfBlobFromHtml(html, fileName);
+
+    const cur = state.settings.currency || 'شيكل';
+    const items = currentInventoryReportItems.length > 0 ? currentInventoryReportItems : state.products;
+    const totalUnits = items.reduce((acc, p) => acc + (state.inventoryPendingUpdates.has(p.id) ? state.inventoryPendingUpdates.get(p.id) : (p.stock || 0)), 0);
+    const totalCapital = items.reduce((acc, p) => acc + (state.inventoryPendingUpdates.has(p.id) ? state.inventoryPendingUpdates.get(p.id) : (p.stock || 0)) * (parseFloat(p.costPrice) || 0), 0);
+
+    const caption = 
+`📄 <b>تقرير جرد المخزون ورأس المال (ملف PDF معتمد)</b>
+🏢 <b>${state.settings.companyName || 'رامز عطاطرة'}</b>
+━━━━━━━━━━━━━━━━━━
+🔍 <b>النطاق:</b> ${currentInventoryReportScope || 'كامل المخزون'}
+📦 <b>الأصناف بالتقرير:</b> <b>${items.length} صنف</b>
+🔢 <b>إجمالي القطع:</b> <b>${totalUnits.toLocaleString('en-US')} قطعة</b>
+💰 <b>إجمالي رأس المال:</b> <b>${totalCapital.toLocaleString('en-US')} ${cur}</b>
+🕐 <b>الوقت:</b> ${formatAppDateTime(new Date())}
+<i>📎 مرفق كشف الجرد التفصيلي الكامل بصيغة PDF جاهز للطباعة والتدقيق.</i>`;
+
+    const res = await sendPdfDocumentToTelegram(blob, fileName, caption);
+    if (res.success) {
+      showToast('✈️ تم إرسال ملف الـ PDF لجرد المخزون بنجاح إلى تيليجرام!', 'success');
+    } else {
+      showToast(`تعذر الإرسال لتيليجرام: ${res.error || 'خطأ غير معروف'}`, 'error');
+    }
+  } catch (err) {
+    showToast('حدث خطأ أثناء تصدير وإرسال الـ PDF', 'error');
+  }
+}
+
+// بناء كشف رسمي للتقرير المالي وحساب الأرباح بصيغة PDF
+function buildPrintableFinancialReportHtml() {
+  const cur = state.settings.currency || 'شيكل';
+  const periodText = document.getElementById('dashCurrentPeriodBadge')?.textContent || 'كل الأوقات';
+  const nowStr = formatAppDateTime(new Date());
+
+  const invoices = state.invoices || [];
+  const salesInvoices = invoices.filter(i => (i.invoiceType || 'sales') === 'sales');
+  const purchaseInvoices = invoices.filter(i => i.invoiceType === 'purchase');
+
+  let totalSales = 0;
+  let totalCost = 0;
+  let totalProfit = 0;
+  let cashSales = 0;
+  let installmentSales = 0;
+
+  salesInvoices.forEach(i => {
+    const amount = i.summary?.totalAmount || 0;
+    const cost = i.summary?.totalCost || 0;
+    const profit = i.summary?.totalProfit || 0;
+    totalSales += amount;
+    totalCost += cost;
+    totalProfit += profit;
+    if (i.paymentMethod === 'installments') {
+      installmentSales += amount;
+    } else {
+      cashSales += amount;
+    }
+  });
+
+  const profitMargin = totalSales > 0 ? ((totalProfit / totalSales) * 100).toFixed(1) : 0;
+
+  let totalStockCapital = 0;
+  let totalStockUnits = 0;
+  state.products.forEach(p => {
+    const s = parseInt(p.stock) || 0;
+    totalStockUnits += s;
+    totalStockCapital += s * (parseFloat(p.costPrice) || 0);
+  });
+
+  return `
+    <div style="padding: 2rem; font-family: 'Cairo', 'IBM Plex Sans Arabic', sans-serif; direction: rtl; color: #0f172a; line-height: 1.6; border: 2px solid #0f172a; border-radius: 8px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0f172a; padding-bottom: 1rem; margin-bottom: 1.5rem;">
+        <div>
+          <h1 style="font-size: 1.6rem; font-weight: 900; margin: 0; color: #0f172a;">${escapeHtml(state.settings.companyName || 'رامز عطاطرة')}</h1>
+          <div style="font-size: 0.9rem; color: #475569;">تقرير مالي رسمي للأرباح والمبيعات ومطابقة رأس المال</div>
+        </div>
+        <div style="text-align: left;">
+          <div style="font-size: 1rem; font-weight: 800; color: #2563eb;">${escapeHtml(periodText)}</div>
+          <div style="font-size: 0.8rem; color: #64748b;">تاريخ الإصدار: ${nowStr}</div>
+        </div>
+      </div>
+
+      <!-- بطاقات المؤشرات المالية الرئيسية -->
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1.5rem;">
+        <div style="background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 1rem;">
+          <div style="font-size: 0.82rem; color: #64748b;">إجمالي المبيعات (الإيرادات)</div>
+          <div style="font-size: 1.4rem; font-weight: 900; color: #0f172a; margin-top: 0.25rem;">${totalSales.toLocaleString('en-US')} ${cur}</div>
+          <div style="font-size: 0.75rem; color: #64748b; margin-top: 0.2rem;">عدد فواتير البيع: ${salesInvoices.length}</div>
+        </div>
+
+        <div style="background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 1rem;">
+          <div style="font-size: 0.82rem; color: #64748b;">تكلفة البضاعة المباعة (رأس المال)</div>
+          <div style="font-size: 1.4rem; font-weight: 900; color: #475569; margin-top: 0.25rem;">${totalCost.toLocaleString('en-US')} ${cur}</div>
+          <div style="font-size: 0.75rem; color: #64748b; margin-top: 0.2rem;">التكلفة الفعلية للأصناف المباعة</div>
+        </div>
+
+        <div style="background: #ecfdf5; border: 1.5px solid #a7f3d0; border-radius: 8px; padding: 1rem;">
+          <div style="font-size: 0.82rem; color: #047857;">صافي الأرباح المحققة</div>
+          <div style="font-size: 1.4rem; font-weight: 900; color: #059669; margin-top: 0.25rem;">${totalProfit.toLocaleString('en-US')} ${cur}</div>
+          <div style="font-size: 0.75rem; color: #047857; font-weight: 700; margin-top: 0.2rem;">نسبة هامش الربح: ${profitMargin}%</div>
+        </div>
+      </div>
+
+      <!-- تفصيل المبيعات والمخزون -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+        <div style="border: 1px solid #cbd5e1; border-radius: 8px; padding: 1rem; background: #ffffff;">
+          <h3 style="font-size: 0.95rem; font-weight: 800; margin: 0 0 0.75rem 0; color: #0f172a;">💳 تفصيل طرق التحصيل:</h3>
+          <div style="display: flex; justify-content: space-between; padding: 0.4rem 0; border-bottom: 1px solid #f1f5f9;">
+            <span>💵 مبيعات نقدية (كاش مباشر):</span>
+            <strong>${cashSales.toLocaleString('en-US')} ${cur}</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; padding: 0.4rem 0; border-bottom: 1px solid #f1f5f9;">
+            <span>⏳ مبيعات أقساط مجدولة:</span>
+            <strong>${installmentSales.toLocaleString('en-US')} ${cur}</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; padding: 0.4rem 0;">
+            <span>📥 فواتير توريد ومشتريات:</span>
+            <strong>${purchaseInvoices.length} فاتورة</strong>
+          </div>
+        </div>
+
+        <div style="border: 1px solid #cbd5e1; border-radius: 8px; padding: 1rem; background: #ffffff;">
+          <h3 style="font-size: 0.95rem; font-weight: 800; margin: 0 0 0.75rem 0; color: #0f172a;">📦 القيمة الحالية للمخزون:</h3>
+          <div style="display: flex; justify-content: space-between; padding: 0.4rem 0; border-bottom: 1px solid #f1f5f9;">
+            <span>عدد الأصناف الإجمالي:</span>
+            <strong>${state.products.length} صنف</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; padding: 0.4rem 0; border-bottom: 1px solid #f1f5f9;">
+            <span>إجمالي القطع المتوفرة:</span>
+            <strong>${totalStockUnits.toLocaleString('en-US')} قطعة</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; padding: 0.4rem 0; font-weight: 800; color: #047857;">
+            <span>إجمالي رأس المال بالمخزن:</span>
+            <strong>${totalStockCapital.toLocaleString('en-US')} ${cur}</strong>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top: 2rem; border-top: 1.5px solid #0f172a; padding-top: 1rem; display: flex; justify-content: space-between; font-size: 0.85rem; color: #475569;">
+        <div>توقيع المدير المالي: _________________</div>
+        <div>اعتماد الإدارة: _________________</div>
+        <div>نظام إدارة المبيعات والمخزون</div>
+      </div>
+    </div>
+  `;
+}
+
+// تحميل التقرير المالي PDF
+async function downloadFinancialReportPdf() {
+  showToast('جاري تجهيز التقرير المالي بصيغة PDF...', 'info');
+  try {
+    const html = buildPrintableFinancialReportHtml();
+    const fileName = `التقرير_المالي_${Date.now()}.pdf`;
+    const blob = await generatePdfBlobFromHtml(html, fileName);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 1000);
+    showToast('تم تحميل التقرير المالي PDF بنجاح', 'success');
+  } catch (err) {
+    showToast('تعذر تحميل التقرير المالي PDF', 'error');
+  }
+}
+
+// إرسال التقرير المالي PDF لتيليجرام
+async function generateAndSendFinancialPdfToTelegram() {
+  showToast('جاري إنشاء التقرير المالي PDF وإرساله لتيليجرام...', 'info');
+  try {
+    const html = buildPrintableFinancialReportHtml();
+    const fileName = `التقرير_المالي_${Date.now()}.pdf`;
+    const blob = await generatePdfBlobFromHtml(html, fileName);
+
+    const periodText = document.getElementById('dashCurrentPeriodBadge')?.textContent || 'كل الأوقات';
+
+    const caption = 
+`📊 <b>التقرير المالي وحساب الأرباح (ملف PDF معتمد)</b>
+🏢 <b>${state.settings.companyName || 'رامز عطاطرة'}</b>
+━━━━━━━━━━━━━━━━━━
+⏱️ <b>الفترة:</b> ${escapeHtml(periodText)}
+📅 <b>التاريخ:</b> ${formatAppDateTime(new Date())}
+<i>📎 تجدون أعلاه ملف الـ PDF الشامل للأرباح والمبيعات ورأس المال.</i>`;
+
+    const res = await sendPdfDocumentToTelegram(blob, fileName, caption);
+    if (res.success) {
+      showToast('✈️ تم إرسال التقرير المالي PDF إلى تيليجرام بنجاح!', 'success');
+    } else {
+      showToast(`تعذر الإرسال: ${res.error || 'خطأ غير معروف'}`, 'error');
+    }
+  } catch (err) {
+    showToast('حدث خطأ أثناء إرسال التقرير المالي لتيليجرام', 'error');
+  }
+}
+
+// إرسال تقرير المخزون الشامل PDF لتيليجرام
+async function generateAndSendStockReportPdfToTelegram() {
+  await generateAndSendInventoryPdfToTelegram();
 }
 

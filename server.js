@@ -495,34 +495,15 @@ app.post('/api/inventory/update', async (req, res) => {
     }
     const result = dataStore.updateInventoryBulk(updates, editorName);
 
-    // إشعار تيليجرام باجراء الجرد مع تفاصيل التعديلات التي حصلت
+    // إشعار تيليجرام بإجراء الجرد مع تفاصيل التعديلات التي حصلت بتنسيق HTML واضح
     const settings = dataStore.getSettings();
     if (settings.telegramBotToken && settings.telegramChatId && result.changedCount > 0) {
-      let detailsText = '';
-      (result.modifiedDetails || []).slice(0, 25).forEach((item, idx) => {
-        const diffSign = item.diff > 0 ? `+${item.diff}` : `${item.diff}`;
-        detailsText += `▫️ *${idx + 1}. ${item.name}* ${item.code ? `(#${item.code})` : ''}\n` +
-          `   الكمية: كانت *(${item.oldStock})* ⬅️ أصبحت *(${item.newStock})* [الفرق: ${diffSign}]\n`;
-      });
-
-      if ((result.modifiedDetails || []).length > 25) {
-        detailsText += `\n... وباقي ${result.modifiedDetails.length - 25} صنفاً آخر تم تعديله.`;
-      }
-
-      const msg =
-        `📦 *تحديث جرد المخزون - ${settings.companyName || 'رامز عطاطرة'}*\n` +
-        `━━━━━━━━━━━━━━━━━━━━\n` +
-        `👨‍💼 القائم بالجرد: *${editorName || 'غير محدد'}*\n` +
-        `🔢 عدد الأصناف المعدلة: *${result.changedCount} صنف*\n` +
-        `🕐 الوقت: ${formatServerDateTime(new Date())}\n` +
-        `━━━━━━━━━━━━━━━━━━━━\n` +
-        `📝 *قائمة التعديلات التي تمت بالمخزن:*\n` +
-        detailsText;
-
       try {
         const telegramService = require('./telegramService');
-        await telegramService.sendRawMessage(settings.telegramBotToken, settings.telegramChatId, msg);
-      } catch (e) { /* ignore */ }
+        await telegramService.sendInventoryUpdateNotification(result, editorName, settings);
+      } catch (e) {
+        console.error('Telegram inventory notification error:', e.message);
+      }
     }
 
     res.json({ success: true, ...result });
@@ -641,6 +622,42 @@ app.post('/api/inventory/send-pdf-telegram', pdfUpload.single('pdfFile'), async 
   }
 });
 
+// إرسال أي ملف PDF رسمي (فاتورة، سند قبض، محضر جرد، تقرير مالي، تقرير مخزون) مباشرة لتيليجرام
+app.post('/api/telegram/send-pdf-document', pdfUpload.single('pdfFile'), async (req, res) => {
+  try {
+    const settings = dataStore.getSettings();
+
+    if (!settings.telegramBotToken || !settings.telegramChatId) {
+      return res.status(400).json({ success: false, error: 'لم يتم ضبط إعدادات تيليجرام (Bot Token أو Chat ID) بعد' });
+    }
+
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ success: false, error: 'لم يتم استلام ملف الـ PDF' });
+    }
+
+    const { fileName, caption } = req.body;
+    const resolvedFileName = fileName || req.file.originalname || `document_${Date.now()}.pdf`;
+
+    const result = await telegramService.sendDocument(
+      settings.telegramBotToken,
+      settings.telegramChatId,
+      req.file.buffer,
+      resolvedFileName,
+      caption || '📎 ملف PDF رسمي مرفق من النظام',
+      'HTML'
+    );
+
+    if (result.ok) {
+      res.json({ success: true, message: 'تم إرسال ملف الـ PDF الرسمي إلى تيليجرام بنجاح' });
+    } else {
+      res.status(500).json({ success: false, error: result.error || 'تعذر إرسال الملف لتيليجرام' });
+    }
+  } catch (err) {
+    console.error('Error sending document to telegram:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // -------------------------------------------------------------
 // APIs: سندات القبض (Receipts)
 // -------------------------------------------------------------
@@ -696,34 +713,14 @@ app.post('/api/receipts', async (req, res) => {
       paymentMethod
     });
 
-    // إشعار تيليجرام للسند
+    // إشعار تيليجرام للسند بتنسيق واضح
     const settings = dataStore.getSettings();
     if (settings.telegramBotToken && settings.telegramChatId) {
-      const cur = settings.currency || 'شيكل';
-      const method = { cash: '💵 نقداً', transfer: '🏦 تحويل بنكي', check: '📝 شيك' }[receipt.paymentMethod] || '💵 نقداً';
-      let balanceInfo = '';
-      if (previousBalance !== undefined && previousBalance > 0) {
-        balanceInfo =
-          `💳 الرصيد السابق: *${parseFloat(previousBalance).toLocaleString('en-US')} ${cur}*\n` +
-          `📉 الرصيد المتبقي: *${parseFloat(remainingBalance || 0).toLocaleString('en-US')} ${cur}*\n`;
-      }
-
-      const msg =
-        `💰 *سند قبض مالي جديد - ${settings.companyName || 'رامز عطاطرة'}*\n` +
-        `━━━━━━━━━━━━━━━━━━━━\n` +
-        `📄 رقم السند: *#${receipt.receiptNumber.toLocaleString('en-US')}*\n` +
-        `👤 الزبون: *${receipt.customerName}*${receipt.customerSystemNumber ? ` [رقم الحساب: #${receipt.customerSystemNumber}]` : ''}${receipt.customerPhone ? ` (${receipt.customerPhone})` : ''}\n` +
-        `💲 المبلغ المقبوض: *${receipt.amount.toLocaleString('en-US')} ${cur}*\n` +
-        `💳 طريقة الدفع: ${method}\n` +
-        balanceInfo +
-        `${receipt.description ? `📝 البيان: ${receipt.description}\n` : ''}` +
-        `👨‍💼 الموظف المحرر: ${receipt.employeeName}\n` +
-        `🕐 التاريخ: ${formatServerDateTime(receipt.createdAt)}`;
-
       try {
-        const telegramService = require('./telegramService');
-        await telegramService.sendRawMessage(settings.telegramBotToken, settings.telegramChatId, msg);
-      } catch (e) { /* تجاهل خطأ تيليجرام */ }
+        await telegramService.sendReceiptNotification(receipt, settings);
+      } catch (e) {
+        console.error('Telegram receipt notification error:', e.message);
+      }
     }
 
     res.json({ success: true, receipt });
@@ -780,6 +777,84 @@ app.delete('/api/customers/:id', (req, res) => {
     const deleted = dataStore.deleteCustomer(req.params.id);
     res.json({ success: true, deleted });
   } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// إرسال تذكير استحقاق دفعة مالية لزبون عبر تيليجرام مع مرفق PDF اختياري
+app.post('/api/customers/:id/send-reminder-telegram', pdfUpload.single('pdfFile'), async (req, res) => {
+  try {
+    const settings = dataStore.getSettings();
+    if (!settings.telegramBotToken || !settings.telegramChatId) {
+      return res.status(400).json({ success: false, error: 'لم يتم ضبط إعدادات تيليجرام (Bot Token أو Chat ID) بعد' });
+    }
+
+    const customers = dataStore.getCustomers();
+    const strId = String(req.params.id || '').trim();
+    const customer = customers.find(c => String(c.id).trim() === strId || String(c.systemNumber || '').trim() === strId);
+
+    if (!customer) {
+      return res.status(404).json({ success: false, error: 'الزبون غير موجود في النظام' });
+    }
+
+    const debt = parseFloat(customer.balance) || 0;
+    if (debt <= 0) {
+      return res.status(400).json({ success: false, error: 'الزبون ليس عليه أي ديون مستحقة (رصيده مسدد بالكامل)' });
+    }
+
+    // جلب آخر سند قبض مسجل للزبون
+    const receipts = dataStore.getReceipts();
+    const custReceipts = receipts.filter(r => 
+      (customer.id && r.customerId === customer.id) ||
+      (customer.systemNumber && String(r.customerSystemNumber) === String(customer.systemNumber)) ||
+      (r.customerName && r.customerName.trim().toLowerCase() === customer.name.trim().toLowerCase())
+    );
+
+    custReceipts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const lastReceipt = custReceipts[0] || null;
+
+    let daysSinceLastReceipt = 0;
+    if (lastReceipt) {
+      daysSinceLastReceipt = Math.floor((Date.now() - new Date(lastReceipt.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+    } else {
+      daysSinceLastReceipt = Math.floor((Date.now() - new Date(customer.createdAt || Date.now()).getTime()) / (1000 * 60 * 60 * 24));
+    }
+
+    // 1. إرسال الرسالة النصية التوضيحية
+    const textResult = await telegramService.sendCustomerReminderNotification({
+      customer,
+      debt,
+      lastReceipt,
+      daysSinceLastReceipt,
+      settings
+    });
+
+    // 2. إذا تم إرسال ملف PDF لكشف الحساب، يتم إرفاقه
+    if (req.file && req.file.buffer) {
+      const fileName = req.file.originalname || `كشف_حساب_${customer.name.replace(/\s+/g, '_')}.pdf`;
+      const cur = settings.currency || 'شيكل';
+      const caption = 
+`📄 <b>كشف حساب وإشعار استحقاق دفعة (ملف PDF رسمي)</b>
+👤 <b>الزبون:</b> ${customer.name} (حساب #${customer.systemNumber || '--'})
+💰 <b>الدين المستحق:</b> ${debt.toLocaleString('en-US')} ${cur}
+⏳ <b>آخر دفعة:</b> ${lastReceipt ? `منذ ${daysSinceLastReceipt} يوماً` : 'لا يوجد سداد سابق'}`;
+
+      await telegramService.sendDocument(
+        settings.telegramBotToken,
+        settings.telegramChatId,
+        req.file.buffer,
+        fileName,
+        caption,
+        'HTML'
+      );
+    }
+
+    res.json({
+      success: true,
+      message: `تم إرسال تذكير استحقاق الدفعة للزبون "${customer.name}" عبر تيليجرام بنجاح!`
+    });
+  } catch (err) {
+    console.error('Error sending customer reminder:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
