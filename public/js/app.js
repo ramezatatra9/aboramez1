@@ -81,43 +81,75 @@ function showConfirmDialog({ title, message, icon = '⚠️', confirmText = 'ت�
 // -------------------------------------------------------------
 // محرك توليد ملفات PDF رسمي وموحد مع إرسال تيليجرام
 // -------------------------------------------------------------
-async function generatePdfBlobFromHtml(htmlContent, fileName = 'document.pdf') {
+async function generatePdfBlobFromHtml(htmlContent, fileName = 'document.pdf', options = {}) {
   if (typeof html2pdf === 'undefined') {
-    throw new Error('مكتبة تصدير الـ PDF غير محملة في المتصفح');
+    throw new Error('مكتبة تصدير الـ PDF (html2pdf.js) غير محملة في المتصفح');
   }
 
-  // حاوية الرسم المرئية لمحرك html2canvas بحيث لا تكون خارج إطار الشاشة إطلاقاً
-  const wrapper = document.createElement('div');
-  wrapper.id = 'pdf-render-sandbox-' + Date.now();
-  wrapper.style.position = 'fixed';
-  wrapper.style.top = '0';
-  wrapper.style.left = '0';
-  wrapper.style.width = '794px'; // قياس عرض A4 القياسي بنسبة 96DPI
-  wrapper.style.minHeight = '1120px';
-  wrapper.style.zIndex = '-99999';
-  wrapper.style.opacity = '1';
-  wrapper.style.visibility = 'visible';
-  wrapper.style.background = '#ffffff';
-  wrapper.style.color = '#0f172a';
-  wrapper.style.direction = 'rtl';
-  wrapper.style.fontFamily = "'Cairo', 'IBM Plex Sans Arabic', sans-serif";
-  wrapper.style.pointerEvents = 'none';
-  wrapper.style.margin = '0';
-  wrapper.style.padding = '0';
-  wrapper.style.boxSizing = 'border-box';
-  wrapper.innerHTML = htmlContent;
+  if (!htmlContent || typeof htmlContent !== 'string' || !htmlContent.trim()) {
+    throw new Error('محتوى المستند المراد تصديره فارغ');
+  }
 
-  document.body.appendChild(wrapper);
+  const isLandscape = options.orientation === 'landscape';
+  const targetWidthPx = isLandscape ? 1120 : 794;
+
+  // حاوية عزل رئيسية خارج الشاشة تمنع التشويش البصري على المستخدم
+  const sandbox = document.createElement('div');
+  sandbox.id = 'pdf-render-sandbox-' + Date.now();
+  sandbox.style.position = 'absolute';
+  sandbox.style.left = '-10000px';
+  sandbox.style.top = '0';
+  sandbox.style.width = targetWidthPx + 'px';
+  sandbox.style.overflow = 'visible';
+  sandbox.style.opacity = '1';
+  sandbox.style.pointerEvents = 'none';
+  sandbox.style.zIndex = '-9999';
+
+  // عنصر المحتوى بتدفق طبيعي عادي (block) بدون position: fixed أو transform
+  // لضمان قياس الارتفاع الحقيقي بدقة تامة بواسطة html2canvas ومنع الصفحات البيضاء الفارغة
+  const contentElement = document.createElement('div');
+  contentElement.className = 'pdf-printable-content-root';
+  contentElement.style.width = targetWidthPx + 'px';
+  contentElement.style.minHeight = '300px';
+  contentElement.style.margin = '0';
+  contentElement.style.padding = '0';
+  contentElement.style.backgroundColor = '#ffffff';
+  contentElement.style.color = '#0f172a';
+  contentElement.style.direction = 'rtl';
+  contentElement.style.fontFamily = "'Cairo', 'IBM Plex Sans Arabic', 'Segoe UI', Tahoma, sans-serif";
+  contentElement.style.boxSizing = 'border-box';
+  contentElement.style.position = 'relative';
+  contentElement.innerHTML = htmlContent;
+
+  sandbox.appendChild(contentElement);
+  document.body.appendChild(sandbox);
 
   try {
-    // انتظار تحميل الخطوط العربية وتناسق أبعاد العناصر
+    // 1. انتظار اكتمال تحميل الخطوط لضمان دقة الرسم
     if (document.fonts && document.fonts.ready) {
-      try { await document.fonts.ready; } catch (e) {}
+      try {
+        await document.fonts.ready;
+      } catch (e) {}
     }
+
+    // 2. انتظار اكتمال تحميل أي صور داخل المستند
+    const images = Array.from(contentElement.querySelectorAll('img'));
+    if (images.length > 0) {
+      await Promise.all(images.map(img => {
+        if (img.complete && img.naturalHeight !== 0) return Promise.resolve();
+        return new Promise(resolve => {
+          img.onload = () => resolve();
+          img.onerror = () => resolve();
+          setTimeout(resolve, 800);
+        });
+      }));
+    }
+
+    // تأخير قصير لحسابات الـ Layout في المتصفح
     await new Promise(resolve => setTimeout(resolve, 250));
 
     const opt = {
-      margin: [10, 8, 10, 8],
+      margin: options.margin !== undefined ? options.margin : [8, 8, 8, 8],
       filename: fileName,
       image: { type: 'jpeg', quality: 0.98 },
       html2canvas: {
@@ -125,26 +157,75 @@ async function generatePdfBlobFromHtml(htmlContent, fileName = 'document.pdf') {
         useCORS: true,
         allowTaint: true,
         letterRendering: true,
-        logging: false,
-        scrollX: 0,
-        scrollY: 0,
-        windowWidth: 850
+        backgroundColor: '#ffffff',
+        logging: false
       },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      jsPDF: {
+        unit: 'mm',
+        format: options.format || 'a4',
+        orientation: isLandscape ? 'landscape' : 'portrait'
+      }
     };
 
-    const worker = html2pdf().set(opt).from(wrapper);
-    const pdf = await worker.toPdf().get('pdf');
-    const blob = pdf.output('blob');
+    // استخدام دالة outputPdf('blob') الرسمية التابعة للـ Worker
+    let blob = null;
+    try {
+      blob = await html2pdf().set(opt).from(contentElement).outputPdf('blob');
+    } catch (errOutputPdf) {
+      console.warn('outputPdf error, trying output("blob"):', errOutputPdf);
+      blob = await html2pdf().set(opt).from(contentElement).output('blob');
+    }
 
-    if (!blob || blob.size < 200) {
+    // فحص إضافي: إذا لم يتولد blob أو حجمه صغير جداً (مؤشر صفحة فارغة)
+    if (!blob || blob.size < 2000) {
+      console.warn('First pass produced small blob, trying fallback worker chain...');
+      const fallbackWorker = html2pdf().set(opt).from(contentElement);
+      blob = await fallbackWorker.output('blob');
+    }
+
+    if (!blob || blob.size < 500) {
       throw new Error('الملف المتولد فارغ، يرجى المحاولة مجدداً');
     }
+
     return blob;
   } finally {
-    if (wrapper.parentNode) {
-      wrapper.parentNode.removeChild(wrapper);
+    if (sandbox.parentNode) {
+      sandbox.parentNode.removeChild(sandbox);
     }
+  }
+}
+
+// دالة لتنزيل تقرير الجرد مباشرة كملف PDF
+async function downloadInventoryPdfDirectly() {
+  const modal = document.getElementById('inventoryReportModal');
+  const printableArea = document.getElementById('printableInventoryReportArea');
+  if (!modal || !modal.classList.contains('active')) {
+    openInventoryReportModal();
+  }
+
+  showToast('جاري تجهيز وتحميل ملف PDF لجرد المخزون...', 'info');
+
+  try {
+    const html = printableArea ? printableArea.innerHTML : '';
+    if (!html) {
+      showToast('تعذر استخراج بيانات التقرير', 'error');
+      return;
+    }
+    const fileName = `تقرير_جرد_${Date.now()}.pdf`;
+    const blob = await generatePdfBlobFromHtml(html, fileName);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 1000);
+    showToast('🎉 تم تحميل ملف تقرير الجرد PDF بنجاح!', 'success');
+  } catch (err) {
+    showToast('خطأ أثناء تحميل ملف الجرد PDF: ' + err.message, 'error');
   }
 }
 
@@ -198,6 +279,10 @@ async function downloadCurrentReceiptPdf() {
 
 async function sendPdfDocumentToTelegram(pdfBlob, fileName, caption) {
   try {
+    if (!pdfBlob || !(pdfBlob instanceof Blob) || pdfBlob.size < 500) {
+      throw new Error('ملف الـ PDF غير صالح أو فارغ الحجم');
+    }
+
     const formData = new FormData();
     formData.append('pdfFile', pdfBlob, fileName);
     formData.append('fileName', fileName);
@@ -214,7 +299,7 @@ async function sendPdfDocumentToTelegram(pdfBlob, fileName, caption) {
   }
 }
 
-// بناء كشف رسمي لفاتورة مبيعات أو مشتريات بصيغة PDF
+// بناء كشف رسمي لفاتورة مبيعات أو مشتريات بصيغة PDF معتمد ومتوافق 100% مع كافة المحركات
 function buildPrintableInvoiceHtml(inv) {
   const cur = state.settings.currency || 'شيكل';
   const isPurchase = inv.invoiceType === 'purchase';
@@ -227,14 +312,14 @@ function buildPrintableInvoiceHtml(inv) {
     const total = qty * price;
     return `
       <tr>
-        <td style="border: 1px solid #cbd5e1; padding: 7px 10px; text-align: center; font-weight: 700;">${idx + 1}</td>
-        <td style="border: 1px solid #cbd5e1; padding: 7px 10px;">
-          <div style="font-weight: 800; color: #0f172a;">${escapeHtml(item.productName)}</div>
-          ${item.code ? `<div style="font-size: 0.75rem; color: #64748b; font-family: monospace;">كود: ${escapeHtml(item.code)}</div>` : ''}
+        <td style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: center; font-weight: 700; width: 40px;">${idx + 1}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: right;">
+          <div style="font-weight: 800; color: #0f172a; font-size: 14px;">${escapeHtml(item.productName)}</div>
+          ${item.code ? `<div style="font-size: 12px; color: #64748b; font-family: monospace;">كود: ${escapeHtml(item.code)}</div>` : ''}
         </td>
-        <td style="border: 1px solid #cbd5e1; padding: 7px 10px; text-align: center; font-weight: 800; font-size: 1rem;">${qty}</td>
-        <td style="border: 1px solid #cbd5e1; padding: 7px 10px; text-align: left; font-weight: 700;">${price.toLocaleString('en-US')} ${cur}</td>
-        <td style="border: 1px solid #cbd5e1; padding: 7px 10px; text-align: left; font-weight: 800; color: #0f172a;">${total.toLocaleString('en-US')} ${cur}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: center; font-weight: 800; font-size: 15px; width: 80px;">${qty}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; font-weight: 700; width: 110px;">${price.toLocaleString('en-US')} ${cur}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; font-weight: 800; color: #0f172a; width: 130px;">${total.toLocaleString('en-US')} ${cur}</td>
       </tr>
     `;
   }).join('');
@@ -246,53 +331,74 @@ function buildPrintableInvoiceHtml(inv) {
   if (!isPurchase && inv.paymentMethod === 'installments') {
     const inst = inv.installmentDetails || {};
     paymentBlock = `
-      <div style="margin-top: 1rem; padding: 0.85rem; background: #fffbeb; border: 1.5px solid #fde68a; border-radius: 8px; font-size: 0.85rem;">
-        <strong style="color: #b45309; display: block; margin-bottom: 0.35rem;">⏳ تفاصيل نظام الأقساط المجدولة:</strong>
-        <div>• الدفعة الأولى المسددة: <strong>${(inst.downPayment || 0).toLocaleString('en-US')} ${cur}</strong></div>
-        <div>• المبلغ المتبقي المستحق: <strong style="color: #dc2626;">${(inst.remainingAmount || 0).toLocaleString('en-US')} ${cur}</strong></div>
-        <div>• مدة السداد المتفق عليها: <strong>${escapeHtml(inst.duration || 'غير محدد')}</strong></div>
-        ${inst.scheduleNotes ? `<div>• ملاحظات الأقساط: ${escapeHtml(inst.scheduleNotes)}</div>` : ''}
-      </div>
+      <table style="width: 100%; border-collapse: collapse; margin-top: 14px; background: #fffbeb; border: 1.5px solid #fde68a; border-radius: 6px; font-size: 13px;">
+        <tr>
+          <td style="padding: 10px 14px;">
+            <strong style="color: #b45309; display: block; margin-bottom: 6px;">⏳ تفاصيل نظام الأقساط المجدولة:</strong>
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 3px 0;">• الدفعة الأولى المسددة: <strong>${(inst.downPayment || 0).toLocaleString('en-US')} ${cur}</strong></td>
+                <td style="padding: 3px 0;">• المبلغ المتبقي المستحق: <strong style="color: #dc2626;">${(inst.remainingAmount || 0).toLocaleString('en-US')} ${cur}</strong></td>
+                <td style="padding: 3px 0;">• مدة السداد المتفق عليها: <strong>${escapeHtml(inst.duration || 'غير محدد')}</strong></td>
+              </tr>
+            </table>
+            ${inst.scheduleNotes ? `<div style="margin-top: 4px;">• ملاحظات الأقساط: ${escapeHtml(inst.scheduleNotes)}</div>` : ''}
+          </td>
+        </tr>
+      </table>
     `;
   }
 
   return `
-    <div style="padding: 1.75rem; font-family: 'Cairo', 'IBM Plex Sans Arabic', sans-serif; direction: rtl; color: #0f172a; line-height: 1.5;">
-      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2.5px solid #0f172a; padding-bottom: 1.25rem; margin-bottom: 1.25rem;">
-        <div style="display: flex; align-items: center; gap: 0.85rem;">
-          <div style="font-size: 2.5rem;">💼</div>
-          <div>
-            <h1 style="font-size: 1.6rem; font-weight: 900; margin: 0; color: #0f172a;">${escapeHtml(state.settings.companyName || 'رامز عطاطرة')}</h1>
-            <div style="font-size: 0.85rem; color: #475569; margin-top: 0.2rem;">
-              ${escapeHtml(state.settings.companyAddress || 'المركز التجاري الرئيسي')} | هاتف: ${escapeHtml(state.settings.companyPhone || '')}
+    <div style="padding: 24px; font-family: 'Cairo', 'IBM Plex Sans Arabic', sans-serif; direction: rtl; color: #0f172a; line-height: 1.5; background: #ffffff;">
+      <!-- Header -->
+      <table style="width: 100%; border-collapse: collapse; border-bottom: 2.5px solid #0f172a; padding-bottom: 16px; margin-bottom: 16px;">
+        <tr>
+          <td style="vertical-align: middle; text-align: right; width: 60%;">
+            <table style="border-collapse: collapse;">
+              <tr>
+                <td style="font-size: 36px; vertical-align: middle; padding-left: 12px; width: 45px;">💼</td>
+                <td style="vertical-align: middle;">
+                  <h1 style="font-size: 22px; font-weight: 900; margin: 0; color: #0f172a;">${escapeHtml(state.settings.companyName || 'رامز عطاطرة')}</h1>
+                  <div style="font-size: 13px; color: #475569; margin-top: 3px;">
+                    ${escapeHtml(state.settings.companyAddress || 'المركز التجاري الرئيسي')} | هاتف: ${escapeHtml(state.settings.companyPhone || '')}
+                  </div>
+                </td>
+              </tr>
+            </table>
+          </td>
+          <td style="vertical-align: middle; text-align: left; width: 40%;">
+            <div style="display: inline-block; background: ${isPurchase ? '#ecfdf5' : '#eff6ff'}; color: ${isPurchase ? '#047857' : '#1d4ed8'}; border: 1.5px solid ${isPurchase ? '#a7f3d0' : '#bfdbfe'}; font-size: 13px; font-weight: 800; padding: 4px 12px; border-radius: 6px;">
+              ${typeTitle}
             </div>
-          </div>
-        </div>
+            <div style="margin-top: 4px; font-weight: 900; font-family: monospace; font-size: 19px; color: #0f172a;">
+              #${inv.invoiceNumber || inv.id}
+            </div>
+            <div style="font-size: 12px; color: #64748b; margin-top: 2px;">${dateStr}</div>
+          </td>
+        </tr>
+      </table>
 
-        <div style="text-align: left;">
-          <div style="display: inline-block; background: ${isPurchase ? '#ecfdf5' : '#eff6ff'}; color: ${isPurchase ? '#047857' : '#1d4ed8'}; border: 1.5px solid ${isPurchase ? '#a7f3d0' : '#bfdbfe'}; font-size: 0.95rem; font-weight: 800; padding: 0.35rem 0.9rem; border-radius: 6px;">
-            ${typeTitle}
-          </div>
-          <div style="margin-top: 0.4rem; font-weight: 800; font-family: monospace; font-size: 1.2rem; color: #0f172a;">
-            #${inv.invoiceNumber || inv.id}
-          </div>
-          <div style="font-size: 0.8rem; color: #64748b;">${dateStr}</div>
-        </div>
-      </div>
+      <!-- Customer & Invoice Info Table -->
+      <table style="width: 100%; border-collapse: collapse; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; margin-bottom: 18px; font-size: 14px;">
+        <tr>
+          <td style="width: 50%; vertical-align: top; padding: 12px 14px; border-left: 1px solid #e2e8f0;">
+            <div style="margin-bottom: 4px;">
+              <span style="color: #64748b;">${isPurchase ? 'المورد / التوريد:' : 'الزبون / السيد:'}</span> 
+              <strong style="font-size: 15px; color: #0f172a;">${escapeHtml(inv.customerName)}</strong>
+            </div>
+            ${inv.customerPhone ? `<div style="margin-bottom: 4px;"><span style="color: #64748b;">رقم الهاتف:</span> <strong style="direction: ltr; display: inline-block;">${escapeHtml(inv.customerPhone)}</strong></div>` : ''}
+            ${inv.customerSystemNumber ? `<div><span style="color: #64748b;">رقم الحساب بالنظام:</span> <strong>#${escapeHtml(inv.customerSystemNumber)}</strong></div>` : ''}
+          </td>
+          <td style="width: 50%; vertical-align: top; padding: 12px 14px;">
+            <div style="margin-bottom: 6px;"><span style="color: #64748b;">الموظف المحرر:</span> <strong>${escapeHtml(inv.employeeName || 'غير محدد')}</strong></div>
+            <div><span style="color: #64748b;">طريقة الدفع:</span> <strong>${isPurchase ? 'نقداً (مشتريات)' : (inv.paymentMethod === 'installments' ? 'أقساط مجدولة' : 'نقداً (كاش)')}</strong></div>
+          </td>
+        </tr>
+      </table>
 
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 1rem; margin-bottom: 1.25rem; font-size: 0.88rem;">
-        <div>
-          <div><span style="color: #64748b;">${isPurchase ? 'المورد / التوريد:' : 'الزبون / السيد:'}</span> <strong style="font-size: 1rem; color: #0f172a;">${escapeHtml(inv.customerName)}</strong></div>
-          ${inv.customerPhone ? `<div style="margin-top: 0.3rem;"><span style="color: #64748b;">رقم الهاتف:</span> <strong style="direction: ltr; display: inline-block;">${escapeHtml(inv.customerPhone)}</strong></div>` : ''}
-          ${inv.customerSystemNumber ? `<div><span style="color: #64748b;">رقم الحساب بالنظام:</span> <strong>#${escapeHtml(inv.customerSystemNumber)}</strong></div>` : ''}
-        </div>
-        <div>
-          <div><span style="color: #64748b;">الموظف المحرر:</span> <strong>${escapeHtml(inv.employeeName || 'غير محدد')}</strong></div>
-          <div><span style="color: #64748b;">طريقة الدفع:</span> <strong>${isPurchase ? 'نقداً (مشتريات)' : (inv.paymentMethod === 'installments' ? 'أقساط مجدولة' : 'نقداً (كاش)')}</strong></div>
-        </div>
-      </div>
-
-      <table style="width: 100%; border-collapse: collapse; font-size: 0.88rem; margin-bottom: 1.25rem;">
+      <!-- Items Table -->
+      <table style="width: 100%; border-collapse: collapse; font-size: 13.5px; margin-bottom: 18px;">
         <thead>
           <tr style="background: #e2e8f0; color: #0f172a;">
             <th style="border: 1px solid #94a3b8; padding: 8px; width: 40px; text-align: center;">#</th>
@@ -307,37 +413,46 @@ function buildPrintableInvoiceHtml(inv) {
         </tbody>
       </table>
 
-      <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; margin-bottom: 1.25rem;">
-        <div style="flex: 1; padding: 0.75rem 1rem; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.88rem;">
-          <div style="color: #047857; font-weight: 700;">المبلغ كتابةً:</div>
-          <div style="font-weight: 800; font-size: 0.95rem; margin-top: 0.25rem;">${words}</div>
-          ${inv.notes ? `<div style="margin-top: 0.5rem; color: #475569; font-size: 0.82rem;"><strong>ملاحظات:</strong> ${escapeHtml(inv.notes)}</div>` : ''}
-        </div>
-
-        <div style="min-width: 250px; background: #f1f5f9; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 0.85rem;">
-          <div style="display: flex; justify-content: space-between; padding: 0.35rem 0; font-weight: 700; font-size: 0.88rem;">
-            <span>عدد القطع الإجمالي:</span>
-            <span>${(inv.summary?.totalQuantity || 0)} قطعة</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; padding: 0.5rem 0; font-weight: 900; font-size: 1.15rem; color: #047857; border-top: 1.5px solid #94a3b8;">
-            <span>المجموع النهائي:</span>
-            <span>${totalAmount.toLocaleString('en-US')} ${cur}</span>
-          </div>
-        </div>
-      </div>
+      <!-- Total & Words Table -->
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 18px;">
+        <tr>
+          <td style="vertical-align: top; padding-left: 14px; width: 58%;">
+            <div style="padding: 12px 14px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13.5px;">
+              <div style="color: #047857; font-weight: 700;">المبلغ كتابةً:</div>
+              <div style="font-weight: 800; font-size: 14.5px; margin-top: 3px;">${words}</div>
+              ${inv.notes ? `<div style="margin-top: 6px; color: #475569; font-size: 12.5px;"><strong>ملاحظات:</strong> ${escapeHtml(inv.notes)}</div>` : ''}
+            </div>
+          </td>
+          <td style="vertical-align: top; width: 42%;">
+            <table style="width: 100%; border-collapse: collapse; background: #f1f5f9; border: 1.5px solid #cbd5e1; border-radius: 8px;">
+              <tr>
+                <td style="padding: 8px 12px; font-weight: 700; font-size: 13px; border-bottom: 1px solid #cbd5e1;">عدد القطع الإجمالي:</td>
+                <td style="padding: 8px 12px; text-align: left; font-weight: 800; font-size: 13.5px; border-bottom: 1px solid #cbd5e1;">${(inv.summary?.totalQuantity || 0)} قطعة</td>
+              </tr>
+              <tr style="background: #e2e8f0;">
+                <td style="padding: 10px 12px; font-weight: 900; font-size: 15px; color: #047857;">المجموع النهائي:</td>
+                <td style="padding: 10px 12px; text-align: left; font-weight: 900; font-size: 17px; color: #047857;">${totalAmount.toLocaleString('en-US')} ${cur}</td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
 
       ${paymentBlock}
 
-      <div style="margin-top: 2rem; border-top: 1px solid #cbd5e1; padding-top: 1rem; display: flex; justify-content: space-between; font-size: 0.82rem; color: #475569;">
-        <div>توقيع المستلم: _________________</div>
-        <div>اعتماد المحل / الشركة: _________________</div>
-        <div>${escapeHtml(state.settings.invoiceFooterText || 'بضاعة الشركة مكفولة')}</div>
-      </div>
+      <!-- Footer Signatures -->
+      <table style="width: 100%; border-collapse: collapse; margin-top: 26px; border-top: 1px solid #cbd5e1; padding-top: 12px; font-size: 12.5px; color: #475569;">
+        <tr>
+          <td style="padding-top: 10px; width: 33.33%;">توقيع المستلم: _________________</td>
+          <td style="padding-top: 10px; text-align: center; width: 33.33%;">اعتماد المحل / الشركة: _________________</td>
+          <td style="padding-top: 10px; text-align: left; width: 33.33%;">${escapeHtml(state.settings.invoiceFooterText || 'بضاعة الشركة مكفولة')}</td>
+        </tr>
+      </table>
     </div>
   `;
 }
 
-// بناء كشف رسمي لسند قبض مالي بصيغة PDF
+// بناء كشف رسمي لسند قبض مالي بصيغة PDF معتمد ومتوافق 100%
 function buildPrintableReceiptHtml(receipt) {
   const cur = state.settings.currency || 'شيكل';
   const words = tafqeetArabic(receipt.amount, cur);
@@ -352,82 +467,98 @@ function buildPrintableReceiptHtml(receipt) {
   const remBal = parseFloat(receipt.remainingBalance) || 0;
 
   return `
-    <div style="padding: 2rem; font-family: 'Cairo', 'IBM Plex Sans Arabic', sans-serif; direction: rtl; color: #0f172a; line-height: 1.6; border: 2px solid #0f172a; border-radius: 8px;">
-      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0f172a; padding-bottom: 1.25rem; margin-bottom: 1.25rem;">
-        <div style="display: flex; align-items: center; gap: 0.85rem;">
-          <div style="font-size: 2.6rem;">💼</div>
-          <div>
-            <h1 style="font-size: 1.55rem; font-weight: 900; margin: 0; color: #0f172a;">${escapeHtml(state.settings.companyName || 'رامز عطاطرة')}</h1>
-            <div style="font-size: 0.85rem; color: #475569;">${escapeHtml(state.settings.companyAddress || 'المركز التجاري')} | هاتف: ${escapeHtml(state.settings.companyPhone || '')}</div>
-          </div>
-        </div>
+    <div style="padding: 24px; font-family: 'Cairo', 'IBM Plex Sans Arabic', sans-serif; direction: rtl; color: #0f172a; line-height: 1.6; border: 2px solid #0f172a; border-radius: 8px; background: #ffffff;">
+      <!-- Header -->
+      <table style="width: 100%; border-collapse: collapse; border-bottom: 2px solid #0f172a; padding-bottom: 16px; margin-bottom: 18px;">
+        <tr>
+          <td style="vertical-align: middle; text-align: right; width: 60%;">
+            <table style="border-collapse: collapse;">
+              <tr>
+                <td style="font-size: 38px; vertical-align: middle; padding-left: 12px; width: 45px;">💼</td>
+                <td style="vertical-align: middle;">
+                  <h1 style="font-size: 22px; font-weight: 900; margin: 0; color: #0f172a;">${escapeHtml(state.settings.companyName || 'رامز عطاطرة')}</h1>
+                  <div style="font-size: 13px; color: #475569; margin-top: 3px;">
+                    ${escapeHtml(state.settings.companyAddress || 'المركز التجاري الرئيسي')} | هاتف: ${escapeHtml(state.settings.companyPhone || '')}
+                  </div>
+                </td>
+              </tr>
+            </table>
+          </td>
+          <td style="vertical-align: middle; text-align: left; width: 40%;">
+            <div style="display: inline-block; background: #ecfdf5; color: #047857; border: 1.5px solid #a7f3d0; padding: 5px 14px; border-radius: 6px; font-weight: 800; font-size: 14.5px;">
+              سند قبض مالي معتمد
+            </div>
+            <div style="margin-top: 5px; font-weight: 900; font-family: monospace; font-size: 19px; color: #0f172a;">
+              رقم السند: #${receipt.receiptNumber}
+            </div>
+            <div style="font-size: 12px; color: #64748b; margin-top: 2px;">التاريخ: ${dateStr}</div>
+          </td>
+        </tr>
+      </table>
 
-        <div style="text-align: left;">
-          <div style="background: #ecfdf5; color: #047857; border: 1.5px solid #a7f3d0; padding: 0.35rem 0.9rem; border-radius: 6px; font-weight: 800; font-size: 1.05rem;">
-            سند قبض مالي معتمد
-          </div>
-          <div style="font-family: monospace; font-size: 1.2rem; font-weight: 900; margin-top: 0.4rem; color: #0f172a;">
-            رقم السند: #${receipt.receiptNumber}
-          </div>
-          <div style="font-size: 0.8rem; color: #64748b;">التاريخ: ${dateStr}</div>
-        </div>
-      </div>
+      <!-- Big Amount Banner -->
+      <table style="width: 100%; border-collapse: collapse; background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 8px; margin-bottom: 18px;">
+        <tr>
+          <td style="padding: 12px 18px; font-size: 15px; font-weight: 700; color: #166534; text-align: right;">المبلغ المقبوض:</td>
+          <td style="padding: 12px 18px; font-size: 22px; font-weight: 900; color: #15803d; text-align: left;">${Number(receipt.amount || 0).toLocaleString('en-US')} ${cur}</td>
+        </tr>
+      </table>
 
-      <div style="display: flex; justify-content: space-between; align-items: center; background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1.5rem;">
-        <span style="font-size: 1.05rem; font-weight: 700; color: #166534;">المبلغ المقبوض:</span>
-        <span style="font-size: 1.6rem; font-weight: 900; color: #15803d;">${Number(receipt.amount || 0).toLocaleString('en-US')} ${cur}</span>
-      </div>
-
-      <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 1.25rem; font-size: 0.95rem; margin-bottom: 1.5rem;">
-        <div style="padding: 0.5rem 0; border-bottom: 1px dashed #cbd5e1; display: flex;">
-          <span style="width: 170px; color: #64748b; font-weight: 700;">وصلنا من السيد / السادة:</span>
-          <span style="font-weight: 800; color: #0f172a; flex: 1;">${escapeHtml(receipt.customerName)} ${receipt.customerSystemNumber ? `[رقم الحساب: #${escapeHtml(receipt.customerSystemNumber)}]` : ''} ${receipt.customerPhone ? `(هاتف: ${escapeHtml(receipt.customerPhone)})` : ''}</span>
-        </div>
-
-        <div style="padding: 0.5rem 0; border-bottom: 1px dashed #cbd5e1; display: flex;">
-          <span style="width: 170px; color: #64748b; font-weight: 700;">مبلغ وقدره بالأحرف:</span>
-          <span style="font-weight: 800; color: #047857; flex: 1;">${words || `${receipt.amount} ${cur}`}</span>
-        </div>
-
-        <div style="padding: 0.5rem 0; border-bottom: 1px dashed #cbd5e1; display: flex;">
-          <span style="width: 170px; color: #64748b; font-weight: 700;">طريقة الدفع:</span>
-          <span style="font-weight: 800; flex: 1;">${methodLabel}</span>
-        </div>
-
+      <!-- Receipt Details Table -->
+      <table style="width: 100%; border-collapse: collapse; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; margin-bottom: 18px; font-size: 14px;">
+        <tr>
+          <td style="padding: 10px 14px; border-bottom: 1px dashed #cbd5e1; width: 170px; color: #64748b; font-weight: 700;">وصلنا من السيد / السادة:</td>
+          <td style="padding: 10px 14px; border-bottom: 1px dashed #cbd5e1; font-weight: 800; color: #0f172a;">${escapeHtml(receipt.customerName)} ${receipt.customerSystemNumber ? `[رقم الحساب: #${escapeHtml(receipt.customerSystemNumber)}]` : ''} ${receipt.customerPhone ? `(هاتف: ${escapeHtml(receipt.customerPhone)})` : ''}</td>
+        </tr>
+        <tr>
+          <td style="padding: 10px 14px; border-bottom: 1px dashed #cbd5e1; width: 170px; color: #64748b; font-weight: 700;">مبلغ وقدره بالأحرف:</td>
+          <td style="padding: 10px 14px; border-bottom: 1px dashed #cbd5e1; font-weight: 800; color: #047857;">${words || `${receipt.amount} ${cur}`}</td>
+        </tr>
+        <tr>
+          <td style="padding: 10px 14px; border-bottom: 1px dashed #cbd5e1; width: 170px; color: #64748b; font-weight: 700;">طريقة الدفع:</td>
+          <td style="padding: 10px 14px; border-bottom: 1px dashed #cbd5e1; font-weight: 800;">${methodLabel}</td>
+        </tr>
         ${receipt.description ? `
-        <div style="padding: 0.5rem 0; border-bottom: 1px dashed #cbd5e1; display: flex;">
-          <span style="width: 170px; color: #64748b; font-weight: 700;">وذلك لقاء (البيان):</span>
-          <span style="font-weight: 700; color: #0f172a; flex: 1;">${escapeHtml(receipt.description)}</span>
-        </div>` : ''}
-
+        <tr>
+          <td style="padding: 10px 14px; border-bottom: 1px dashed #cbd5e1; width: 170px; color: #64748b; font-weight: 700;">وذلك لقاء (البيان):</td>
+          <td style="padding: 10px 14px; border-bottom: 1px dashed #cbd5e1; font-weight: 700; color: #0f172a;">${escapeHtml(receipt.description)}</td>
+        </tr>` : ''}
         ${(prevBal > 0 || remBal >= 0) ? `
-        <div style="padding: 0.6rem 0; display: flex; justify-content: space-between; font-size: 0.88rem; background: #f8fafc; padding: 0.6rem 0.8rem; border-radius: 6px; margin-top: 0.5rem;">
-          <div>الدين السابق قبل السند: <strong>${prevBal.toLocaleString('en-US')} ${cur}</strong></div>
-          <div>المسدد الآن: <strong style="color: #047857;">-${Number(receipt.amount || 0).toLocaleString('en-US')} ${cur}</strong></div>
-          <div>الرصيد المتبقي بذمته: <strong style="color: ${remBal > 0 ? '#dc2626' : '#059669'}; font-size: 0.95rem;">${remBal.toLocaleString('en-US')} ${cur}</strong></div>
-        </div>` : ''}
-
+        <tr style="background: #f8fafc;">
+          <td colspan="2" style="padding: 10px 14px; font-size: 13.5px;">
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td>الدين السابق قبل السند: <strong>${prevBal.toLocaleString('en-US')} ${cur}</strong></td>
+                <td style="text-align: center;">المسدد الآن: <strong style="color: #047857;">-${Number(receipt.amount || 0).toLocaleString('en-US')} ${cur}</strong></td>
+                <td style="text-align: left;">الرصيد المتبقي بذمته: <strong style="color: ${remBal > 0 ? '#dc2626' : '#059669'}; font-size: 14.5px;">${remBal.toLocaleString('en-US')} ${cur}</strong></td>
+              </tr>
+            </table>
+          </td>
+        </tr>` : ''}
         ${receipt.notes ? `
-        <div style="padding: 0.5rem 0; display: flex;">
-          <span style="width: 170px; color: #64748b; font-weight: 700;">ملاحظات:</span>
-          <span style="font-size: 0.85rem; color: #475569; flex: 1;">${escapeHtml(receipt.notes)}</span>
-        </div>` : ''}
-      </div>
+        <tr>
+          <td style="padding: 10px 14px; width: 170px; color: #64748b; font-weight: 700;">ملاحظات:</td>
+          <td style="padding: 10px 14px; font-size: 13px; color: #475569;">${escapeHtml(receipt.notes)}</td>
+        </tr>` : ''}
+      </table>
 
-      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; border-top: 1.5px solid #cbd5e1; padding-top: 1.5rem; text-align: center; font-size: 0.85rem; color: #475569;">
-        <div>
-          <div>اسم وتوقيع المستلم</div>
-          <div style="margin-top: 1.5rem; font-weight: 800; color: #0f172a;">${escapeHtml(receipt.employeeName || 'الموظف المسؤول')}</div>
-        </div>
-        <div>
-          <div>توقيع الزبون / المودع</div>
-          <div style="margin-top: 1.5rem;">_________________</div>
-        </div>
-        <div>
-          <div>ختم واعتماد الشركة</div>
-          <div style="margin-top: 1.5rem;">_________________</div>
-        </div>
-      </div>
+      <!-- Signatures Table -->
+      <table style="width: 100%; border-collapse: collapse; border-top: 1.5px solid #cbd5e1; margin-top: 26px; padding-top: 16px; text-align: center; font-size: 13px; color: #475569;">
+        <tr>
+          <td style="width: 33.33%; padding: 10px; vertical-align: top;">
+            <div>اسم وتوقيع المستلم</div>
+            <div style="margin-top: 20px; font-weight: 800; color: #0f172a;">${escapeHtml(receipt.employeeName || 'الموظف المسؤول')}</div>
+          </td>
+          <td style="width: 33.33%; padding: 10px; vertical-align: top;">
+            <div>توقيع الزبون / المودع</div>
+            <div style="margin-top: 20px;">_________________</div>
+          </td>
+          <td style="width: 33.33%; padding: 10px; vertical-align: top;">
+            <div>ختم واعتماد الشركة</div>
+            <div style="margin-top: 20px;">_________________</div>
+          </td>
+        </tr>
+      </table>
     </div>
   `;
 }
@@ -2594,7 +2725,11 @@ async function submitInvoice() {
       }
 
       // إرسال ملف الـ PDF الرسمي للفاتورة تلقائياً إلى تيليجرام
-      sendInvoicePdfToTelegram(data.invoice);
+      try {
+        await sendInvoicePdfToTelegram(data.invoice);
+      } catch (pdfErr) {
+        console.warn('Auto send invoice PDF to Telegram error:', pdfErr);
+      }
 
       // تفريغ السلة والمدخلات مع الإبقاء على اسم الموظف
       state.cart = [];
@@ -3240,7 +3375,11 @@ async function handleReceiptSubmit(event) {
 
       // إرسال ملف PDF لسند القبض المعتمد تلقائياً إلى تيليجرام
       showToast('✈️ جاري إرسال سند القبض الرسمي كملف PDF إلى تيليجرام...', 'info');
-      sendReceiptPdfToTelegram(data.receipt);
+      try {
+        await sendReceiptPdfToTelegram(data.receipt);
+      } catch (pdfErr) {
+        console.warn('Auto send receipt PDF to Telegram error:', pdfErr);
+      }
 
       resetReceiptForm();
       await loadCustomers();
@@ -4054,7 +4193,11 @@ async function executeSaveInventory(editorName) {
       // إرسال كشف PDF للأصناف المعدلة في الجرد لتيليجرام تلقائياً
       if (data.modifiedDetails && data.modifiedDetails.length > 0) {
         showToast('✈️ جاري إرسال محضر أصناف الجرد كملف PDF إلى تيليجرام...', 'info');
-        sendInventoryAuditPdfToTelegram(data.modifiedDetails, editorName);
+        try {
+          await sendInventoryAuditPdfToTelegram(data.modifiedDetails, editorName);
+        } catch (pdfErr) {
+          console.warn('Auto send inventory audit PDF to Telegram error:', pdfErr);
+        }
       }
 
       state.inventoryPendingUpdates.clear();
@@ -5464,7 +5607,13 @@ async function sendCurrentInventoryReportTelegram() {
     });
     const data = await res.json();
     if (data.success) {
-      showToast('✈️ تم إرسال تقرير نتائج الجرد لتيليجرام بنجاح!', 'success');
+      showToast('✈️ تم إرسال تقرير نتائج الجرد لتيليجرام بنجاح! جاري إرفاق ملف الـ PDF...', 'success');
+      // إرفاق ملف PDF للتقرير أيضاً لضمان تضمين الملف في تيليجرام
+      try {
+        await generateAndSendInventoryPdfToTelegram();
+      } catch (pdfErr) {
+        console.warn('Auto PDF attachment for inventory report error:', pdfErr);
+      }
     } else {
       showToast(data.error || 'فشل إرسال التقرير لتيليجرام', 'error');
     }

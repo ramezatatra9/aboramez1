@@ -639,6 +639,8 @@ app.post('/api/telegram/send-pdf-document', pdfUpload.single('pdfFile'), async (
     const { fileName, caption } = req.body;
     const resolvedFileName = fileName || req.file.originalname || `document_${Date.now()}.pdf`;
 
+    console.log(`[Telegram PDF API] Sending document "${resolvedFileName}", buffer size: ${req.file.buffer.length} bytes`);
+
     const result = await telegramService.sendDocument(
       settings.telegramBotToken,
       settings.telegramChatId,

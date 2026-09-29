@@ -261,6 +261,9 @@ ${invoice.notes ? `\n📝 <b>ملاحظات التوريد:</b> ${escapeHtml(inv
     const cleanChatId = chatId.trim();
     const url = `https://api.telegram.org/bot${cleanToken}/sendDocument`;
 
+    const bufferSize = fileBuffer instanceof Blob ? fileBuffer.size : (fileBuffer?.length || 0);
+    console.log(`[Telegram Bot] Sending document "${fileName}" (${bufferSize} bytes) to chat ${cleanChatId}`);
+
     try {
       // تيليجرام يفرض حداً أقصى لشرح المستند (caption) قدره 1024 حرفاً
       let safeCaption = (caption || '').trim();
