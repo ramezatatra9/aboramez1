@@ -1,1 +1,14 @@
-[]
+[
+  {
+    "id": "RCP-1001",
+    "receiptNumber": 1001,
+    "createdAt": "2026-09-26T19:21:15.864+00:00",
+    "employeeName": "رامز",
+    "customerName": "اشرف قبها ريحان",
+    "customerPhone": "",
+    "amount": 400,
+    "description": "",
+    "notes": "",
+    "paymentMethod": "cash"
+  }
+]

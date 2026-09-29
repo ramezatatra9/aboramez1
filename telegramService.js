@@ -512,8 +512,96 @@ ${reportData.cashSales !== undefined ? `▫️ مبيعات الكاش المب�
 <i>📎 تجدون أعلاه ملف الـ PDF الكامل لجرد المخزون جاهزاً للطباعة والتدقيق.</i>`;
 
     return this.sendRawMessage(botToken, chatId, message, 'HTML');
+  },
+
+  /**
+   * إرسال التقرير الشامل لديون وأرصدة الزبائن إلى تيليجرام
+   */
+  async sendCustomerDebtsReportNotification(data, settings) {
+    const botToken = settings?.telegramBotToken?.trim();
+    const chatId = settings?.telegramChatId?.trim();
+    const currency = settings?.currency || 'شيكل';
+    if (!botToken || !chatId) return { ok: false, error: 'إعدادات تيليجرام غير مضبوطة' };
+
+    const companyName = settings.companyName || 'رامز عطاطرة';
+    const totalDebit = parseFloat(data.totalDebit) || 0;
+    const totalCredit = parseFloat(data.totalCredit) || 0;
+    const netBalance = parseFloat(data.netBalance) || (totalDebit - totalCredit);
+    const countDebtors = data.countDebtors || 0;
+    const countCreditors = data.countCreditors || 0;
+    const countSettled = data.countSettled || 0;
+    const totalCount = data.totalCount || 0;
+
+    let netBadge = '';
+    if (netBalance > 0) {
+      netBadge = `🟢 <b>صافي مطلوب لصالح المعرض:</b> <b>+${formatCurrency(netBalance, currency)}</b>`;
+    } else if (netBalance < 0) {
+      netBadge = `🔵 <b>صافي التزام على المعرض لصالح الزبائن:</b> <b>${formatCurrency(Math.abs(netBalance), currency)}</b>`;
+    } else {
+      netBadge = `⚖️ <b>الرصيد الصافي متوازن:</b> <b>0 ${currency}</b>`;
+    }
+
+    const message = 
+`👥 <b>التقرير الشامل لأرصدة وديون الزبائن</b>
+🏢 <b>${escapeHtml(companyName)}</b>
+━━━━━━━━━━━━━━━━━━
+📅 <b>تاريخ ووقت التقرير:</b> ${formatDateTime(new Date())}
+👥 <b>إجمالي عدد الزبائن:</b> <b>${totalCount} زبون</b>
+━━━━━━━━━━━━━━━━━━
+💰 <b>الملخص المالي العام للأرصدة:</b>
+🔴 <b>إجمالي الديون التي عليهم (مدين / مطلوب منهم):</b> <b>${formatCurrency(totalDebit, currency)}</b> (${countDebtors} زبون)
+🔵 <b>إجمالي الديون التي لهم (دائن / رصيد لصالحه):</b> <b>${formatCurrency(totalCredit, currency)}</b> (${countCreditors} زبون)
+🟢 <b>زبائن حسابهم مسدد بالكامل (خالص):</b> <b>${countSettled} زبون</b>
+━━━━━━━━━━━━━━━━━━
+${netBadge}
+━━━━━━━━━━━━━━━━━━
+<i>📎 مرفق أعلاه ملف الـ PDF الرسمي الكامل لجدول ديون وأرصدة كافة الزبائن.</i>`;
+
+    return this.sendRawMessage(botToken, chatId, message, 'HTML');
+  },
+
+  /**
+   * إرسال كشف حساب تفصيلي لزبون إلى تيليجرام
+   */
+  async sendCustomerStatementNotification(customer, statementData, settings) {
+    const botToken = settings?.telegramBotToken?.trim();
+    const chatId = settings?.telegramChatId?.trim();
+    const currency = settings?.currency || 'شيكل';
+    if (!botToken || !chatId) return { ok: false, error: 'إعدادات تيليجرام غير مضبوطة' };
+
+    const companyName = settings.companyName || 'رامز عطاطرة';
+    const balance = parseFloat(customer.balance) || 0;
+    let balDesc = '';
+    if (balance > 0) {
+      balDesc = `🔴 <b>دين مستحق بذمته (عليه):</b> <b>${formatCurrency(balance, currency)}</b>`;
+    } else if (balance < 0) {
+      balDesc = `🔵 <b>رصيد دائن لصالحه (له):</b> <b>${formatCurrency(Math.abs(balance), currency)}</b>`;
+    } else {
+      balDesc = `🟢 <b>الحساب مسدد بالكامل (خالص):</b> <b>0 ${currency}</b>`;
+    }
+
+    const message = 
+`📑 <b>كشف حساب تفصيلي معتمد لزبون</b>
+🏢 <b>${escapeHtml(companyName)}</b>
+━━━━━━━━━━━━━━━━━━
+👤 <b>اسم الزبون:</b> <b>${escapeHtml(customer.name)}</b>
+🔢 <b>رقم الحساب بالنظام:</b> #${escapeHtml(customer.systemNumber || '--')}
+${customer.phone ? `📞 <b>رقم الهاتف:</b> ${escapeHtml(customer.phone)}\n` : ''}📅 <b>تاريخ إصدار الكشف:</b> ${formatDateTime(new Date())}
+━━━━━━━━━━━━━━━━━━
+💰 <b>الرصيد المالي الحالي:</b>
+${balDesc}
+━━━━━━━━━━━━━━━━━━
+📊 <b>ملخص العمليات المسجلة:</b>
+🧾 عدد الفواتير: <b>${statementData.invoicesCount || 0} فاتورة</b>
+💰 عدد سندات القبض: <b>${statementData.receiptsCount || 0} سند</b>
+💵 إجمالي المسددات بسندات القبض: <b>${formatCurrency(statementData.totalPaid || 0, currency)}</b>
+━━━━━━━━━━━━━━━━━━
+<i>📎 مرفق كشف الحساب الرسمي المعتمد بصيغة PDF يحتوي على جميع الحركات والتواريخ بالتفصيل.</i>`;
+
+    return this.sendRawMessage(botToken, chatId, message, 'HTML');
   }
 };
 
 module.exports = telegramService;
+
 

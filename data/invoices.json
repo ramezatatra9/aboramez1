@@ -1,1 +1,110 @@
-[]
+[
+  {
+    "id": "INV-1002",
+    "invoiceNumber": 1002,
+    "createdAt": "2026-09-27T18:34:37.418+00:00",
+    "employeeName": "يامن",
+    "customerName": "استاذ رضا حرزالله",
+    "customerPhone": "",
+    "notes": "",
+    "items": [
+      {
+        "quantity": 1,
+        "costPrice": 300,
+        "productId": "prod-i00001217",
+        "sellPrice": 450,
+        "totalCost": 300,
+        "totalSell": 450,
+        "unitProfit": 150,
+        "productName": "شاشة يونيفرسال 32 بوصة نت",
+        "totalProfit": 150,
+        "productImage": "https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?w=500&auto=format&fit=crop&q=80"
+      },
+      {
+        "quantity": 1,
+        "costPrice": 22,
+        "productId": "prod-i00000397",
+        "sellPrice": 50,
+        "totalCost": 22,
+        "totalSell": 50,
+        "unitProfit": 28,
+        "productName": "حمالة متحركة صغيرة",
+        "totalProfit": 28,
+        "productImage": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=500&auto=format&fit=crop&q=80"
+      },
+      {
+        "quantity": 1,
+        "costPrice": 23,
+        "productId": "prod-i00000407",
+        "sellPrice": 50,
+        "totalCost": 23,
+        "totalSell": 50,
+        "unitProfit": 27,
+        "productName": "لاقط صحن رباعي",
+        "totalProfit": 27,
+        "productImage": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=500&auto=format&fit=crop&q=80"
+      }
+    ],
+    "summary": {
+      "totalCost": 345,
+      "totalAmount": 550,
+      "totalProfit": 205,
+      "totalQuantity": 3,
+      "profitMarginPercentage": 37.3
+    },
+    "paymentMethod": "installments",
+    "installmentDetails": {
+      "duration": "1 يوم",
+      "downPayment": 0,
+      "scheduleNotes": "",
+      "remainingAmount": 550
+    },
+    "telegramStatus": {
+      "sent": true,
+      "error": null,
+      "sentAt": "2026-09-28T20:15:30.617Z"
+    }
+  },
+  {
+    "id": "INV-1001",
+    "invoiceNumber": 1001,
+    "createdAt": "2026-09-27T18:31:35.77+00:00",
+    "employeeName": "يامن",
+    "customerName": "استاذ هيثم ديك",
+    "customerPhone": "",
+    "notes": "",
+    "items": [
+      {
+        "quantity": 1,
+        "costPrice": 320,
+        "productId": "prod-i00000366",
+        "sellPrice": 400,
+        "totalCost": 320,
+        "totalSell": 400,
+        "unitProfit": 80,
+        "productName": "مكنسة شارب برميل 2400 واط",
+        "totalProfit": 80,
+        "productImage": "https://images.unsplash.com/photo-1558317374-067fb5f30001?w=500&auto=format&fit=crop&q=80"
+      }
+    ],
+    "summary": {
+      "totalCost": 320,
+      "totalAmount": 400,
+      "totalProfit": 80,
+      "totalQuantity": 1,
+      "profitMarginPercentage": 20
+    },
+    "paymentMethod": "installments",
+    "installmentDetails": {
+      "duration": "1 شهر",
+      "downPayment": 0,
+      "scheduleNotes": "",
+      "remainingAmount": 400
+    },
+    "telegramStatus": {
+      "sent": true,
+      "error": null,
+      "sentAt": "2026-09-27T18:31:36.395Z"
+    }
+  }
+]

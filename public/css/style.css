@@ -4450,6 +4450,23 @@ textarea.form-control {
   animation: pulseLight 2s infinite;
 }
 
+.cust-timer-badge.timer-urgent-30 {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 2px solid #ef4444;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.25);
+  animation: pulseLight 1.8s infinite;
+}
+
+.urgent-debt-row {
+  background: #fff5f5 !important;
+  border-right: 4px solid #ef4444 !important;
+}
+
+.urgent-debt-row:hover {
+  background: #fee2e2 !important;
+}
+
 .cust-timer-badge.timer-none {
   background: #f8fafc;
   color: #64748b;
@@ -4530,6 +4547,219 @@ textarea.form-control {
   border-color: #047857 !important;
   box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25) !important;
 }
+
+/* =========================================================
+   Customer Debts, Net Balance & Statement Styles
+   ========================================================= */
+.customers-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.cust-kpi-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.15rem 1.25rem;
+  border-radius: var(--radius-lg);
+  border: 1.5px solid var(--border-color);
+  background: white;
+  transition: all 0.2s ease;
+}
+
+.cust-kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.cust-kpi-card.danger {
+  border-color: #fecaca;
+  background: #fffafa;
+}
+
+.cust-kpi-card.danger .kpi-icon-wrap {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.cust-kpi-card.danger .kpi-value {
+  color: #dc2626;
+}
+
+.cust-kpi-card.info {
+  border-color: #bae6fd;
+  background: #f0f9ff;
+}
+
+.cust-kpi-card.info .kpi-icon-wrap {
+  background: #e0f2fe;
+  color: #0284c7;
+}
+
+.cust-kpi-card.info .kpi-value {
+  color: #0284c7;
+}
+
+.cust-kpi-card.net-positive {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.cust-kpi-card.net-positive .kpi-icon-wrap {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.cust-kpi-card.net-positive .kpi-value {
+  color: #15803d;
+}
+
+.cust-kpi-card.net-negative {
+  border-color: #fed7aa;
+  background: #fff7ed;
+}
+
+.cust-kpi-card.net-negative .kpi-icon-wrap {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.cust-kpi-card.net-negative .kpi-value {
+  color: #c2410c;
+}
+
+.cust-kpi-card .kpi-icon-wrap {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.cust-kpi-card .kpi-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #64748b;
+  margin-bottom: 0.25rem;
+}
+
+.cust-kpi-card .kpi-value {
+  font-size: 1.35rem;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.cust-kpi-card .kpi-sub {
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-top: 0.2rem;
+}
+
+/* Balance Tags in Table */
+.bal-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.88rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.bal-tag.debit {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.bal-tag.credit {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.bal-tag.settled {
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+/* Excel Upload Drag & Drop Zone */
+.excel-drop-zone {
+  border: 2.5px dashed #cbd5e1;
+  border-radius: var(--radius-lg);
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  background: #f8fafc;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.excel-drop-zone:hover,
+.excel-drop-zone.dragover {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.excel-drop-zone .drop-icon {
+  font-size: 3.2rem;
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+/* Customer Statement Timeline */
+.statement-timeline-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+  margin-top: 1rem;
+}
+
+.statement-timeline-table th {
+  background: #f1f5f9;
+  color: #0f172a;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #cbd5e1;
+  text-align: right;
+  font-weight: 800;
+}
+
+.statement-timeline-table td {
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #e2e8f0;
+}
+
+.statement-timeline-table tr:hover {
+  background: #f8fafc;
+}
+
+.btn-statement {
+  background: #f1f5f9;
+  color: #0f172a;
+  border: 1px solid #cbd5e1;
+  border-radius: var(--radius-sm);
+  padding: 0.28rem 0.6rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  transition: all 0.15s ease;
+}
+
+.btn-statement:hover {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+  color: #000;
+}
+
 
 
 

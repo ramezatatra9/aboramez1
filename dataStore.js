@@ -681,6 +681,96 @@ const dataStore = {
     return { imported, updated, total: customers.length };
   },
 
+  // كشف حساب تفصيلي للزبون يجمع الفواتير وسندات القبض وحركة الرصيد
+  getCustomerStatement(id) {
+    const customers = this.getCustomers();
+    const strId = String(id || '').trim();
+    const customer = customers.find(c =>
+      String(c.id).trim() === strId ||
+      String(c.systemNumber || '').trim() === strId ||
+      c.name.trim().toLowerCase() === strId.toLowerCase()
+    );
+
+    if (!customer) return null;
+
+    const invoices = this.getInvoices();
+    const receipts = this.getReceipts();
+
+    const custInvoices = invoices.filter(inv =>
+      (inv.customerId && String(inv.customerId).trim() === String(customer.id).trim()) ||
+      (inv.customerSystemNumber && String(inv.customerSystemNumber).trim() === String(customer.systemNumber).trim()) ||
+      (inv.customerName && inv.customerName.trim().toLowerCase() === customer.name.trim().toLowerCase())
+    );
+
+    const custReceipts = receipts.filter(rcp =>
+      (rcp.customerId && String(rcp.customerId).trim() === String(customer.id).trim()) ||
+      (rcp.customerSystemNumber && String(rcp.customerSystemNumber).trim() === String(customer.systemNumber).trim()) ||
+      (rcp.customerName && rcp.customerName.trim().toLowerCase() === customer.name.trim().toLowerCase())
+    );
+
+    // بناء قائمة الحركات المدمجة
+    const transactions = [];
+
+    custInvoices.forEach(inv => {
+      const isPurchase = inv.invoiceType === 'purchase';
+      const amount = inv.summary?.totalAmount || 0;
+      transactions.push({
+        type: isPurchase ? 'purchase_invoice' : 'sales_invoice',
+        title: isPurchase ? `فاتورة مشتريات #${inv.invoiceNumber || inv.id}` : `فاتورة مبيعات #${inv.invoiceNumber || inv.id}`,
+        id: inv.id,
+        refNumber: inv.invoiceNumber || inv.id,
+        date: inv.createdAt,
+        employeeName: inv.employeeName,
+        paymentMethod: inv.paymentMethod,
+        debit: !isPurchase ? amount : 0,  // مبيعات تزيد الدين على الزبون
+        credit: isPurchase ? amount : 0, // مشتريات منه لصالح الزبون
+        notes: inv.notes || '',
+        itemsCount: (inv.items || []).length
+      });
+    });
+
+    custReceipts.forEach(rcp => {
+      transactions.push({
+        type: 'receipt',
+        title: `سند قبض مالي #${rcp.receiptNumber}`,
+        id: rcp.id,
+        refNumber: rcp.receiptNumber,
+        date: rcp.createdAt,
+        employeeName: rcp.employeeName,
+        paymentMethod: rcp.paymentMethod,
+        debit: 0,
+        credit: rcp.amount || 0, // سند القبض ينقص دينه / يسدده
+        notes: rcp.description ? `${rcp.description} ${rcp.notes ? `(${rcp.notes})` : ''}` : (rcp.notes || '')
+      });
+    });
+
+    // ترتيب الحركات تصاعدياً حسب التاريخ
+    transactions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    const totalSales = custInvoices.filter(i => i.invoiceType !== 'purchase').reduce((s, i) => s + (i.summary?.totalAmount || 0), 0);
+    const totalPaid = custReceipts.reduce((s, r) => s + (r.amount || 0), 0);
+    const balance = parseFloat(customer.balance) || 0;
+
+    return {
+      customer,
+      balance,
+      summary: {
+        totalSales,
+        totalPaid,
+        invoicesCount: custInvoices.length,
+        receiptsCount: custReceipts.length,
+        transactionsCount: transactions.length,
+        isDebtor: balance > 0,
+        isCreditor: balance < 0,
+        isSettled: balance === 0
+      },
+      invoices: custInvoices,
+      receipts: custReceipts,
+      transactions
+    };
+  },
+
+
   // الإعدادات
   getSettings() {
     return readJson(SETTINGS_FILE, defaultSettings);

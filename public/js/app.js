@@ -86,42 +86,113 @@ async function generatePdfBlobFromHtml(htmlContent, fileName = 'document.pdf') {
     throw new Error('مكتبة تصدير الـ PDF غير محملة في المتصفح');
   }
 
+  // حاوية الرسم المرئية لمحرك html2canvas بحيث لا تكون خارج إطار الشاشة إطلاقاً
   const wrapper = document.createElement('div');
+  wrapper.id = 'pdf-render-sandbox-' + Date.now();
   wrapper.style.position = 'fixed';
-  wrapper.style.left = '-9999px';
   wrapper.style.top = '0';
-  wrapper.style.width = '794px'; // القياس القياسي لصفحة A4
-  wrapper.style.padding = '0';
-  wrapper.style.margin = '0';
+  wrapper.style.left = '0';
+  wrapper.style.width = '794px'; // قياس عرض A4 القياسي بنسبة 96DPI
+  wrapper.style.minHeight = '1120px';
+  wrapper.style.zIndex = '-99999';
+  wrapper.style.opacity = '1';
+  wrapper.style.visibility = 'visible';
   wrapper.style.background = '#ffffff';
   wrapper.style.color = '#0f172a';
   wrapper.style.direction = 'rtl';
   wrapper.style.fontFamily = "'Cairo', 'IBM Plex Sans Arabic', sans-serif";
+  wrapper.style.pointerEvents = 'none';
+  wrapper.style.margin = '0';
+  wrapper.style.padding = '0';
+  wrapper.style.boxSizing = 'border-box';
   wrapper.innerHTML = htmlContent;
+
   document.body.appendChild(wrapper);
 
   try {
+    // انتظار تحميل الخطوط العربية وتناسق أبعاد العناصر
+    if (document.fonts && document.fonts.ready) {
+      try { await document.fonts.ready; } catch (e) {}
+    }
+    await new Promise(resolve => setTimeout(resolve, 250));
+
     const opt = {
-      margin: [8, 8, 8, 8],
+      margin: [10, 8, 10, 8],
       filename: fileName,
       image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, letterRendering: true, logging: false },
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        letterRendering: true,
+        logging: false,
+        scrollX: 0,
+        scrollY: 0,
+        windowWidth: 850
+      },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
 
     const worker = html2pdf().set(opt).from(wrapper);
-    let blob = null;
-    try {
-      blob = await worker.output('blob');
-    } catch (e) {
-      const pdf = await worker.toPdf().get('pdf');
-      blob = pdf.output('blob');
+    const pdf = await worker.toPdf().get('pdf');
+    const blob = pdf.output('blob');
+
+    if (!blob || blob.size < 200) {
+      throw new Error('الملف المتولد فارغ، يرجى المحاولة مجدداً');
     }
     return blob;
   } finally {
     if (wrapper.parentNode) {
       wrapper.parentNode.removeChild(wrapper);
     }
+  }
+}
+
+async function downloadCurrentInvoicePdf() {
+  if (!state.currentViewingInvoice) return;
+  const inv = state.currentViewingInvoice;
+  const fileName = `فاتورة_${inv.invoiceNumber || inv.id}.pdf`;
+  showToast('جاري تجهيز وتحميل الفاتورة بصيغة PDF...', 'info');
+  try {
+    const html = buildPrintableInvoiceHtml(inv);
+    const blob = await generatePdfBlobFromHtml(html, fileName);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 1000);
+    showToast('🎉 تم تحميل ملف الفاتورة PDF بنجاح!', 'success');
+  } catch (err) {
+    showToast('خطأ أثناء تحميل ملف الفاتورة PDF: ' + err.message, 'error');
+  }
+}
+
+async function downloadCurrentReceiptPdf() {
+  if (!state.currentViewingReceipt) return;
+  const r = state.currentViewingReceipt;
+  const fileName = `سند_قبض_${r.receiptNumber}.pdf`;
+  showToast('جاري تجهيز وتحميل سند القبض بصيغة PDF...', 'info');
+  try {
+    const html = buildPrintableReceiptHtml(r);
+    const blob = await generatePdfBlobFromHtml(html, fileName);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 1000);
+    showToast('🎉 تم تحميل سند القبض PDF بنجاح!', 'success');
+  } catch (err) {
+    showToast('خطأ أثناء تحميل سند القبض PDF: ' + err.message, 'error');
   }
 }
 
@@ -2821,16 +2892,21 @@ async function resendCurrentInvoiceTelegram() {
 }
 
 async function resendInvoiceTelegram(invoiceId) {
-  showToast('جاري إعادة إرسال الفاتورة لتيليجرام...', 'info');
+  showToast('جاري إرسال الفاتورة وملف الـ PDF لتيليجرام...', 'info');
   try {
     const res = await fetch(`/api/invoices/${invoiceId}/resend-telegram`, { method: 'POST' });
     const data = await res.json();
     if (data.success && data.result && data.result.ok) {
-      showToast('✈️ تم إرسال الفاتورة بنجاح لتيليجرام!', 'success');
       await loadInvoices();
       const updated = state.invoices.find(i => i.id === invoiceId);
-      if (updated && state.currentViewingInvoice && state.currentViewingInvoice.id === invoiceId) {
-        state.currentViewingInvoice = updated;
+      if (updated) {
+        if (state.currentViewingInvoice && state.currentViewingInvoice.id === invoiceId) {
+          state.currentViewingInvoice = updated;
+        }
+        await sendInvoicePdfToTelegram(updated);
+        showToast('✈️ تم إرسال الفاتورة وملف الـ PDF بنجاح لتيليجرام!', 'success');
+      } else {
+        showToast('✈️ تم إرسال الفاتورة بنجاح لتيليجرام!', 'success');
       }
     } else {
       showToast(`فشل الإرسال: ${data.result?.error || data.error || 'خطأ غير معروف'}`, 'error');
@@ -4268,6 +4344,50 @@ function clearCustomerTabSearch() {
   handleCustomerTabSearch('');
 }
 
+function getCustomerReceiptTimerData(c) {
+  const bal = parseFloat(c.balance) || 0;
+  const hasDebt = bal > 0;
+  const isCredit = bal < 0;
+
+  // فحص كافة سندات القبض الخاصة بالزبون
+  const custReceipts = state.receipts.filter(r =>
+    (c.id && r.customerId === c.id) ||
+    (c.systemNumber && String(r.customerSystemNumber) === String(c.systemNumber)) ||
+    (r.customerName && r.customerName.trim().toLowerCase() === c.name.trim().toLowerCase())
+  );
+  custReceipts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const lastReceipt = custReceipts[0] || null;
+
+  let daysSince = 0;
+  let dateFormatted = '';
+
+  if (lastReceipt) {
+    const rDate = new Date(lastReceipt.createdAt);
+    daysSince = Math.max(0, Math.floor((Date.now() - rDate.getTime()) / (1000 * 60 * 60 * 24)));
+    dateFormatted = rDate.toISOString().split('T')[0];
+  } else {
+    const custCreatedMs = c.createdAt ? new Date(c.createdAt).getTime() : (c.updatedAt ? new Date(c.updatedAt).getTime() : Date.now());
+    daysSince = Math.max(0, Math.floor((Date.now() - custCreatedMs) / (1000 * 60 * 60 * 24)));
+    dateFormatted = c.createdAt ? new Date(c.createdAt).toISOString().split('T')[0] : 'لا يوجد سداد';
+  }
+
+  // اقترب من 30 يوماً (من 25 يوماً فأكثر) أو تجاوزها ولديه دين مستحق بذمته
+  const isNear30 = hasDebt && (daysSince >= 25 && daysSince < 30);
+  const isOver30 = hasDebt && (daysSince >= 30);
+  const isUrgentRed = isNear30 || isOver30;
+
+  return {
+    lastReceipt,
+    daysSince,
+    dateFormatted,
+    hasDebt,
+    isCredit,
+    isNear30,
+    isOver30,
+    isUrgentRed
+  };
+}
+
 function renderCustomerTab() {
   const tbody = document.getElementById('customersMainTableBody');
   const emptyMsg = document.getElementById('emptyCustomersMessage');
@@ -4275,27 +4395,80 @@ function renderCustomerTab() {
 
   if (!tbody) return;
 
-  const totalDebts = state.customers.reduce((acc, c) => acc + (parseFloat(c.balance) > 0 ? parseFloat(c.balance) : 0), 0);
+  // الحساب المالي الدقيق والمطور للأرصدة (عليهم vs لهم والصافي الكلي)
+  let totalDebit = 0;   // ديون عليهم (balance > 0)
+  let totalCredit = 0;  // ديون لهم (balance < 0)
+  let countDebtors = 0;
+  let countCreditors = 0;
+  let countSettled = 0;
+
+  state.customers.forEach(c => {
+    const b = parseFloat(c.balance) || 0;
+    if (b > 0) {
+      totalDebit += b;
+      countDebtors++;
+    } else if (b < 0) {
+      totalCredit += Math.abs(b);
+      countCreditors++;
+    } else {
+      countSettled++;
+    }
+  });
+
+  const netBalance = parseFloat((totalDebit - totalCredit).toFixed(2));
   const totalCount = state.customers.length;
-  const indebtedCount = state.customers.filter(c => (parseFloat(c.balance) || 0) > 0).length;
 
   const elTotalDebts = document.getElementById('custTabTotalDebts');
+  const elDebtorsSub = document.getElementById('custTabDebtorsSub');
+  const elCreditTotal = document.getElementById('custTabCreditTotal');
+  const elCreditorsSub = document.getElementById('custTabCreditorsSub');
+  const elNetBalance = document.getElementById('custTabNetBalance');
+  const elNetLabel = document.getElementById('custTabNetLabel');
+  const elNetIcon = document.getElementById('custTabNetIcon');
+  const elNetSub = document.getElementById('custTabNetSub');
+  const elNetCard = document.getElementById('custTabNetCard');
   const elTotalCount = document.getElementById('custTabTotalCount');
-  const elIndebtedCount = document.getElementById('custTabIndebtedCount');
+  const elStatsSummary = document.getElementById('custTabStatsSummary');
   const elBadgeCount = document.getElementById('custTableCountBadge');
 
-  if (elTotalDebts) elTotalDebts.textContent = `${totalDebts.toLocaleString('en-US')} ${cur}`;
-  if (elTotalCount) elTotalCount.textContent = `${totalCount} زبون`;
-  if (elIndebtedCount) elIndebtedCount.textContent = `${indebtedCount} زبون`;
+  if (elTotalDebts) elTotalDebts.textContent = `${totalDebit.toLocaleString('en-US')} ${cur}`;
+  if (elDebtorsSub) elDebtorsSub.textContent = `${countDebtors} زبون مدين بذمته مبالغ`;
 
-  // تطبيق الفلاتر
+  if (elCreditTotal) elCreditTotal.textContent = `${totalCredit.toLocaleString('en-US')} ${cur}`;
+  if (elCreditorsSub) elCreditorsSub.textContent = `${countCreditors} زبون له رصيد دائن أو فائض`;
+
+  if (elNetBalance) {
+    elNetBalance.textContent = `${Math.abs(netBalance).toLocaleString('en-US')} ${cur}`;
+  }
+  if (elNetLabel) {
+    elNetLabel.textContent = netBalance > 0 ? 'صافي مطلوب لصالح المعرض (+)' : (netBalance < 0 ? 'صافي التزام للزبائن (-)' : 'الرصيد الصافي متوازن');
+  }
+  if (elNetIcon) {
+    elNetIcon.textContent = netBalance > 0 ? '📈' : (netBalance < 0 ? '📉' : '⚖️');
+  }
+  if (elNetSub) {
+    if (netBalance > 0) {
+      elNetSub.textContent = `فائض ذمم مدينة لصالح المعرض بمقدار +${netBalance.toLocaleString('en-US')} ${cur}`;
+    } else if (netBalance < 0) {
+      elNetSub.textContent = `مستحقات للزبائن على المعرض بمقدار -${Math.abs(netBalance).toLocaleString('en-US')} ${cur}`;
+    } else {
+      elNetSub.textContent = 'إجمالي ما عليهم مساوٍ تماماً لما لهم';
+    }
+  }
+  if (elNetCard) {
+    elNetCard.className = netBalance >= 0 ? 'card cust-kpi-card net-positive' : 'card cust-kpi-card net-negative';
+  }
+
+  if (elTotalCount) elTotalCount.textContent = `${totalCount} زبون`;
+  if (elStatsSummary) elStatsSummary.textContent = `${countDebtors} مدين | ${countCreditors} دائن | ${countSettled} خالص`;
+
+  // تطبيق الفلاتر بدقة
   let filtered = state.customers.filter(c => {
-    // 1. فلتر الديون
     const bal = parseFloat(c.balance) || 0;
     if (state.customerDebtFilter === 'with_debt' && bal <= 0) return false;
-    if (state.customerDebtFilter === 'settled' && bal > 0) return false;
+    if (state.customerDebtFilter === 'with_credit' && bal >= 0) return false;
+    if (state.customerDebtFilter === 'settled' && bal !== 0) return false;
 
-    // 2. فلتر البحث
     if (state.customerTabSearch) {
       const q = state.customerTabSearch;
       const matchName = c.name && c.name.toLowerCase().includes(q);
@@ -4317,6 +4490,41 @@ function renderCustomerTab() {
 
   if (emptyMsg) emptyMsg.style.display = 'none';
 
+  // فرز الزبائن:
+  // 1. العملاء المقتربين من 30 يوماً أو المتجاوزين 30 يوماً (اللون الأحمر) في القمة أولاً دائماً!
+  // 2. باقي المدينين (عليهم ديون)
+  // 3. الدائنين (لهم أرصدة)
+  // 4. الحسابات المسددة
+  filtered.sort((a, b) => {
+    const timerA = getCustomerReceiptTimerData(a);
+    const timerB = getCustomerReceiptTimerData(b);
+
+    // الأولوية القصوى: العملاء ذوي اللون الأحمر (اقترب أو تجاوز 30 يوماً بدون سداد ولديه دين)
+    if (timerA.isUrgentRed && !timerB.isUrgentRed) return -1;
+    if (!timerA.isUrgentRed && timerB.isUrgentRed) return 1;
+    if (timerA.isUrgentRed && timerB.isUrgentRed) {
+      // الأطول مدة والأكثر تأخراً بدون سداد أولاً
+      if (timerB.daysSince !== timerA.daysSince) {
+        return timerB.daysSince - timerA.daysSince;
+      }
+      return (parseFloat(b.balance) || 0) - (parseFloat(a.balance) || 0);
+    }
+
+    // باقي المدينين
+    const balA = parseFloat(a.balance) || 0;
+    const balB = parseFloat(b.balance) || 0;
+    if (balA > 0 && balB <= 0) return -1;
+    if (balA <= 0 && balB > 0) return 1;
+    if (balA > 0 && balB > 0) return balB - balA; // الأكبر ديناً أولاً
+
+    // الدائنين
+    if (balA < 0 && balB >= 0) return -1;
+    if (balA >= 0 && balB < 0) return 1;
+    if (balA < 0 && balB < 0) return balA - balB; // الأكبر رصيداً له أولاً
+
+    return 0;
+  });
+
   tbody.innerHTML = filtered.map(c => {
     const bal = parseFloat(c.balance) || 0;
     const hasDebt = bal > 0;
@@ -4324,73 +4532,96 @@ function renderCustomerTab() {
 
     let debtBadgeHtml = '';
     if (hasDebt) {
-      debtBadgeHtml = `<span style="font-weight: 800; color: #dc2626; font-size: 1.05rem;">${bal.toLocaleString('en-US')} ${cur}</span> <small style="color: #ef4444; font-weight:700;">(دين مستحق)</small>`;
+      debtBadgeHtml = `<span class="bal-tag debit">🔴 عليه: ${bal.toLocaleString('en-US')} ${cur}</span>`;
     } else if (isCredit) {
-      debtBadgeHtml = `<span style="font-weight: 800; color: #2563eb; font-size: 1.05rem;">${Math.abs(bal).toLocaleString('en-US')} ${cur}</span> <small style="color: #3b82f6;">(رصيد له)</small>`;
+      debtBadgeHtml = `<span class="bal-tag credit">🔵 له: ${Math.abs(bal).toLocaleString('en-US')} ${cur}</span>`;
     } else {
-      debtBadgeHtml = `<span style="font-weight: 700; color: #059669;">0 ${cur} (خالص)</span>`;
+      debtBadgeHtml = `<span class="bal-tag settled">🟢 خالص (0 ${cur})</span>`;
     }
 
     // حساب مؤقت وتاريخ آخر سند قبض للزبون
-    const custReceipts = state.receipts.filter(r =>
-      (c.id && r.customerId === c.id) ||
-      (c.systemNumber && String(r.customerSystemNumber) === String(c.systemNumber)) ||
-      (r.customerName && r.customerName.trim().toLowerCase() === c.name.trim().toLowerCase())
-    );
-    custReceipts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    const lastReceipt = custReceipts[0] || null;
-
+    const timer = getCustomerReceiptTimerData(c);
     let timerHtml = '';
-    if (lastReceipt) {
-      const diffMs = Date.now() - new Date(lastReceipt.createdAt).getTime();
-      const daysSince = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-      let timeText = '';
-      if (daysSince === 0) timeText = 'اليوم';
-      else if (daysSince === 1) timeText = 'أمس';
-      else if (daysSince === 2) timeText = 'منذ يومين';
-      else if (daysSince <= 10) timeText = `منذ ${daysSince} أيام`;
-      else if (daysSince < 30) timeText = `منذ ${daysSince} يوماً`;
-      else {
-        const months = Math.floor(daysSince / 30);
-        timeText = `منذ أكثر من ${months === 1 ? 'شهر' : `${months} أشهر`} (${daysSince} يوم)`;
+
+    if (timer.lastReceipt) {
+      let statusText = '';
+      if (timer.daysSince === 0) statusText = 'سدد اليوم';
+      else if (timer.daysSince === 1) statusText = 'مضى يوم واحد (أمس)';
+      else if (timer.daysSince === 2) statusText = 'مضى يومان';
+      else if (timer.daysSince <= 10) statusText = `مضى ${timer.daysSince} أيام`;
+      else statusText = `مضى ${timer.daysSince} يوماً`;
+
+      let badgeClass = 'timer-recent';
+      let urgencyBadge = '';
+
+      if (timer.isOver30) {
+        badgeClass = 'timer-urgent-30';
+        urgencyBadge = `<div style="color: #991b1b; font-size: 0.72rem; font-weight: 800; margin-top: 0.2rem; background: #fee2e2; padding: 2px 6px; border-radius: 4px; border: 1px solid #f87171;">🚨 تجاوز 30 يوماً بدون سداد!</div>`;
+      } else if (timer.isNear30) {
+        badgeClass = 'timer-urgent-30';
+        urgencyBadge = `<div style="color: #b91c1c; font-size: 0.72rem; font-weight: 800; margin-top: 0.2rem; background: #fef2f2; padding: 2px 6px; border-radius: 4px; border: 1px solid #fca5a5;">⚠️ يقترب من 30 يوماً (${timer.daysSince} يوم)</div>`;
+      } else if (timer.hasDebt && timer.daysSince >= 15) {
+        badgeClass = 'timer-warning';
+      } else if (!timer.hasDebt) {
+        badgeClass = 'timer-settled';
       }
 
-      const isLate = hasDebt && daysSince >= 15;
-      const isExtreme = hasDebt && daysSince >= 30;
-
       timerHtml = `
-        <div class="cust-timer-badge ${isExtreme ? 'timer-danger' : isLate ? 'timer-warning' : hasDebt ? 'timer-recent' : 'timer-settled'}">
-          <div style="font-weight: 800; display: flex; align-items: center; gap: 0.25rem;">
-            <span>${isExtreme ? '🚨' : isLate ? '⏳' : hasDebt ? '⏱️' : '✅'}</span>
-            <span>${timeText}</span>
+        <div class="cust-timer-badge ${badgeClass}" style="${timer.isUrgentRed ? 'border: 2px solid #ef4444; background: #fee2e2; color: #991b1b;' : ''}">
+          <div style="font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 0.3rem;">
+            <span>${timer.isUrgentRed ? '🚨' : (timer.hasDebt ? '⏱️' : '✅')}</span>
+            <span style="font-size: 0.88rem;">${statusText}</span>
           </div>
-          <div style="font-size: 0.72rem; opacity: 0.9; margin-top: 0.1rem;">
-            سند #${lastReceipt.receiptNumber} (${(lastReceipt.amount || 0).toLocaleString('en-US')} ${cur})
+          <div style="font-size: 0.76rem; font-family: monospace; direction: ltr; text-align: center; color: ${timer.isUrgentRed ? '#7f1d1d' : '#475569'}; margin-top: 0.15rem; font-weight: 700;">
+            📅 ${timer.dateFormatted}
           </div>
+          <div style="font-size: 0.72rem; opacity: 0.9; text-align: center; margin-top: 0.1rem;">
+            سند #${timer.lastReceipt.receiptNumber} (${(timer.lastReceipt.amount || 0).toLocaleString('en-US')} ${cur})
+          </div>
+          ${urgencyBadge}
         </div>
       `;
     } else {
-      const custCreatedMs = c.createdAt ? new Date(c.createdAt).getTime() : Date.now();
-      const daysSince = Math.floor((Date.now() - custCreatedMs) / (1000 * 60 * 60 * 24));
+      let urgencyBadge = '';
+      let badgeClass = timer.hasDebt ? (timer.daysSince >= 25 ? 'timer-urgent-30' : 'timer-warning') : 'timer-none';
+
+      if (timer.isUrgentRed) {
+        urgencyBadge = `<div style="color: #991b1b; font-size: 0.72rem; font-weight: 800; margin-top: 0.2rem; background: #fee2e2; padding: 2px 6px; border-radius: 4px; border: 1px solid #f87171;">🚨 ${timer.daysSince >= 30 ? 'تجاوز 30 يوماً بدون أي سداد!' : `يقترب من 30 يوماً (${timer.daysSince} يوم)`}</div>`;
+      }
+
       timerHtml = `
-        <div class="cust-timer-badge ${hasDebt ? 'timer-warning' : 'timer-none'}">
-          <span style="font-weight: 700;">⚠️ لا يوجد سداد سابق</span>
-          ${daysSince > 0 ? `<span style="font-size: 0.7rem; opacity: 0.85;">مسجل منذ ${daysSince} يوماً</span>` : ''}
+        <div class="cust-timer-badge ${badgeClass}" style="${timer.isUrgentRed ? 'border: 2px solid #ef4444; background: #fee2e2; color: #991b1b;' : ''}">
+          <div style="font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 0.25rem;">
+            <span>${timer.isUrgentRed ? '🚨' : '⚠️'}</span>
+            <span>لا يوجد سداد سابق</span>
+          </div>
+          <div style="font-size: 0.76rem; font-family: monospace; direction: ltr; text-align: center; color: #64748b; margin-top: 0.15rem; font-weight: 700;">
+            📅 مسجل: ${timer.dateFormatted}
+          </div>
+          <div style="font-size: 0.72rem; opacity: 0.9; text-align: center; margin-top: 0.1rem;">
+            مضى ${timer.daysSince} يوماً بدون سداد
+          </div>
+          ${urgencyBadge}
         </div>
       `;
     }
 
+    const rowClass = timer.isUrgentRed ? 'urgent-debt-row' : '';
+
     return `
-      <tr>
-        <td style="font-family: monospace; font-weight: 700; color: #475569;">#${escapeHtml(c.systemNumber || '--')}</td>
+      <tr class="${rowClass}">
+        <td style="font-family: monospace; font-weight: 700; color: #475569; text-align: center;">#${escapeHtml(c.systemNumber || '--')}</td>
         <td>
-          <strong style="font-size: 0.95rem; color: #0f172a;">${escapeHtml(c.name)}</strong>
+          <div style="display: flex; align-items: center; gap: 0.35rem;">
+            ${timer.isUrgentRed ? '<span title="يقترب من أو تجاوز 30 يوماً بدون سداد">🚨</span>' : ''}
+            <strong style="font-size: 0.95rem; color: #0f172a;">${escapeHtml(c.name)}</strong>
+          </div>
         </td>
         <td>
           ${c.phone ? `<span style="direction: ltr; display: inline-block;">📞 ${escapeHtml(c.phone)}</span>` : '<span style="color:#94a3b8;">--</span>'}
         </td>
-        <td>${debtBadgeHtml}</td>
-        <td>${timerHtml}</td>
+        <td style="text-align: center;">${debtBadgeHtml}</td>
+        <td style="text-align: center;">${timerHtml}</td>
         <td style="font-size: 0.85rem; color: #64748b;">${escapeHtml(c.notes || '--')}</td>
         <td>
           <div style="display: flex; gap: 0.35rem; justify-content: center; flex-wrap: wrap;">
@@ -4399,6 +4630,9 @@ function renderCustomerTab() {
             </button>
             <button class="btn btn-xs btn-primary" onclick="quickCreateInvoiceForCustomer('${c.id}')" title="إنشاء فاتورة جديدة باسمه">
               <span>🧾 فاتورة</span>
+            </button>
+            <button class="btn-statement" onclick="openCustomerStatementModal('${c.id}')" title="عرض وطباعة كشف الحساب التفصيلي">
+              <span>📑 كشف حساب</span>
             </button>
             ${hasDebt ? `
               <button class="btn btn-xs btn-warning btn-cust-reminder" onclick="sendCustomerDebtReminder('${c.id}')" title="إرسال تذكير استحقاق دفعة مالية لتيليجرام">
@@ -4417,6 +4651,7 @@ function renderCustomerTab() {
     `;
   }).join('');
 }
+
 
 // -------------------------------------------------------------
 // البحث التفاعلي والإكمال التلقائي للزبائن (Invoice & Receipt Auto-complete)
@@ -4673,13 +4908,21 @@ function openAddCustomerModal(customerId = null) {
   if (customerId) {
     const c = state.customers.find(cust => cust.id === customerId);
     if (!c) return;
-    if (title) title.textContent = 'تعديل بيانات زبون';
+    if (title) title.textContent = 'تعديل بيانات وحساب الزبون';
     if (idInput) idInput.value = c.id;
     if (sysInput) sysInput.value = c.systemNumber || '';
     if (nameInput) nameInput.value = c.name || '';
     if (phoneInput) phoneInput.value = c.phone || '';
-    if (balInput) balInput.value = c.balance ?? 0;
     if (notesInput) notesInput.value = c.notes || '';
+
+    const bal = parseFloat(c.balance) || 0;
+    if (bal < 0) {
+      handleCustomerBalTypeChange('credit');
+      if (balInput) balInput.value = Math.abs(bal);
+    } else {
+      handleCustomerBalTypeChange('debit');
+      if (balInput) balInput.value = bal;
+    }
   } else {
     if (title) title.textContent = 'إضافة زبون جديد في النظام';
     if (idInput) idInput.value = '';
@@ -4688,10 +4931,77 @@ function openAddCustomerModal(customerId = null) {
     if (phoneInput) phoneInput.value = '';
     if (balInput) balInput.value = '0';
     if (notesInput) notesInput.value = '';
+    handleCustomerBalTypeChange('debit');
   }
 
   const modal = document.getElementById('customerEditModal');
   if (modal) modal.classList.add('active');
+}
+
+function handleCustomerBalTypeChange(type) {
+  const radDebit = document.getElementById('custBalTypeDebit');
+  const radCredit = document.getElementById('custBalTypeCredit');
+  const lblDebit = document.getElementById('lblBalTypeDebit');
+  const lblCredit = document.getElementById('lblBalTypeCredit');
+  const hint = document.getElementById('custEditBalanceHint');
+  const balVal = Math.abs(parseFloat(document.getElementById('custEditBalance')?.value) || 0);
+
+  if (type === 'credit') {
+    if (radCredit) radCredit.checked = true;
+    if (lblCredit) {
+      lblCredit.style.borderColor = '#2563eb';
+      lblCredit.style.background = '#eff6ff';
+      lblCredit.style.color = '#1d4ed8';
+    }
+    if (lblDebit) {
+      lblDebit.style.borderColor = '#cbd5e1';
+      lblDebit.style.background = '#ffffff';
+      lblDebit.style.color = '#475569';
+    }
+    if (hint) {
+      if (balVal === 0) {
+        hint.style.color = '#15803d';
+        hint.style.background = '#f0fdf4';
+        hint.style.borderColor = '#bbf7d0';
+        hint.innerHTML = '🟢 الرصيد صفر (الحساب خالص ومسدد بالكامل)';
+      } else {
+        hint.style.color = '#1d4ed8';
+        hint.style.background = '#eff6ff';
+        hint.style.borderColor = '#bfdbfe';
+        hint.innerHTML = `🔵 الحالة: الزبون له رصيد دائن أو دفعة لصالحه بذمة المعرض (-${balVal.toLocaleString('en-US')})`;
+      }
+    }
+  } else {
+    if (radDebit) radDebit.checked = true;
+    if (lblDebit) {
+      lblDebit.style.borderColor = '#ef4444';
+      lblDebit.style.background = '#fef2f2';
+      lblDebit.style.color = '#b91c1c';
+    }
+    if (lblCredit) {
+      lblCredit.style.borderColor = '#cbd5e1';
+      lblCredit.style.background = '#ffffff';
+      lblCredit.style.color = '#475569';
+    }
+    if (hint) {
+      if (balVal === 0) {
+        hint.style.color = '#15803d';
+        hint.style.background = '#f0fdf4';
+        hint.style.borderColor = '#bbf7d0';
+        hint.innerHTML = '🟢 الرصيد صفر (الحساب خالص ومسدد بالكامل)';
+      } else {
+        hint.style.color = '#dc2626';
+        hint.style.background = '#fef2f2';
+        hint.style.borderColor = '#fecaca';
+        hint.innerHTML = `🔴 الحالة: الزبون عليه دين ومطلوب منه هذا المبلغ لصالح المعرض (+${balVal.toLocaleString('en-US')})`;
+      }
+    }
+  }
+}
+
+function handleCustomerBalanceInput(val) {
+  const isCredit = document.getElementById('custBalTypeCredit')?.checked;
+  handleCustomerBalTypeChange(isCredit ? 'credit' : 'debit');
 }
 
 function closeCustomerEditModal() {
@@ -4706,7 +5016,9 @@ async function handleCustomerSaveSubmit(event) {
   const systemNumber = document.getElementById('custEditSysNum').value.trim();
   const name = document.getElementById('custEditName').value.trim();
   const phone = document.getElementById('custEditPhone').value.trim();
-  const balance = parseFloat(document.getElementById('custEditBalance').value) || 0;
+  const rawBal = Math.abs(parseFloat(document.getElementById('custEditBalance').value) || 0);
+  const isCredit = document.getElementById('custBalTypeCredit')?.checked;
+  const balance = (rawBal === 0) ? 0 : (isCredit ? -rawBal : rawBal);
   const notes = document.getElementById('custEditNotes').value.trim();
 
   if (!name) {
@@ -4722,7 +5034,7 @@ async function handleCustomerSaveSubmit(event) {
     });
     const data = await res.json();
     if (data.success) {
-      showToast(id ? 'تم تعديل الزبون بنجاح' : 'تمت إضافة الزبون بنجاح', 'success');
+      showToast(id ? 'تم تعديل الزبون ورصيده بنجاح' : 'تمت إضافة الزبون بنجاح', 'success');
       closeCustomerEditModal();
       await loadCustomers();
     } else {
@@ -4762,40 +5074,7 @@ async function confirmDeleteCustomer(id) {
 }
 
 async function sendCustomerDebtReminder(id) {
-  const c = state.customers.find(cust => cust.id === id);
-  if (!c) return;
-
-  const debt = parseFloat(c.balance) || 0;
-  if (debt <= 0) {
-    showToast('الزبون ليس عليه أي ديون مستحقة', 'info');
-    return;
-  }
-
-  const cur = state.settings.currency || 'شيكل';
-  showConfirmDialog({
-    title: 'تذكير استحقاق دفعة مالية',
-    message: `هل تود إرسال إشعار تذكير استحقاق دفعة للزبون "${c.name}" بمبلغ (${debt.toLocaleString('en-US')} ${cur}) مباشرة إلى حساب تيليجرام؟`,
-    icon: '🔔',
-    confirmText: 'إرسال التذكير الآن',
-    cancelText: 'إلغاء',
-    isDanger: false,
-    onConfirm: async () => {
-      showToast('جاري إرسال إشعار التذكير لتيليجرام...', 'info');
-      try {
-        const res = await fetch(`/api/customers/${id}/send-reminder-telegram`, {
-          method: 'POST'
-        });
-        const data = await res.json();
-        if (data.success) {
-          showToast('✈️ تم إرسال تذكير استحقاق الدفعة للزبون بنجاح إلى تيليجرام!', 'success');
-        } else {
-          showToast(data.error || 'تعذر إرسال التذكير لتيليجرام', 'error');
-        }
-      } catch (err) {
-        showToast('فشل الاتصال بالخادم لإرسال التذكير', 'error');
-      }
-    }
-  });
+  openCustomerReminderModal(id);
 }
 
 // -------------------------------------------------------------
@@ -5414,4 +5693,683 @@ async function generateAndSendFinancialPdfToTelegram() {
 async function generateAndSendStockReportPdfToTelegram() {
   await generateAndSendInventoryPdfToTelegram();
 }
+
+// =============================================================
+// إدارة استيراد ملفات Excel و CSV للزبائن مع المعاينة الذكية
+// =============================================================
+let selectedExcelFile = null;
+
+function openCustomerExcelImportModal() {
+  const modal = document.getElementById('customerExcelImportModal');
+  if (modal) {
+    clearSelectedExcelFile();
+    modal.classList.add('active');
+  }
+}
+
+function closeCustomerExcelImportModal() {
+  const modal = document.getElementById('customerExcelImportModal');
+  if (modal) modal.classList.remove('active');
+  clearSelectedExcelFile();
+}
+
+function triggerExcelFileInput() {
+  const input = document.getElementById('excelFileInput');
+  if (input) input.click();
+}
+
+function clearSelectedExcelFile() {
+  selectedExcelFile = null;
+  const input = document.getElementById('excelFileInput');
+  if (input) input.value = '';
+  const banner = document.getElementById('excelSelectedFileBanner');
+  if (banner) banner.style.display = 'none';
+  const preview = document.getElementById('excelPreviewSection');
+  if (preview) preview.style.display = 'none';
+  const confirmBtn = document.getElementById('btnConfirmExcelImport');
+  if (confirmBtn) confirmBtn.style.display = 'none';
+}
+
+async function handleExcelFileSelected(input) {
+  if (!input.files || !input.files[0]) return;
+  const file = input.files[0];
+  selectedExcelFile = file;
+
+  const nameEl = document.getElementById('excelFileName');
+  const sizeEl = document.getElementById('excelFileSize');
+  const banner = document.getElementById('excelSelectedFileBanner');
+  if (nameEl) nameEl.textContent = file.name;
+  if (sizeEl) sizeEl.textContent = `(${(file.size / 1024).toFixed(1)} كيلوبايت)`;
+  if (banner) banner.style.display = 'flex';
+
+  showToast(`جاري قراءة وتحليل ملف الإكسل "${file.name}"...`, 'info');
+
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const res = await fetch('/api/customers/upload-excel?preview=true', {
+      method: 'POST',
+      body: formData
+    });
+
+    const data = await res.json();
+    if (data.success && data.summary) {
+      showToast(`🎉 تم العثور على ${data.parsedCount} زبون داخل الملف!`, 'success');
+      renderExcelPreview(data);
+    } else {
+      showToast(data.error || 'فشل تحليل ملف الإكسل', 'error');
+    }
+  } catch (err) {
+    showToast('خطأ أثناء قراءة ملف الإكسل: ' + err.message, 'error');
+  }
+}
+
+function renderExcelPreview(data) {
+  const previewSec = document.getElementById('excelPreviewSection');
+  const countBadge = document.getElementById('excelPreviewCountBadge');
+  const debitTotal = document.getElementById('previewDebitTotal');
+  const debtorsCount = document.getElementById('previewDebtorsCount');
+  const creditTotal = document.getElementById('previewCreditTotal');
+  const creditorsCount = document.getElementById('previewCreditorsCount');
+  const netBalance = document.getElementById('previewNetBalance');
+  const settledCount = document.getElementById('previewSettledCount');
+  const tbody = document.getElementById('excelPreviewTableBody');
+  const confirmBtn = document.getElementById('btnConfirmExcelImport');
+  const cur = state.settings.currency || 'شيكل';
+
+  if (countBadge) countBadge.textContent = `${data.parsedCount} زبون جاهز للاستيراد`;
+  if (debitTotal) debitTotal.textContent = `${(data.summary.totalDebit || 0).toLocaleString('en-US')} ${cur}`;
+  if (debtorsCount) debtorsCount.textContent = `${data.summary.countDebtors || 0} زبون مدين (عليهم)`;
+  if (creditTotal) creditTotal.textContent = `${(data.summary.totalCredit || 0).toLocaleString('en-US')} ${cur}`;
+  if (creditorsCount) creditorsCount.textContent = `${data.summary.countCreditors || 0} زبون دائن (لهم)`;
+  if (netBalance) {
+    const net = data.summary.netBalance || 0;
+    netBalance.textContent = `${Math.abs(net).toLocaleString('en-US')} ${cur}`;
+    netBalance.style.color = net >= 0 ? '#15803d' : '#2563eb';
+  }
+  if (settledCount) settledCount.textContent = `${data.summary.countSettled || 0} زبون رصيد صفر`;
+
+  if (tbody && data.sample) {
+    tbody.innerHTML = data.sample.map((c, i) => {
+      const b = parseFloat(c.balance) || 0;
+      const bText = b > 0 ? `<span style="color:#dc2626; font-weight:700;">🔴 عليه: ${b.toLocaleString('en-US')} ${cur}</span>` :
+                    (b < 0 ? `<span style="color:#2563eb; font-weight:700;">🔵 له: ${Math.abs(b).toLocaleString('en-US')} ${cur}</span>` :
+                    `<span style="color:#16a34a; font-weight:700;">🟢 خالص</span>`);
+      return `
+        <tr>
+          <td>${i + 1}</td>
+          <td style="font-family: monospace;">#${escapeHtml(c.systemNumber || '--')}</td>
+          <td><strong>${escapeHtml(c.name)}</strong></td>
+          <td style="direction: ltr; text-align: right;">${escapeHtml(c.phone || '--')}</td>
+          <td>${bText}</td>
+          <td style="color: #64748b; font-size: 0.78rem;">${escapeHtml(c.notes || '--')}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  if (previewSec) previewSec.style.display = 'block';
+  if (confirmBtn) confirmBtn.style.display = 'inline-flex';
+}
+
+async function executeConfirmedExcelImport() {
+  if (!selectedExcelFile) {
+    showToast('يرجى اختيار ملف الإكسل أولاً', 'warning');
+    return;
+  }
+
+  const confirmBtn = document.getElementById('btnConfirmExcelImport');
+  if (confirmBtn) {
+    confirmBtn.disabled = true;
+    confirmBtn.innerHTML = '<span>⏳</span><span>جاري استيراد وحفظ الزبائن بالنظام...</span>';
+  }
+
+  try {
+    const formData = new FormData();
+    formData.append('file', selectedExcelFile);
+
+    const res = await fetch('/api/customers/upload-excel', {
+      method: 'POST',
+      body: formData
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      showToast(`🎉 ${data.message || 'تم استيراد الزبائن بنجاح!'}`, 'success');
+      closeCustomerExcelImportModal();
+      await loadCustomers();
+    } else {
+      showToast(data.error || 'فشل استيراد الزبائن', 'error');
+    }
+  } catch (err) {
+    showToast('خطأ أثناء رفع واستيراد الملف: ' + err.message, 'error');
+  } finally {
+    if (confirmBtn) {
+      confirmBtn.disabled = false;
+      confirmBtn.innerHTML = '<span>✅</span><span>تأكيد واستيراد الزبائن إلى النظام</span>';
+    }
+  }
+}
+
+// =============================================================
+// كشف حساب تفصيلي للزبون (Customer Statement) مع تصدير PDF وتيليجرام
+// =============================================================
+let currentStatementData = null;
+
+async function openCustomerStatementModal(customerId) {
+  showToast('جاري تحميل كشف الحساب التفصيلي...', 'info');
+  try {
+    const res = await fetch(`/api/customers/${customerId}/statement`);
+    const data = await res.json();
+    if (!data.success || !data.statement) {
+      showToast(data.error || 'تعذر جلب كشف الحساب للزبون', 'error');
+      return;
+    }
+
+    currentStatementData = data.statement;
+    renderCustomerStatementHtml(data.statement);
+
+    const modal = document.getElementById('customerStatementModal');
+    if (modal) modal.classList.add('active');
+  } catch (err) {
+    showToast('فشل الاتصال بالخادم لجلب كشف الحساب', 'error');
+  }
+}
+
+function closeCustomerStatementModal() {
+  const modal = document.getElementById('customerStatementModal');
+  if (modal) modal.classList.remove('active');
+  currentStatementData = null;
+}
+
+function renderCustomerStatementHtml(st) {
+  const container = document.getElementById('printableCustomerStatementArea');
+  if (!container) return;
+
+  const cur = state.settings.currency || 'شيكل';
+  const c = st.customer;
+  const s = st.summary;
+  const bal = parseFloat(c.balance) || 0;
+  const hasDebt = bal > 0;
+  const isCredit = bal < 0;
+
+  const balText = hasDebt ? `دين عليه: ${bal.toLocaleString('en-US')} ${cur}` :
+                  (isCredit ? `رصيد لصالحه: ${Math.abs(bal).toLocaleString('en-US')} ${cur}` : `رصيد مسدد (خالص)`);
+
+  let movementsHtml = '';
+  if (st.movements && st.movements.length > 0) {
+    movementsHtml = st.movements.map((m, idx) => {
+      const isInvoice = m.type === 'invoice';
+      const typeBadge = isInvoice ? `<span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-weight:700; font-size:0.78rem;">🧾 فاتورة مبيعات</span>` :
+                        `<span style="background:#f0fdf4; color:#15803d; padding:2px 8px; border-radius:4px; font-weight:700; font-size:0.78rem;">💰 سند قبض</span>`;
+      return `
+        <tr>
+          <td style="text-align: center; border: 1px solid #cbd5e1; padding: 7px; font-weight: 700;">${idx + 1}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 7px; font-size: 0.8rem; color: #475569;">${formatAppDateTime(m.date)}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 7px;">${typeBadge} <strong>#${escapeHtml(String(m.number))}</strong></td>
+          <td style="border: 1px solid #cbd5e1; padding: 7px; font-size: 0.82rem;">${escapeHtml(m.notes || '--')}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 7px; text-align: left; font-weight: 700; color: ${m.debit > 0 ? '#dc2626' : '#94a3b8'};">
+            ${m.debit > 0 ? `${m.debit.toLocaleString('en-US')} ${cur}` : '--'}
+          </td>
+          <td style="border: 1px solid #cbd5e1; padding: 7px; text-align: left; font-weight: 700; color: ${m.credit > 0 ? '#16a34a' : '#94a3b8'};">
+            ${m.credit > 0 ? `${m.credit.toLocaleString('en-US')} ${cur}` : '--'}
+          </td>
+          <td style="border: 1px solid #cbd5e1; padding: 7px; text-align: left; font-weight: 800; color: #0f172a;">
+            ${(m.balanceAfter || 0).toLocaleString('en-US')} ${cur}
+          </td>
+        </tr>
+      `;
+    }).join('');
+  } else {
+    movementsHtml = `
+      <tr>
+        <td colspan="7" style="text-align: center; padding: 1.5rem; color: #64748b; border: 1px solid #cbd5e1;">
+          لا توجد فواتير أو سندات مسجلة بعد لهذا الزبون في النظام. الرصيد الحالي: ${bal.toLocaleString('en-US')} ${cur}
+        </td>
+      </tr>
+    `;
+  }
+
+  container.innerHTML = `
+    <div style="padding: 1.5rem; font-family: 'Cairo', sans-serif; direction: rtl; color: #0f172a; line-height: 1.5;">
+      <!-- Header -->
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2.5px solid #0f172a; padding-bottom: 1rem; margin-bottom: 1.25rem;">
+        <div>
+          <h2 style="margin: 0; font-size: 1.5rem; font-weight: 900; color: #0f172a;">${escapeHtml(state.settings.companyName || 'رامز عطاطرة')}</h2>
+          <div style="font-size: 0.85rem; color: #475569; margin-top: 0.2rem;">
+            ${escapeHtml(state.settings.companyAddress || 'المركز التجاري الرئيسي')} | هاتف: ${escapeHtml(state.settings.companyPhone || '')}
+          </div>
+        </div>
+        <div style="text-align: left;">
+          <div style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0.4rem 0.85rem; font-weight: 800; font-size: 1.05rem; color: #0f172a;">
+            كشف حساب زبون تفصيلي
+          </div>
+          <div style="font-size: 0.8rem; color: #64748b; margin-top: 0.25rem;">تاريخ الإصدار: ${formatAppDateTime(new Date())}</div>
+        </div>
+      </div>
+
+      <!-- Customer Info Card -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 1rem; margin-bottom: 1.25rem;">
+        <div>
+          <div style="font-size: 0.85rem; color: #64748b;">السيد / الزبون:</div>
+          <div style="font-size: 1.2rem; font-weight: 900; color: #0f172a;">${escapeHtml(c.name)}</div>
+          ${c.phone ? `<div style="font-size: 0.85rem; color: #475569; margin-top: 0.2rem;">رقم الهاتف: <span style="direction: ltr; font-weight: 700;">${escapeHtml(c.phone)}</span></div>` : ''}
+          ${c.notes ? `<div style="font-size: 0.82rem; color: #64748b; margin-top: 0.2rem;">ملاحظات: ${escapeHtml(c.notes)}</div>` : ''}
+        </div>
+        <div style="text-align: left;">
+          <div style="font-size: 0.85rem; color: #64748b;">رقم الحساب بالنظام: <strong style="font-family: monospace; font-size: 1rem;">#${escapeHtml(c.systemNumber || '--')}</strong></div>
+          <div style="margin-top: 0.4rem;">
+            <span style="font-size: 0.85rem; color: #64748b;">الرصيد المالي الحالي:</span>
+            <div style="font-size: 1.35rem; font-weight: 900; color: ${hasDebt ? '#dc2626' : (isCredit ? '#2563eb' : '#16a34a')};">
+              ${balText}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Summary KPI Strip -->
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; margin-bottom: 1.25rem;">
+        <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0.65rem 0.85rem;">
+          <div style="font-size: 0.75rem; color: #64748b;">إجمالي المشتريات (الفواتير):</div>
+          <div style="font-size: 1.1rem; font-weight: 800; color: #0f172a; margin-top: 0.2rem;">${(s.totalInvoiced || 0).toLocaleString('en-US')} ${cur}</div>
+          <div style="font-size: 0.7rem; color: #64748b;">${s.invoicesCount || 0} فاتورة</div>
+        </div>
+        <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 0.65rem 0.85rem;">
+          <div style="font-size: 0.75rem; color: #166534;">إجمالي المسدد (سندات القبض):</div>
+          <div style="font-size: 1.1rem; font-weight: 800; color: #15803d; margin-top: 0.2rem;">${(s.totalPaid || 0).toLocaleString('en-US')} ${cur}</div>
+          <div style="font-size: 0.7rem; color: #166534;">${s.receiptsCount || 0} سند قبض</div>
+        </div>
+        <div style="background: ${hasDebt ? '#fef2f2' : '#f8fafc'}; border: 1px solid ${hasDebt ? '#fecaca' : '#cbd5e1'}; border-radius: 6px; padding: 0.65rem 0.85rem;">
+          <div style="font-size: 0.75rem; color: ${hasDebt ? '#991b1b' : '#64748b'};">الرصيد المستحق النهائي:</div>
+          <div style="font-size: 1.1rem; font-weight: 900; color: ${hasDebt ? '#dc2626' : (isCredit ? '#2563eb' : '#16a34a')}; margin-top: 0.2rem;">
+            ${(c.balance || 0).toLocaleString('en-US')} ${cur}
+          </div>
+          <div style="font-size: 0.7rem; color: #64748b;">${hasDebt ? 'مطلوب سداده' : (isCredit ? 'رصيد لصالحه' : 'رصيد خالص')}</div>
+        </div>
+        <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 0.65rem 0.85rem;">
+          <div style="font-size: 0.75rem; color: #1e40af;">آخر دفعة مسددة:</div>
+          <div style="font-size: 0.95rem; font-weight: 800; color: #1d4ed8; margin-top: 0.2rem;">
+            ${s.lastReceiptDate ? formatAppDateTime(s.lastReceiptDate).split(' ')[0] : 'لا يوجد سداد'}
+          </div>
+          <div style="font-size: 0.7rem; color: #1e40af;">
+            ${s.lastReceiptAmount ? `${s.lastReceiptAmount.toLocaleString('en-US')} ${cur}` : '--'}
+          </div>
+        </div>
+      </div>
+
+      <!-- Movements Table -->
+      <table style="width: 100%; border-collapse: collapse; font-size: 0.84rem; margin-bottom: 1.5rem;">
+        <thead>
+          <tr style="background: #f1f5f9; color: #0f172a;">
+            <th style="border: 1px solid #cbd5e1; padding: 8px; width: 40px; text-align: center;">#</th>
+            <th style="border: 1px solid #cbd5e1; padding: 8px; width: 130px;">التاريخ والوقت</th>
+            <th style="border: 1px solid #cbd5e1; padding: 8px; width: 140px;">نوع الحركة ورقمها</th>
+            <th style="border: 1px solid #cbd5e1; padding: 8px;">البيان / الملاحظات</th>
+            <th style="border: 1px solid #cbd5e1; padding: 8px; width: 110px; text-align: left;">مدين (+)</th>
+            <th style="border: 1px solid #cbd5e1; padding: 8px; width: 110px; text-align: left;">دائن (-)</th>
+            <th style="border: 1px solid #cbd5e1; padding: 8px; width: 120px; text-align: left;">الرصيد بعد الحركة</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${movementsHtml}
+        </tbody>
+      </table>
+
+      <!-- Signatures Footer -->
+      <div style="display: flex; justify-content: space-between; border-top: 1.5px solid #0f172a; padding-top: 1rem; font-size: 0.85rem; color: #475569;">
+        <div>توقيع وتأكيد الزبون: _________________</div>
+        <div>المحاسب / المالي: _________________</div>
+        <div>ختم الشركة والاعتماد: _________________</div>
+      </div>
+    </div>
+  `;
+}
+
+function printCustomerStatement() {
+  window.print();
+}
+
+async function downloadCustomerStatementPdf() {
+  if (!currentStatementData) return;
+  const c = currentStatementData.customer;
+  const fileName = `كشف_حساب_${c.name.replace(/\s+/g, '_')}_${Date.now()}.pdf`;
+  showToast('جاري تجهيز وتحميل كشف الحساب بصيغة PDF...', 'info');
+  try {
+    const el = document.getElementById('printableCustomerStatementArea');
+    const blob = await generatePdfBlobFromHtml(el.innerHTML, fileName);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 1000);
+    showToast('تم تحميل كشف الحساب PDF بنجاح!', 'success');
+  } catch (err) {
+    showToast('خطأ في تصدير كشف الحساب PDF: ' + err.message, 'error');
+  }
+}
+
+async function sendCustomerStatementPdfToTelegram() {
+  if (!currentStatementData) return;
+  const c = currentStatementData.customer;
+  const fileName = `كشف_حساب_${c.name.replace(/\s+/g, '_')}.pdf`;
+
+  showToast(`جاري إرسال كشف حساب "${c.name}" مع ملف الـ PDF إلى تيليجرام...`, 'info');
+
+  try {
+    const el = document.getElementById('printableCustomerStatementArea');
+    const blob = await generatePdfBlobFromHtml(el.innerHTML, fileName);
+
+    const formData = new FormData();
+    formData.append('pdfFile', blob, fileName);
+
+    const res = await fetch(`/api/customers/${c.id}/send-statement-telegram`, {
+      method: 'POST',
+      body: formData
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      showToast(`✈️ ${data.message || 'تم إرسال كشف الحساب وملف الـ PDF لتيليجرام بنجاح!'}`, 'success');
+    } else {
+      showToast(data.error || 'تعذر إرسال كشف الحساب لتيليجرام', 'error');
+    }
+  } catch (err) {
+    showToast('خطأ أثناء إرسال كشف الحساب لتيليجرام: ' + err.message, 'error');
+  }
+}
+
+// =============================================================
+// إرسال كشف ديون الزبائن الكامل والشامل PDF لتيليجرام
+// =============================================================
+function buildPrintableCustomerDebtsHtml() {
+  const cur = state.settings.currency || 'شيكل';
+  let totalDebit = 0;
+  let totalCredit = 0;
+  let countDebtors = 0;
+  let countCreditors = 0;
+  let countSettled = 0;
+
+  state.customers.forEach(c => {
+    const b = parseFloat(c.balance) || 0;
+    if (b > 0) {
+      totalDebit += b;
+      countDebtors++;
+    } else if (b < 0) {
+      totalCredit += Math.abs(b);
+      countCreditors++;
+    } else {
+      countSettled++;
+    }
+  });
+
+  const netBalance = parseFloat((totalDebit - totalCredit).toFixed(2));
+  const sorted = [...state.customers].sort((a, b) => {
+    const bA = parseFloat(a.balance) || 0;
+    const bB = parseFloat(b.balance) || 0;
+    return bB - bA;
+  });
+
+  const rows = sorted.map((c, idx) => {
+    const b = parseFloat(c.balance) || 0;
+    const bText = b > 0 ? `<strong style="color: #dc2626;">🔴 عليه: ${b.toLocaleString('en-US')} ${cur}</strong>` :
+                  (b < 0 ? `<strong style="color: #2563eb;">🔵 له: ${Math.abs(b).toLocaleString('en-US')} ${cur}</strong>` :
+                  `<span style="color: #16a34a; font-weight: 700;">🟢 خالص</span>`);
+
+    return `
+      <tr>
+        <td style="text-align: center; border: 1px solid #cbd5e1; padding: 6px;">${idx + 1}</td>
+        <td style="font-family: monospace; border: 1px solid #cbd5e1; padding: 6px; text-align: center;">#${escapeHtml(c.systemNumber || '--')}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 6px; font-weight: 800;">${escapeHtml(c.name)}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 6px; direction: ltr; text-align: right;">${escapeHtml(c.phone || '--')}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center;">${bText}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 6px; font-size: 0.78rem; color: #64748b;">${escapeHtml(c.notes || '--')}</td>
+      </tr>
+    `;
+  }).join('');
+
+  return `
+    <div style="padding: 1.75rem; font-family: 'Cairo', sans-serif; direction: rtl; color: #0f172a; line-height: 1.5;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2.5px solid #0f172a; padding-bottom: 1rem; margin-bottom: 1.25rem;">
+        <div>
+          <h2 style="margin: 0; font-size: 1.5rem; font-weight: 900; color: #0f172a;">${escapeHtml(state.settings.companyName || 'رامز عطاطرة')}</h2>
+          <div style="font-size: 0.85rem; color: #475569; margin-top: 0.2rem;">تقرير أرصدة وذمم الزبائن الشامل (الديون التي لهم والتي عليهم)</div>
+        </div>
+        <div style="text-align: left;">
+          <div style="font-size: 0.8rem; color: #64748b;">تاريخ التقرير: ${formatAppDateTime(new Date())}</div>
+          <div style="font-size: 0.95rem; font-weight: 800; color: #2563eb;">إجمالي الزبائن: ${state.customers.length} زبون</div>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; margin-bottom: 1.25rem;">
+        <div style="background: #fef2f2; border: 1.5px solid #fecaca; border-radius: 6px; padding: 0.75rem;">
+          <div style="font-size: 0.75rem; color: #991b1b; font-weight: 700;">إجمالي ديون عليهم (لنا):</div>
+          <div style="font-size: 1.2rem; font-weight: 900; color: #dc2626; margin-top: 0.2rem;">${totalDebit.toLocaleString('en-US')} ${cur}</div>
+          <div style="font-size: 0.7rem; color: #b91c1c;">${countDebtors} زبون مدين</div>
+        </div>
+        <div style="background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 6px; padding: 0.75rem;">
+          <div style="font-size: 0.75rem; color: #1e40af; font-weight: 700;">إجمالي ديون لهم (أرصدة لهم):</div>
+          <div style="font-size: 1.2rem; font-weight: 900; color: #2563eb; margin-top: 0.2rem;">${totalCredit.toLocaleString('en-US')} ${cur}</div>
+          <div style="font-size: 0.7rem; color: #1d4ed8;">${countCreditors} زبون دائن</div>
+        </div>
+        <div style="background: #f0fdf4; border: 1.5px solid #bbf7d0; border-radius: 6px; padding: 0.75rem;">
+          <div style="font-size: 0.75rem; color: #166534; font-weight: 700;">الصافي العام للذمم:</div>
+          <div style="font-size: 1.2rem; font-weight: 900; color: #15803d; margin-top: 0.2rem;">${Math.abs(netBalance).toLocaleString('en-US')} ${cur}</div>
+          <div style="font-size: 0.7rem; color: #166534;">${netBalance >= 0 ? 'فائض لصالح المعرض' : 'مستحقات للزبائن'}</div>
+        </div>
+        <div style="background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 6px; padding: 0.75rem;">
+          <div style="font-size: 0.75rem; color: #64748b; font-weight: 700;">حسابات مسددة بالكامل:</div>
+          <div style="font-size: 1.2rem; font-weight: 900; color: #0f172a; margin-top: 0.2rem;">${countSettled} زبون</div>
+          <div style="font-size: 0.7rem; color: #64748b;">رصيد صفر خالص</div>
+        </div>
+      </div>
+
+      <table style="width: 100%; border-collapse: collapse; font-size: 0.82rem;">
+        <thead>
+          <tr style="background: #f1f5f9; color: #0f172a;">
+            <th style="border: 1px solid #cbd5e1; padding: 7px; width: 40px; text-align: center;">#</th>
+            <th style="border: 1px solid #cbd5e1; padding: 7px; width: 90px; text-align: center;">رقم النظام</th>
+            <th style="border: 1px solid #cbd5e1; padding: 7px;">اسم الزبون</th>
+            <th style="border: 1px solid #cbd5e1; padding: 7px; width: 120px;">الهاتف</th>
+            <th style="border: 1px solid #cbd5e1; padding: 7px; width: 170px; text-align: center;">الرصيد المالي الحالي</th>
+            <th style="border: 1px solid #cbd5e1; padding: 7px;">ملاحظات</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+async function sendAllCustomersDebtsPdfToTelegram() {
+  if (state.customers.length === 0) {
+    showToast('لا يوجد زبائن مسجلين بالنظام لإرسال الكشف', 'warning');
+    return;
+  }
+
+  showToast('جاري إنشاء كشف ديون الزبائن بصيغة PDF وإرساله لتيليجرام...', 'info');
+
+  try {
+    let totalDebit = 0;
+    let totalCredit = 0;
+    let countDebtors = 0;
+    let countCreditors = 0;
+    let countSettled = 0;
+
+    state.customers.forEach(c => {
+      const b = parseFloat(c.balance) || 0;
+      if (b > 0) { totalDebit += b; countDebtors++; }
+      else if (b < 0) { totalCredit += Math.abs(b); countCreditors++; }
+      else { countSettled++; }
+    });
+
+    const netBalance = parseFloat((totalDebit - totalCredit).toFixed(2));
+    const html = buildPrintableCustomerDebtsHtml();
+    const fileName = `كشف_ديون_الزبائن_${Date.now()}.pdf`;
+    const pdfBlob = await generatePdfBlobFromHtml(html, fileName);
+
+    const formData = new FormData();
+    formData.append('pdfFile', pdfBlob, fileName);
+    formData.append('totalDebit', totalDebit);
+    formData.append('totalCredit', totalCredit);
+    formData.append('netBalance', netBalance);
+    formData.append('countDebtors', countDebtors);
+    formData.append('countCreditors', countCreditors);
+    formData.append('countSettled', countSettled);
+    formData.append('totalCount', state.customers.length);
+
+    const res = await fetch('/api/customers/send-debts-report-telegram', {
+      method: 'POST',
+      body: formData
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      showToast('✈️ تم إرسال كشف ديون الزبائن وملف الـ PDF إلى تيليجرام بنجاح!', 'success');
+    } else {
+      showToast(data.error || 'تعذر إرسال كشف الديون لتيليجرام', 'error');
+    }
+  } catch (err) {
+    showToast('خطأ أثناء إرسال كشف ديون الزبائن لتيليجرام: ' + err.message, 'error');
+  }
+}
+
+// =============================================================
+// تذكير استحقاق الدفعة للزبون مع إرفاق ملف PDF
+// =============================================================
+let currentReminderCustomerId = null;
+
+function openCustomerReminderModal(customerId) {
+  const c = state.customers.find(cust => cust.id === customerId);
+  if (!c) return;
+
+  const debt = parseFloat(c.balance) || 0;
+  if (debt <= 0) {
+    showToast('الزبون ليس عليه أي ديون مستحقة (رصيده مسدد بالكامل)', 'info');
+    return;
+  }
+
+  currentReminderCustomerId = customerId;
+  const body = document.getElementById('customerReminderModalBody');
+  const cur = state.settings.currency || 'شيكل';
+
+  if (body) {
+    body.innerHTML = `
+      <div style="background: #fef2f2; border: 1.5px solid #fecaca; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+        <div style="font-weight: 800; font-size: 1.1rem; color: #991b1b; margin-bottom: 0.35rem;">👤 الزبون: ${escapeHtml(c.name)}</div>
+        <div style="font-size: 0.88rem; color: #7f1d1d;">رقم الحساب بالنظام: #${escapeHtml(c.systemNumber || '--')} | هاتف: ${escapeHtml(c.phone || 'غير مسجل')}</div>
+        <div style="margin-top: 0.5rem; font-size: 1rem; color: #991b1b;">
+          الدين المستحق بذمته: <strong style="font-size: 1.25rem; color: #dc2626;">${debt.toLocaleString('en-US')} ${cur}</strong>
+        </div>
+      </div>
+      <p style="font-size: 0.88rem; color: #475569; line-height: 1.6; margin: 0;">
+        سيتم إرسال إشعار تذكير استحقاق الدفعة للزبون مباشرة عبر تيليجرام، مرفقاً به كشف حساب رسمي معتمد بصيغة PDF يوضح الفواتير وسندات القبض السابقة.
+      </p>
+    `;
+  }
+
+  const modal = document.getElementById('customerReminderModal');
+  if (modal) modal.classList.add('active');
+}
+
+function closeCustomerReminderModal() {
+  const modal = document.getElementById('customerReminderModal');
+  if (modal) modal.classList.remove('active');
+  currentReminderCustomerId = null;
+}
+
+async function executeSendCustomerReminderTelegram() {
+  if (!currentReminderCustomerId) return;
+  const customerId = currentReminderCustomerId;
+  const c = state.customers.find(cust => cust.id === customerId);
+  if (!c) return;
+
+  const btn = document.getElementById('btnConfirmSendCustomerReminder');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span>⏳</span><span>جاري تجهيز كشف الحساب وإرسال التذكير...</span>';
+  }
+
+  try {
+    // جلب كشف الحساب وتوليد الـ PDF
+    const stRes = await fetch(`/api/customers/${customerId}/statement`);
+    const stData = await stRes.json();
+
+    let pdfBlob = null;
+    const fileName = `كشف_حساب_${c.name.replace(/\s+/g, '_')}.pdf`;
+
+    if (stData.success && stData.statement) {
+      renderCustomerStatementHtml(stData.statement);
+      const el = document.getElementById('printableCustomerStatementArea');
+      pdfBlob = await generatePdfBlobFromHtml(el.innerHTML, fileName);
+    }
+
+    const formData = new FormData();
+    if (pdfBlob) {
+      formData.append('pdfFile', pdfBlob, fileName);
+    }
+
+    const res = await fetch(`/api/customers/${customerId}/send-reminder-telegram`, {
+      method: 'POST',
+      body: formData
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      showToast(`✈️ ${data.message || 'تم إرسال تذكير الدفعة وكشف الحساب لتيليجرام بنجاح!'}`, 'success');
+      closeCustomerReminderModal();
+    } else {
+      showToast(data.error || 'تعذر إرسال التذكير لتيليجرام', 'error');
+    }
+  } catch (err) {
+    showToast('خطأ أثناء إرسال التذكير: ' + err.message, 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<span>✈️</span><span>إرسال التذكير مع كشف الحساب لتيليجرام</span>';
+    }
+  }
+}
+
+// تفعيل ميزة السحب والإفلات لملف الإكسل عند تحميل الصفحة
+document.addEventListener('DOMContentLoaded', () => {
+  const dropZone = document.getElementById('excelDropZone');
+  if (dropZone) {
+    ['dragenter', 'dragover'].forEach(name => {
+      dropZone.addEventListener(name, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropZone.classList.add('dragover');
+      }, false);
+    });
+
+    ['dragleave', 'drop'].forEach(name => {
+      dropZone.addEventListener(name, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropZone.classList.remove('dragover');
+      }, false);
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      const dt = e.dataTransfer;
+      const files = dt.files;
+      if (files && files.length > 0) {
+        const input = document.getElementById('excelFileInput');
+        if (input) {
+          input.files = files;
+          handleExcelFileSelected(input);
+        }
+      }
+    }, false);
+  }
+});
+
 

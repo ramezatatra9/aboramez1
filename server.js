@@ -6,6 +6,7 @@ const multer = require('multer');
 
 const dataStore = require('./dataStore');
 const telegramService = require('./telegramService');
+const excelParser = require('./excelParser');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -771,6 +772,276 @@ app.post('/api/customers/bulk', (req, res) => {
   }
 });
 
+// استيراد ملف Excel أو CSV للزبائن
+app.post('/api/customers/upload-excel', pdfUpload.single('file'), (req, res) => {
+  try {
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ success: false, error: 'لم يتم استلام أي ملف' });
+    }
+
+    const parsed = excelParser.parseCustomerExcel(req.file.buffer);
+    if (!parsed || !parsed.customers || parsed.customers.length === 0) {
+      return res.status(400).json({ success: false, error: 'لم يتم العثور على أي زبائن صالحين داخل الملف' });
+    }
+
+    if (req.query.preview === 'true' || req.body.preview === 'true') {
+      return res.json({
+        success: true,
+        isPreview: true,
+        parsedCount: parsed.count,
+        summary: parsed.summary,
+        sample: parsed.customers.slice(0, 10),
+        message: `تم تحليل الملف بنجاح! تم العثور على ${parsed.count} زبون.`
+      });
+    }
+
+    const result = dataStore.importCustomersBulk(parsed.customers);
+
+    res.json({
+      success: true,
+      imported: result.imported,
+      updated: result.updated,
+      total: result.total,
+      parsedCount: parsed.count,
+      summary: parsed.summary,
+      message: `تم بنجاح استيراد وتحديث ${parsed.count} زبون مع أرصدتهم بالنظام!`
+    });
+  } catch (err) {
+    console.error('Excel upload error:', err);
+    res.status(400).json({ success: false, error: 'خطأ في معالجة ملف الإكسل: ' + err.message });
+  }
+});
+
+// تحميل نموذج Excel فارغ استرشادي لتعبئة الزبائن
+app.get('/api/customers/download-template', (req, res) => {
+  try {
+    const buffer = excelParser.generateCustomerTemplate();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    const safeName = encodeURIComponent('نموذج_استيراد_الزبائن.xlsx');
+    res.setHeader('Content-Disposition', `attachment; filename="customers_template.xlsx"; filename*=UTF-8''${safeName}`);
+    res.send(buffer);
+  } catch (err) {
+    console.error('Template download error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// جلب كشف حساب زبون تفصيلي
+app.get('/api/customers/:id/statement', (req, res) => {
+  try {
+    const statement = dataStore.getCustomerStatement(req.params.id);
+    if (!statement) {
+      return res.status(404).json({ success: false, error: 'الزبون غير موجود' });
+    }
+    res.json({ success: true, statement });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// إرسال كشف حساب الزبون الرسمي مع ملف PDF لتيليجرام
+app.post('/api/customers/:id/send-statement-telegram', pdfUpload.single('pdfFile'), async (req, res) => {
+  try {
+    const settings = dataStore.getSettings();
+    if (!settings.telegramBotToken || !settings.telegramChatId) {
+      return res.status(400).json({ success: false, error: 'لم يتم ضبط إعدادات تيليجرام بعد' });
+    }
+
+    const statement = dataStore.getCustomerStatement(req.params.id);
+    if (!statement) {
+      return res.status(404).json({ success: false, error: 'الزبون غير موجود' });
+    }
+
+    // 1. إرسال الرسالة النصية
+    await telegramService.sendCustomerStatementNotification(statement.customer, statement.summary, settings);
+
+    // 2. إرفاق ملف PDF
+    if (req.file && req.file.buffer) {
+      const fileName = req.file.originalname || `كشف_حساب_${statement.customer.name.replace(/\s+/g, '_')}.pdf`;
+      const cur = settings.currency || 'شيكل';
+      const bal = parseFloat(statement.customer.balance) || 0;
+      const balText = bal > 0 ? `دين عليه: ${bal.toLocaleString('en-US')} ${cur}` : (bal < 0 ? `رصيد له: ${Math.abs(bal).toLocaleString('en-US')} ${cur}` : `رصيد خالص`);
+
+      const caption = 
+`📄 <b>كشف حساب تفصيلي معتمد (ملف PDF رسمي)</b>
+🏢 <b>${settings.companyName || 'رامز عطاطرة'}</b>
+━━━━━━━━━━━━━━━━━━
+👤 <b>الزبون:</b> ${statement.customer.name} (حساب #${statement.customer.systemNumber || '--'})
+💰 <b>الرصيد:</b> <b>${balText}</b>
+📅 <b>التاريخ:</b> ${formatServerDateTime(new Date())}
+<i>📎 مرفق أعلاه ملف كشف الحساب الرسمي المعتمد جاهز للطباعة والتدقيق.</i>`;
+
+      await telegramService.sendDocument(
+        settings.telegramBotToken,
+        settings.telegramChatId,
+        req.file.buffer,
+        fileName,
+        caption,
+        'HTML'
+      );
+    }
+
+    res.json({ success: true, message: `تم إرسال كشف حساب "${statement.customer.name}" مع ملف الـ PDF لتيليجرام بنجاح!` });
+  } catch (err) {
+    console.error('Send statement error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// إرسال كشف شامل لديون وأرصدة كافة الزبائن مع ملف PDF لتيليجرام
+app.post('/api/customers/send-debts-report-telegram', pdfUpload.single('pdfFile'), async (req, res) => {
+  try {
+    const settings = dataStore.getSettings();
+    if (!settings.telegramBotToken || !settings.telegramChatId) {
+      return res.status(400).json({ success: false, error: 'لم يتم ضبط إعدادات تيليجرام بعد' });
+    }
+
+    const { totalDebit, totalCredit, netBalance, countDebtors, countCreditors, countSettled, totalCount } = req.body;
+
+    const reportData = {
+      totalDebit: parseFloat(totalDebit) || 0,
+      totalCredit: parseFloat(totalCredit) || 0,
+      netBalance: parseFloat(netBalance) || 0,
+      countDebtors: parseInt(countDebtors) || 0,
+      countCreditors: parseInt(countCreditors) || 0,
+      countSettled: parseInt(countSettled) || 0,
+      totalCount: parseInt(totalCount) || 0
+    };
+
+    // 1. إرسال الرسالة النصية
+    await telegramService.sendCustomerDebtsReportNotification(reportData, settings);
+
+    // 2. إرفاق ملف PDF
+    if (req.file && req.file.buffer) {
+      const cur = settings.currency || 'شيكل';
+      const fileName = req.file.originalname || `كشف_ديون_الزبائن_${Date.now()}.pdf`;
+      const caption = 
+`📄 <b>تقرير ديون وأرصدة الزبائن (ملف PDF رسمي كامل)</b>
+🏢 <b>${settings.companyName || 'رامز عطاطرة'}</b>
+━━━━━━━━━━━━━━━━━━
+👥 <b>عدد الزبائن:</b> <b>${reportData.totalCount} زبون</b>
+🔴 <b>الديون التي عليهم:</b> <b>${reportData.totalDebit.toLocaleString('en-US')} ${cur}</b>
+🔵 <b>الديون التي لهم:</b> <b>${reportData.totalCredit.toLocaleString('en-US')} ${cur}</b>
+📅 <b>الوقت:</b> ${formatServerDateTime(new Date())}
+<i>📎 مرفق أعلاه الجدول الكامل لكافة الزبائن وأرصدتهم.</i>`;
+
+      await telegramService.sendDocument(
+        settings.telegramBotToken,
+        settings.telegramChatId,
+        req.file.buffer,
+        fileName,
+        caption,
+        'HTML'
+      );
+    }
+
+    res.json({ success: true, message: 'تم إرسال كشف ديون الزبائن وملف الـ PDF إلى تيليجرام بنجاح!' });
+  } catch (err) {
+    console.error('Send debts report error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// إرسال التقرير المالي والأرباح كملف PDF لتيليجرام
+app.post('/api/financial-report/send-pdf-telegram', pdfUpload.single('pdfFile'), async (req, res) => {
+  try {
+    const settings = dataStore.getSettings();
+    if (!settings.telegramBotToken || !settings.telegramChatId) {
+      return res.status(400).json({ success: false, error: 'لم يتم ضبط إعدادات تيليجرام بعد' });
+    }
+
+    const { periodTitle, totalSales, totalCost, totalProfit, profitMargin, invoiceCount } = req.body;
+
+    const reportData = {
+      periodTitle: periodTitle || 'كامل الفترة',
+      totalSales: parseFloat(totalSales) || 0,
+      totalCost: parseFloat(totalCost) || 0,
+      totalProfit: parseFloat(totalProfit) || 0,
+      profitMargin: profitMargin || '0',
+      invoiceCount: parseInt(invoiceCount) || 0
+    };
+
+    // 1. إرسال الرسالة النصية التلخيصية
+    await telegramService.sendFinancialReportNotification(reportData, settings);
+
+    // 2. إرفاق ملف PDF
+    if (req.file && req.file.buffer) {
+      const fileName = req.file.originalname || `تقرير_مالي_${Date.now()}.pdf`;
+      const cur = settings.currency || 'شيكل';
+      const caption = 
+`📄 <b>التقرير المالي والأرباح التنفيذي (ملف PDF رسمي)</b>
+🏢 <b>${settings.companyName || 'رامز عطاطرة'}</b>
+━━━━━━━━━━━━━━━━━━
+⏱️ <b>الفترة:</b> <b>${reportData.periodTitle}</b>
+💵 <b>إجمالي المبيعات:</b> <b>${reportData.totalSales.toLocaleString('en-US')} ${cur}</b>
+📈 <b>صافي الربح:</b> 🟢 <b>+${reportData.totalProfit.toLocaleString('en-US')} ${cur}</b> (${reportData.profitMargin}%)
+📅 <b>تاريخ الإصدار:</b> ${formatServerDateTime(new Date())}
+<i>📎 مرفق التقرير المالي الرسمي الشامل بصيغة PDF.</i>`;
+
+      await telegramService.sendDocument(
+        settings.telegramBotToken,
+        settings.telegramChatId,
+        req.file.buffer,
+        fileName,
+        caption,
+        'HTML'
+      );
+    }
+
+    res.json({ success: true, message: 'تم إرسال التقرير المالي وملف الـ PDF إلى تيليجرام بنجاح!' });
+  } catch (err) {
+    console.error('Financial report send error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// إرسال سند قبض مع ملف PDF لتيليجرام
+app.post('/api/receipts/:id/send-pdf-telegram', pdfUpload.single('pdfFile'), async (req, res) => {
+  try {
+    const settings = dataStore.getSettings();
+    if (!settings.telegramBotToken || !settings.telegramChatId) {
+      return res.status(400).json({ success: false, error: 'لم يتم ضبط إعدادات تيليجرام بعد' });
+    }
+
+    const receipts = dataStore.getReceipts();
+    const receipt = receipts.find(r => r.id === req.params.id || String(r.receiptNumber) === String(req.params.id));
+    if (!receipt) {
+      return res.status(404).json({ success: false, error: 'سند القبض غير موجود' });
+    }
+
+    // 1. إرسال الرسالة النصية للسند
+    await telegramService.sendReceiptNotification(receipt, settings);
+
+    // 2. إرفاق ملف PDF
+    if (req.file && req.file.buffer) {
+      const cur = settings.currency || 'شيكل';
+      const fileName = req.file.originalname || `سند_قبض_${receipt.receiptNumber}.pdf`;
+      const caption = 
+`📄 <b>سند قبض مالي معتمد #${receipt.receiptNumber} (ملف PDF رسمي)</b>
+🏢 <b>${settings.companyName || 'رامز عطاطرة'}</b>
+━━━━━━━━━━━━━━━━━━
+👤 <b>الزبون:</b> ${receipt.customerName}
+💰 <b>المبلغ المقبوض:</b> 🟢 <b>${Number(receipt.amount || 0).toLocaleString('en-US')} ${cur}</b>
+📅 <b>التاريخ:</b> ${formatServerDateTime(receipt.createdAt)}
+<i>📎 مرفق أعلاه ملف سند القبض الرسمي المعتمد بصيغة PDF.</i>`;
+
+      await telegramService.sendDocument(
+        settings.telegramBotToken,
+        settings.telegramChatId,
+        req.file.buffer,
+        fileName,
+        caption,
+        'HTML'
+      );
+    }
+
+    res.json({ success: true, message: `تم إرسال سند القبض #${receipt.receiptNumber} وملف الـ PDF لتيليجرام بنجاح!` });
+  } catch (err) {
+    console.error('Receipt send error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // حذف زبون
 app.delete('/api/customers/:id', (req, res) => {
   try {
@@ -858,6 +1129,7 @@ app.post('/api/customers/:id/send-reminder-telegram', pdfUpload.single('pdfFile'
     res.status(500).json({ success: false, error: err.message });
   }
 });
+
 
 // حذف سند قبض
 app.delete('/api/receipts/:id', (req, res) => {

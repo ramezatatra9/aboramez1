@@ -517,11 +517,10 @@
             <span>👥</span>
             <span>سجل ديون وأرصدة الزبائن</span>
           </button>
-          <button type="button" class="btn btn-sm btn-outline-success" onclick="triggerCustomerCsvUpload()">
-            <span>📂</span>
-            <span>استيراد ملف أرصدة الزبائن (CSV)</span>
+          <button type="button" class="btn btn-sm btn-outline-success" onclick="openCustomerExcelImportModal()">
+            <span>📥</span>
+            <span>استيراد ملف الزبائن (Excel / CSV)</span>
           </button>
-          <input type="file" id="customerCsvFileInput" accept=".csv,.txt" style="display:none;" onchange="handleCustomerCsvUpload(this)">
         </div>
       </div>
 
@@ -707,41 +706,45 @@
     <section id="tab-customers" class="tab-content">
       <div class="customers-section-container">
         
-        <!-- KPIs Row: إحصائيات الديون والأرصدة -->
+        <!-- KPIs Row: إحصائيات الديون والأرصدة المحسنة بدقة تامة -->
         <div class="customers-kpi-grid">
+          <!-- 1. ديون عليهم -->
           <div class="card cust-kpi-card danger">
-            <div class="kpi-icon-wrap">💳</div>
-            <div>
-              <div class="kpi-label">إجمالي ديون الزبائن المستحقة</div>
+            <div class="kpi-icon-wrap">🔴</div>
+            <div style="flex: 1;">
+              <div class="kpi-label">إجمالي ديون عليهم (لنا بذمتهم)</div>
               <div class="kpi-value" id="custTabTotalDebts">0 شيكل</div>
-              <div class="kpi-sub">مجموع الأرصدة المدينة المطلوبة من الزبائن</div>
+              <div class="kpi-sub" id="custTabDebtorsSub">0 زبون مدين بذمته مبالغ</div>
             </div>
           </div>
 
+          <!-- 2. ديون لهم -->
+          <div class="card cust-kpi-card info">
+            <div class="kpi-icon-wrap">🔵</div>
+            <div style="flex: 1;">
+              <div class="kpi-label">إجمالي ديون لهم (أرصدة لصالحه)</div>
+              <div class="kpi-value" id="custTabCreditTotal">0 شيكل</div>
+              <div class="kpi-sub" id="custTabCreditorsSub">0 زبون له رصيد دائن أو فائض</div>
+            </div>
+          </div>
+
+          <!-- 3. صافي الحساب والذمم الكلي -->
+          <div class="card cust-kpi-card net-positive" id="custTabNetCard">
+            <div class="kpi-icon-wrap" id="custTabNetIcon">⚖️</div>
+            <div style="flex: 1;">
+              <div class="kpi-label" id="custTabNetLabel">صافي رصيد الذمم العام</div>
+              <div class="kpi-value" id="custTabNetBalance">0 شيكل</div>
+              <div class="kpi-sub" id="custTabNetSub">الفرق بين ما عليهم وما لهم</div>
+            </div>
+          </div>
+
+          <!-- 4. إحصائيات الزبائن الإجمالية -->
           <div class="card cust-kpi-card primary">
             <div class="kpi-icon-wrap">👥</div>
-            <div>
-              <div class="kpi-label">إجمالي الزبائن المسجلين</div>
+            <div style="flex: 1;">
+              <div class="kpi-label">إجمالي وتصنيف الزبائن</div>
               <div class="kpi-value" id="custTabTotalCount">0 زبون</div>
-              <div class="kpi-sub">جميع الزبائن في قاعدة بيانات النظام</div>
-            </div>
-          </div>
-
-          <div class="card cust-kpi-card warning">
-            <div class="kpi-icon-wrap">⚠️</div>
-            <div>
-              <div class="kpi-label">زبائن عليهم ديون مستحقة</div>
-              <div class="kpi-value" id="custTabIndebtedCount">0 زبون</div>
-              <div class="kpi-sub">زبائن رصيدهم أكبر من 0 (عليهم)</div>
-            </div>
-          </div>
-
-          <div class="card cust-kpi-card info" style="background: #f0f9ff; border: 1.5px solid #bae6fd;">
-            <div class="kpi-icon-wrap" style="background: #e0f2fe; color: #0284c7;">💰</div>
-            <div>
-              <div class="kpi-label" style="color: #0369a1;">أرصدة زبائن دائنة (لك / له)</div>
-              <div class="kpi-value" id="custTabCreditTotal" style="color: #0284c7;">0 شيكل</div>
-              <div class="kpi-sub" style="color: #0284c7;">مجموع الأرصدة المدفوعة مقدماً من الزبائن</div>
+              <div class="kpi-sub" id="custTabStatsSummary">0 مدين | 0 دائن | 0 خالص</div>
             </div>
           </div>
         </div>
@@ -751,36 +754,40 @@
           <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: space-between; align-items: center;">
             
             <!-- Live Search -->
-            <div class="search-box" style="flex: 1; min-width: 280px;">
+            <div class="search-box" style="flex: 1; min-width: 260px;">
               <span>🔍</span>
-              <input type="text" id="custTabSearchInput" placeholder="ابحث باسم الزبون، رقمه بالنظام، أو رقم الهاتف..." oninput="handleCustomerTabSearch(this.value)">
+              <input type="text" id="custTabSearchInput" placeholder="ابحث باسم الزبون، رقمه بالنظام، أو الهاتف..." oninput="handleCustomerTabSearch(this.value)">
               <button type="button" class="btn-clear-input" id="btnCustClearSearch" style="display:none;" onclick="clearCustomerTabSearch()">✕</button>
             </div>
 
             <!-- Quick Filter Chips -->
             <div class="category-chips" style="margin-bottom: 0;">
               <button class="chip active" id="custFilterAll" onclick="setCustomerDebtFilter('all', this)">الكل</button>
-              <button class="chip" id="custFilterWithDebt" onclick="setCustomerDebtFilter('with_debt', this)">🔴 عليه دين (> 0)</button>
-              <button class="chip" id="custFilterWithCredit" onclick="setCustomerDebtFilter('with_credit', this)">🔵 له رصيد / لك (&lt; 0)</button>
+              <button class="chip" id="custFilterWithDebt" onclick="setCustomerDebtFilter('with_debt', this)">🔴 عليهم ديون (مدين)</button>
+              <button class="chip" id="custFilterWithCredit" onclick="setCustomerDebtFilter('with_credit', this)">🔵 لهم أرصدة (دائن)</button>
               <button class="chip" id="custFilterSettled" onclick="setCustomerDebtFilter('settled', this)">🟢 مسدد وخالص (0)</button>
             </div>
 
-            <!-- Actions: Add Customer, Import CSV, Print -->
-            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <!-- Actions: Add Customer, Import Excel/CSV, Telegram PDF, Print -->
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
               <button type="button" class="btn btn-primary" onclick="openAddCustomerModal()">
                 <span>➕</span>
-                <span>إضافة زبون جديد</span>
+                <span>إضافة زبون</span>
               </button>
 
-              <button type="button" class="btn btn-outline-success" onclick="triggerCustomerCsvUpload()">
-                <span>📂</span>
-                <span>استيراد ملف أرصدة الزبائن (CSV)</span>
+              <button type="button" class="btn btn-success" onclick="openCustomerExcelImportModal()" title="استيراد وتحديث الزبائن من ملف Excel أو CSV مع قراءة ذكية للديون">
+                <span>📥</span>
+                <span>استيراد ملف Excel أو CSV</span>
               </button>
-              <input type="file" id="customerCsvFileInput" accept=".csv,.txt" style="display:none;" onchange="handleCustomerCsvUpload(this)">
 
-              <button type="button" class="btn btn-secondary" onclick="printCustomerDebtsReport()">
+              <button type="button" class="btn btn-telegram" onclick="sendAllCustomersDebtsPdfToTelegram()" title="إرسال كشف كامل لكافة الزبائن والديون بصيغة PDF لتيليجرام">
+                <span>✈️</span>
+                <span>إرسال كشف الديون PDF لتيليجرام</span>
+              </button>
+
+              <button type="button" class="btn btn-secondary" onclick="printCustomerDebtsReport()" title="طباعة كشف الديون">
                 <span>🖨️</span>
-                <span>طباعة كشف الديون</span>
+                <span>طباعة</span>
               </button>
             </div>
 
@@ -789,25 +796,30 @@
 
         <!-- Table of Customers & Balances -->
         <div class="card">
-          <div class="card-header">
-            <h2 class="card-title">
-              <span>📋</span>
-              <span>سجل وأرصدة ديون الزبائن</span>
-            </h2>
-            <span class="badge badge-primary" id="custTableCountBadge">0 زبون</span>
+          <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 0.6rem;">
+              <h2 class="card-title">
+                <span>📋</span>
+                <span>سجل وأرصدة ديون الزبائن</span>
+              </h2>
+              <span class="badge badge-primary" id="custTableCountBadge">0 زبون</span>
+            </div>
+            <div style="font-size: 0.82rem; color: #64748b;">
+              💡 انقر على <strong>📑 كشف حساب</strong> لعرض فواتير وسندات أي زبون
+            </div>
           </div>
 
           <div style="overflow-x: auto;">
             <table class="items-table" id="customersMainTable">
               <thead>
                 <tr>
-                  <th style="width: 100px;">رقم النظام</th>
+                  <th style="width: 90px; text-align: center;">رقم النظام</th>
                   <th>اسم الزبون</th>
                   <th>الهاتف</th>
-                  <th style="min-width: 140px;">الرصيد الحالي (الدين)</th>
-                  <th style="min-width: 170px;">مؤقت آخر دفعة / سند</th>
+                  <th style="min-width: 155px; text-align: center;">الرصيد المالي الحالي</th>
+                  <th style="min-width: 195px; text-align: center;">📅 تاريخ آخر سند قبض والمدة المنقضية</th>
                   <th>ملاحظات وتفاصيل الحساب</th>
-                  <th style="width: 270px; text-align: center;">إجراءات سريعة وتذكير</th>
+                  <th style="width: 320px; text-align: center;">إجراءات وكشف الحساب</th>
                 </tr>
               </thead>
               <tbody id="customersMainTableBody">
@@ -818,10 +830,11 @@
 
           <div id="emptyCustomersMessage" class="empty-state" style="display: none;">
             <div class="empty-state-icon">👥</div>
-            <h3>لا يوجد زبائن مطابقين للبحث أو الفلتر</h3>
-            <p>يمكنك إضافة زبون جديد أو استيراد ملف الأرصدة CSV</p>
+            <h3>لا يوجد زبائن مطابقين للبحث أو الفلتر المحدد</h3>
+            <p>يمكنك إضافة زبون جديد أو استيراد ملف Excel أو CSV</p>
           </div>
         </div>
+
 
       </div>
     </section>
@@ -1743,7 +1756,7 @@
 
   <!-- MODAL: إضافة أو تعديل زبون -->
   <div class="modal-backdrop" id="customerEditModal">
-    <div class="modal-card" style="max-width: 500px;">
+    <div class="modal-card" style="max-width: 520px;">
       <div class="modal-header">
         <h3 id="custEditModalTitle">إضافة زبون جديد</h3>
         <button class="close-btn" onclick="closeCustomerEditModal()">✕</button>
@@ -1752,7 +1765,7 @@
         <input type="hidden" id="custEditId">
         <div class="modal-body">
           <div class="form-group">
-            <label class="form-label" for="custEditSysNum">رقم الزبون بالنظام:</label>
+            <label class="form-label" for="custEditSysNum">رقم الزبون بالنظام (اختياري / تلقائي):</label>
             <input type="text" id="custEditSysNum" class="form-control" placeholder="مثال: 1045">
           </div>
           <div class="form-group">
@@ -1765,41 +1778,197 @@
           </div>
           <div class="form-group">
             <label class="form-label" style="font-weight: 700; color: #0f172a; margin-bottom: 0.35rem;">
-              <span class="req">*</span> حالة الرصيد المالي:
+              <span class="req">*</span> حالة الرصيد المالي للزبون:
             </label>
-            <div class="balance-type-selector" style="display: flex; gap: 0.5rem; margin-bottom: 0.6rem;">
-              <label class="balance-type-option active" id="lblBalTypeDebit" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 0.4rem; padding: 0.55rem 0.75rem; border: 2px solid #ef4444; border-radius: 8px; cursor: pointer; font-weight: 800; font-size: 0.88rem; background: #fef2f2; color: #b91c1c; transition: all 0.2s ease;">
-                <input type="radio" name="custBalType" id="custBalTypeDebit" value="debit" checked onchange="handleCustomerBalTypeChange('debit')" style="accent-color: #ef4444; width: 16px; height: 16px;">
+            <div class="balance-type-selector" style="display: flex; gap: 0.5rem; margin-bottom: 0.6rem; flex-wrap: wrap;">
+              <label class="balance-type-option active" id="lblBalTypeDebit" style="flex: 1; min-width: 140px; display: flex; align-items: center; justify-content: center; gap: 0.35rem; padding: 0.55rem 0.75rem; border: 2px solid #ef4444; border-radius: 8px; cursor: pointer; font-weight: 800; font-size: 0.9rem; background: #fef2f2; color: #b91c1c; transition: all 0.2s ease;">
+                <input type="radio" name="custBalType" id="custBalTypeDebit" value="debit" checked onchange="handleCustomerBalTypeChange('debit')" style="accent-color: #ef4444;">
                 <span>🔴 عليه (دين مستحق بذمته)</span>
               </label>
 
-              <label class="balance-type-option" id="lblBalTypeCredit" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 0.4rem; padding: 0.55rem 0.75rem; border: 2px solid #cbd5e1; border-radius: 8px; cursor: pointer; font-weight: 800; font-size: 0.88rem; background: #ffffff; color: #475569; transition: all 0.2s ease;">
-                <input type="radio" name="custBalType" id="custBalTypeCredit" value="credit" onchange="handleCustomerBalTypeChange('credit')" style="accent-color: #2563eb; width: 16px; height: 16px;">
-                <span>🔵 لك / له (رصيد مالي دائن لصالحه)</span>
+              <label class="balance-type-option" id="lblBalTypeCredit" style="flex: 1; min-width: 140px; display: flex; align-items: center; justify-content: center; gap: 0.35rem; padding: 0.55rem 0.75rem; border: 2px solid #cbd5e1; border-radius: 8px; cursor: pointer; font-weight: 800; font-size: 0.9rem; background: #ffffff; color: #475569; transition: all 0.2s ease;">
+                <input type="radio" name="custBalType" id="custBalTypeCredit" value="credit" onchange="handleCustomerBalTypeChange('credit')" style="accent-color: #2563eb;">
+                <span>🔵 له (رصيد دائن / لصالحه)</span>
               </label>
             </div>
 
-            <label class="form-label" for="custEditBalance" id="lblCustEditBalanceVal" style="font-size: 0.82rem; font-weight: 700; color: #475569;">مبلغ الرصيد:</label>
-            <div style="position: relative;">
-              <input type="number" id="custEditBalance" class="form-control" min="0" step="any" placeholder="0.00" required>
-              <span id="custEditCurrencyBadge" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-weight: 700;">شيكل</span>
+            <div id="custEditAmountGroup">
+              <label class="form-label" for="custEditBalance" id="lblCustEditBalanceVal" style="font-size: 0.85rem; font-weight: 700; color: #475569;">
+                مبلغ الرصيد الحالي <span style="font-weight: normal; color: #64748b;">(إذا كان الحساب مسدداً وخالصاً، اكتب 0):</span>
+              </label>
+              <div style="position: relative;">
+                <input type="number" id="custEditBalance" class="form-control" min="0" step="any" placeholder="0.00" required oninput="handleCustomerBalanceInput(this.value)">
+                <span id="custEditCurrencyBadge" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-weight: 700;">شيكل</span>
+              </div>
             </div>
-            <div id="custEditBalanceHint" style="font-size: 0.8rem; font-weight: 700; color: #dc2626; margin-top: 0.35rem;">
-              ⚠️ الحالة الافتراضية: الزبون عليه دين ومطلوب منه هذا المبلغ
+
+            <div id="custEditBalanceHint" style="font-size: 0.82rem; font-weight: 700; color: #dc2626; margin-top: 0.4rem; padding: 0.4rem 0.65rem; background: #fef2f2; border-radius: 6px; border: 1px solid #fecaca;">
+              ⚠️ الحالة: الزبون عليه دين ومطلوب منه هذا المبلغ لصالح المعرض (+)
             </div>
           </div>
           <div class="form-group">
-            <label class="form-label" for="custEditNotes">ملاحظات:</label>
-            <input type="text" id="custEditNotes" class="form-control" placeholder="أي تفاصيل تخص الحساب...">
+            <label class="form-label" for="custEditNotes">ملاحظات الحساب:</label>
+            <input type="text" id="custEditNotes" class="form-control" placeholder="أي تفاصيل أو أقساط أو اتفاقيات تخص الحساب...">
           </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" onclick="closeCustomerEditModal()">إلغاء</button>
-          <button type="submit" class="btn btn-primary">حفظ الزبون</button>
+          <button type="submit" class="btn btn-primary">حفظ بيانات الزبون</button>
         </div>
       </form>
     </div>
   </div>
+
+  <!-- ======================================================= -->
+  <!-- MODAL: استيراد وتحديث الزبائن من ملف Excel أو CSV -->
+  <!-- ======================================================= -->
+  <div class="modal-backdrop" id="customerExcelImportModal">
+    <div class="modal-card" style="max-width: 780px;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 0.6rem;">
+          <span style="font-size: 1.5rem;">📥</span>
+          <div>
+            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: #0f172a;">استيراد ملف الزبائن (Excel / CSV)</h3>
+            <p style="margin: 0.2rem 0 0 0; font-size: 0.82rem; color: #64748b;">يدعم ملفات .xlsx و .xls و .csv مع قراءة تلقائية للأعمدة والديون (له / عليه)</p>
+          </div>
+        </div>
+        <button class="close-btn" onclick="closeCustomerExcelImportModal()">✕</button>
+      </div>
+
+      <div class="modal-body" style="padding: 1.5rem;">
+        
+        <!-- Info Banner & Template Download -->
+        <div style="display: flex; justify-content: space-between; align-items: center; background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 8px; padding: 0.85rem 1.25rem; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.75rem;">
+          <div style="font-size: 0.85rem; color: #1e40af; line-height: 1.5;">
+            💡 <strong>تلميح ذكي:</strong> يتعرف النظام تلقائياً على أعمدة (الاسم، الهاتف، رقم الحساب، الرصيد، مدين، دائن، ملاحظات) ويدمجها بأمان دون تكرار.
+          </div>
+          <a href="/api/customers/download-template" download="نموذج_استيراد_الزبائن.xlsx" class="btn btn-sm btn-outline-primary" style="display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 700; white-space: nowrap;">
+            <span>📄</span>
+            <span>تحميل نموذج Excel استرشادي</span>
+          </a>
+        </div>
+
+        <!-- Drag & Drop File Zone -->
+        <div class="excel-drop-zone" id="excelDropZone" onclick="triggerExcelFileInput()">
+          <span class="drop-icon">📊</span>
+          <h4 style="margin: 0 0 0.35rem 0; font-size: 1.05rem; font-weight: 800; color: #0f172a;">اسحب وأفلت ملف الـ Excel هنا، أو انقر لاختياره</h4>
+          <p style="margin: 0; font-size: 0.84rem; color: #64748b;">يدعم صيغ Excel (.xlsx, .xls) وصيغة CSV (.csv, .txt)</p>
+          <input type="file" id="excelFileInput" accept=".xlsx,.xls,.csv,.txt" style="display:none;" onchange="handleExcelFileSelected(this)">
+        </div>
+
+        <!-- Selected File Status Badge -->
+        <div id="excelSelectedFileBanner" style="display: none; margin-top: 1rem; padding: 0.75rem 1rem; background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 8px; align-items: center; justify-content: space-between;">
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span>📄</span>
+            <div>
+              <strong id="excelFileName" style="color: #166534;">اسم الملف</strong>
+              <span id="excelFileSize" style="font-size: 0.78rem; color: #64748b; margin-right: 0.5rem;"></span>
+            </div>
+          </div>
+          <button type="button" class="btn btn-xs btn-outline-danger" onclick="clearSelectedExcelFile()">إلغاء الملف</button>
+        </div>
+
+        <!-- Parse Preview Area (Shows summary before saving) -->
+        <div id="excelPreviewSection" style="display: none; margin-top: 1.25rem;">
+          <div style="font-weight: 800; font-size: 0.95rem; color: #0f172a; margin-bottom: 0.6rem; display: flex; justify-content: space-between; align-items: center;">
+            <span>📊 معاينة بيانات الملف المستخرجة:</span>
+            <span class="badge badge-success" id="excelPreviewCountBadge">0 زبون جاهز للاستيراد</span>
+          </div>
+
+          <!-- Preview KPIs -->
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-bottom: 1rem;">
+            <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 0.65rem 0.85rem;">
+              <span style="font-size: 0.76rem; color: #991b1b; display: block; font-weight: 700;">إجمالي ديون عليهم:</span>
+              <strong id="previewDebitTotal" style="color: #dc2626; font-size: 1.1rem;">0 شيكل</strong>
+              <div id="previewDebtorsCount" style="font-size: 0.72rem; color: #b91c1c; margin-top: 0.15rem;">0 مدين</div>
+            </div>
+
+            <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 0.65rem 0.85rem;">
+              <span style="font-size: 0.76rem; color: #1e40af; display: block; font-weight: 700;">إجمالي ديون لهم:</span>
+              <strong id="previewCreditTotal" style="color: #2563eb; font-size: 1.1rem;">0 شيكل</strong>
+              <div id="previewCreditorsCount" style="font-size: 0.72rem; color: #1d4ed8; margin-top: 0.15rem;">0 دائن</div>
+            </div>
+
+            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 0.65rem 0.85rem;">
+              <span style="font-size: 0.76rem; color: #166534; display: block; font-weight: 700;">الصافي الكلي:</span>
+              <strong id="previewNetBalance" style="color: #15803d; font-size: 1.1rem;">0 شيكل</strong>
+              <div id="previewSettledCount" style="font-size: 0.72rem; color: #15803d; margin-top: 0.15rem;">0 خالص</div>
+            </div>
+          </div>
+
+          <!-- Quick Preview Table (first 10 rows) -->
+          <div style="max-height: 220px; overflow-y: auto; border: 1px solid #cbd5e1; border-radius: 6px;">
+            <table class="items-table" style="font-size: 0.82rem; margin: 0;">
+              <thead>
+                <tr style="background: #f1f5f9;">
+                  <th>#</th>
+                  <th>رقم النظام</th>
+                  <th>اسم الزبون</th>
+                  <th>الهاتف</th>
+                  <th>الرصيد والحالة</th>
+                  <th>ملاحظات</th>
+                </tr>
+              </thead>
+              <tbody id="excelPreviewTableBody">
+                <!-- ديناميكي -->
+              </tbody>
+            </table>
+          </div>
+          <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.4rem;">يتم عرض أول 10 صفوف كعينة، وسيتم استيراد كافة السجلات عند الضغط على تأكيد.</p>
+        </div>
+
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeCustomerExcelImportModal()">إلغاء</button>
+        <button type="button" class="btn btn-success" id="btnConfirmExcelImport" style="display: none;" onclick="executeConfirmedExcelImport()">
+          <span>✅</span>
+          <span>تأكيد واستيراد الزبائن إلى النظام</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================= -->
+  <!-- MODAL: كشف حساب تفصيلي للزبون (Customer Statement) -->
+  <!-- ======================================================= -->
+  <div class="modal-backdrop" id="customerStatementModal">
+    <div class="modal-card" style="max-width: 900px;">
+      <div class="modal-header no-print">
+        <div style="display: flex; align-items: center; gap: 0.6rem;">
+          <span style="font-size: 1.5rem;">📑</span>
+          <div>
+            <h3 style="margin: 0; font-size: 1.2rem; font-weight: 800; color: #0f172a;">كشف حساب تفصيلي للزبون</h3>
+            <span style="font-size: 0.82rem; color: #64748b;" id="statementSubTitle">سجل الفواتير وسندات القبض وحركة الرصيد المالي</span>
+          </div>
+        </div>
+        <button class="close-btn" onclick="closeCustomerStatementModal()">✕</button>
+      </div>
+
+      <div class="modal-body" style="padding: 0;">
+        <div id="printableCustomerStatementArea" class="printable-statement" style="padding: 1.75rem; direction: rtl; font-family: 'Cairo', sans-serif;">
+          <!-- ديناميكي بواسطة JavaScript -->
+        </div>
+      </div>
+
+      <div class="modal-footer no-print">
+        <button type="button" class="btn btn-telegram" id="btnSendStatementTelegram" onclick="sendCustomerStatementPdfToTelegram()">
+          <span>✈️</span>
+          <span>إرسال كشف الحساب PDF لتيليجرام</span>
+        </button>
+        <button type="button" class="btn btn-success" onclick="downloadCustomerStatementPdf()">
+          <span>📥</span>
+          <span>تحميل كشف الحساب PDF</span>
+        </button>
+        <button type="button" class="btn btn-secondary" onclick="closeCustomerStatementModal()">إغلاق</button>
+        <button type="button" class="btn btn-primary" onclick="printCustomerStatement()">
+          <span>🖨️</span>
+          <span>طباعة كشف الحساب</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
 
   <!-- Floating Direct Jump to Invoice Bar (زر وشريط الانتقال المباشر للفاتورة) -->
   <div class="floating-cart-bar" id="floatingCartBar" style="display: none;" onclick="jumpToInvoiceDirectly()">
