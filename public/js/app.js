@@ -86,43 +86,67 @@ async function generatePdfBlobFromHtml(htmlContent, fileName = 'document.pdf', o
     throw new Error('مكتبة تصدير الـ PDF (html2pdf.js) غير محملة في المتصفح');
   }
 
-  if (!htmlContent || typeof htmlContent !== 'string' || !htmlContent.trim()) {
+  let resolvedHtml = '';
+  if (htmlContent instanceof HTMLElement) {
+    resolvedHtml = htmlContent.innerHTML;
+  } else if (typeof htmlContent === 'string') {
+    const trimmed = htmlContent.trim();
+    if ((trimmed.startsWith('#') || trimmed.startsWith('.')) && !trimmed.includes('<')) {
+      const el = document.querySelector(trimmed);
+      if (el) {
+        resolvedHtml = el.innerHTML;
+      } else {
+        resolvedHtml = htmlContent;
+      }
+    } else {
+      resolvedHtml = htmlContent;
+    }
+  }
+
+  if (!resolvedHtml || !resolvedHtml.trim()) {
     throw new Error('محتوى المستند المراد تصديره فارغ');
   }
 
   const isLandscape = options.orientation === 'landscape';
   const targetWidthPx = isLandscape ? 1120 : 794;
 
-  // حاوية عزل رئيسية خارج الشاشة تمنع التشويش البصري على المستخدم
-  const sandbox = document.createElement('div');
-  sandbox.id = 'pdf-render-sandbox-' + Date.now();
-  sandbox.style.position = 'absolute';
-  sandbox.style.left = '-10000px';
-  sandbox.style.top = '0';
-  sandbox.style.width = targetWidthPx + 'px';
-  sandbox.style.overflow = 'visible';
-  sandbox.style.opacity = '1';
-  sandbox.style.pointerEvents = 'none';
-  sandbox.style.zIndex = '-9999';
+  // بناء حاوية محتوى نظيفة ومستقلة بدون أي تموضع شاذ (-10000px) لمنع الشاشات البيضاء أو قطع المحتوى
+  const wrapper = document.createElement('div');
+  wrapper.className = 'pdf-render-root';
+  wrapper.style.width = targetWidthPx + 'px';
+  wrapper.style.maxWidth = targetWidthPx + 'px';
+  wrapper.style.margin = '0 auto';
+  wrapper.style.padding = '0';
+  wrapper.style.backgroundColor = '#ffffff';
+  wrapper.style.color = '#0f172a';
+  wrapper.style.direction = 'rtl';
+  wrapper.style.display = 'flow-root';
+  wrapper.style.boxSizing = 'border-box';
+  wrapper.style.position = 'relative';
+  wrapper.style.fontFamily = "'Cairo', 'IBM Plex Sans Arabic', 'Segoe UI', Tahoma, sans-serif";
+  wrapper.innerHTML = resolvedHtml;
 
-  // عنصر المحتوى بتدفق طبيعي عادي (block) بدون position: fixed أو transform
-  // لضمان قياس الارتفاع الحقيقي بدقة تامة بواسطة html2canvas ومنع الصفحات البيضاء الفارغة
-  const contentElement = document.createElement('div');
-  contentElement.className = 'pdf-printable-content-root';
-  contentElement.style.width = targetWidthPx + 'px';
-  contentElement.style.minHeight = '300px';
-  contentElement.style.margin = '0';
-  contentElement.style.padding = '0';
-  contentElement.style.backgroundColor = '#ffffff';
-  contentElement.style.color = '#0f172a';
-  contentElement.style.direction = 'rtl';
-  contentElement.style.fontFamily = "'Cairo', 'IBM Plex Sans Arabic', 'Segoe UI', Tahoma, sans-serif";
-  contentElement.style.boxSizing = 'border-box';
-  contentElement.style.position = 'relative';
-  contentElement.innerHTML = htmlContent;
+  // إظهار وتجهيز العناصر المخبأة في النوافذ المنبثقة (Modals/Popups)
+  wrapper.querySelectorAll('.modal, .modal-backdrop, .modal-card, .modal-body, .modal-content').forEach(m => {
+    m.style.display = 'block';
+    m.style.visibility = 'visible';
+    m.style.opacity = '1';
+    m.style.position = 'static';
+    m.style.maxHeight = 'none';
+    m.style.overflow = 'visible';
+    m.style.margin = '0';
+    m.style.padding = '0';
+  });
 
-  sandbox.appendChild(contentElement);
-  document.body.appendChild(sandbox);
+  wrapper.querySelectorAll('[style*="display: none"], [style*="display:none"], [hidden]').forEach(hiddenEl => {
+    if (!hiddenEl.classList.contains('no-print')) {
+      hiddenEl.style.display = 'block';
+      hiddenEl.removeAttribute('hidden');
+    }
+  });
+
+  // إزالة العناصر غير المراد طباعتها مثل أزرار الإجراءات
+  wrapper.querySelectorAll('.no-print').forEach(el => el.remove());
 
   try {
     // 1. انتظار اكتمال تحميل الخطوط لضمان دقة الرسم
@@ -133,7 +157,7 @@ async function generatePdfBlobFromHtml(htmlContent, fileName = 'document.pdf', o
     }
 
     // 2. انتظار اكتمال تحميل أي صور داخل المستند
-    const images = Array.from(contentElement.querySelectorAll('img'));
+    const images = Array.from(wrapper.querySelectorAll('img'));
     if (images.length > 0) {
       await Promise.all(images.map(img => {
         if (img.complete && img.naturalHeight !== 0) return Promise.resolve();
@@ -145,11 +169,14 @@ async function generatePdfBlobFromHtml(htmlContent, fileName = 'document.pdf', o
       }));
     }
 
-    // تأخير قصير لحسابات الـ Layout في المتصفح
-    await new Promise(resolve => setTimeout(resolve, 250));
+    // 3. تأخير زمني بسيط (setTimeout) قبل التحويل للسماح للمتصفح برسم عناصر الـ DOM بالكامل وحساب الأبعاد بدقة
+    await new Promise(resolve => setTimeout(resolve, options.delay || 300));
+
+    // الهامش الافتراضي 0 لإزالة أي فراغ علوي غير مرغوب فيه لأن قوالب النظام تحتوي على مسافات padding كافية
+    const optMargin = options.margin !== undefined ? options.margin : 0;
 
     const opt = {
-      margin: options.margin !== undefined ? options.margin : [8, 8, 8, 8],
+      margin: optMargin,
       filename: fileName,
       image: { type: 'jpeg', quality: 0.98 },
       html2canvas: {
@@ -158,29 +185,61 @@ async function generatePdfBlobFromHtml(htmlContent, fileName = 'document.pdf', o
         allowTaint: true,
         letterRendering: true,
         backgroundColor: '#ffffff',
-        logging: false
+        logging: false,
+        scrollX: 0,
+        scrollY: 0,
+        x: 0,
+        y: 0,
+        windowWidth: targetWidthPx,
+        onclone: function(clonedDoc) {
+          // التأكد من أن جميع الحاويات في المستند المستنسخ ظاهرة بدقة وبدون أي فراغ علوي
+          const overlays = clonedDoc.querySelectorAll('.html2pdf__overlay');
+          overlays.forEach(o => {
+            o.style.opacity = '1';
+            o.style.visibility = 'visible';
+          });
+          const containers = clonedDoc.querySelectorAll('.html2pdf__container');
+          containers.forEach(c => {
+            c.style.opacity = '1';
+            c.style.visibility = 'visible';
+            c.style.top = '0';
+            c.style.marginTop = '0';
+            c.style.paddingTop = '0';
+          });
+          clonedDoc.querySelectorAll('.no-print').forEach(el => el.remove());
+        },
+        ...(options.html2canvas || {})
       },
       jsPDF: {
         unit: 'mm',
         format: options.format || 'a4',
-        orientation: isLandscape ? 'landscape' : 'portrait'
+        orientation: isLandscape ? 'landscape' : 'portrait',
+        ...(options.jsPDF || {})
       }
     };
 
-    // استخدام دالة outputPdf('blob') الرسمية التابعة للـ Worker
+    // ضمان الخصائص المطلوبة دائماً
+    opt.image = { type: 'jpeg', quality: 0.98 };
+    opt.html2canvas.scale = 2;
+    opt.html2canvas.scrollX = 0;
+    opt.html2canvas.scrollY = 0;
+
+    // توليد ملف PDF واستخراج الـ Blob المعتمد
+    const worker = html2pdf().set(opt).from(wrapper);
+    await worker.toPdf();
+    const pdf = await worker.get('pdf');
+
     let blob = null;
-    try {
-      blob = await html2pdf().set(opt).from(contentElement).outputPdf('blob');
-    } catch (errOutputPdf) {
-      console.warn('outputPdf error, trying output("blob"):', errOutputPdf);
-      blob = await html2pdf().set(opt).from(contentElement).output('blob');
+    if (pdf && typeof pdf.output === 'function') {
+      blob = pdf.output('blob');
     }
 
-    // فحص إضافي: إذا لم يتولد blob أو حجمه صغير جداً (مؤشر صفحة فارغة)
-    if (!blob || blob.size < 2000) {
-      console.warn('First pass produced small blob, trying fallback worker chain...');
-      const fallbackWorker = html2pdf().set(opt).from(contentElement);
-      blob = await fallbackWorker.output('blob');
+    if (!blob || !(blob instanceof Blob) || blob.size < 1000) {
+      try {
+        blob = await worker.outputPdf('blob');
+      } catch (e) {
+        console.warn('outputPdf fallback error:', e);
+      }
     }
 
     if (!blob || blob.size < 500) {
@@ -189,8 +248,9 @@ async function generatePdfBlobFromHtml(htmlContent, fileName = 'document.pdf', o
 
     return blob;
   } finally {
-    if (sandbox.parentNode) {
-      sandbox.parentNode.removeChild(sandbox);
+    // التنظيف
+    if (wrapper.parentNode) {
+      wrapper.parentNode.removeChild(wrapper);
     }
   }
 }
