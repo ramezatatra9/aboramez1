@@ -1,0 +1,60 @@
+[
+  {
+    "id": "WAR-1001",
+    "warrantyNumber": 1001,
+    "invoiceId": "INV-1002",
+    "invoiceNumber": 1002,
+    "createdAt": "2026-09-27T18:34:37.418Z",
+    "purchaseDate": "2026-09-27T18:34:37.418Z",
+    "durationMonths": 12,
+    "durationText": "سنة واحدة (12 شهراً)",
+    "expiryDate": "2027-09-27T18:34:37.418Z",
+    "customerName": "استاذ رضا حرزالله",
+    "customerId": "cust-1791127655268-70506",
+    "customerSystemNumber": "C00000001",
+    "customerPhone": "0599123456",
+    "customerAddress": "يعبد - جنين",
+    "items": [
+      {
+        "productId": "prod-i00001217",
+        "productName": "شاشة يونيفرسال 32 بوصة نت",
+        "brand": "Universal",
+        "code": "UNI-32-NET",
+        "quantity": 1,
+        "serialNumber": "SN-UNI-2026-88392",
+        "notes": ""
+      },
+      {
+        "productId": "prod-i00000397",
+        "productName": "حمالة متحركة صغيرة",
+        "brand": "عام",
+        "code": "BRK-SML",
+        "quantity": 1,
+        "serialNumber": "SN-BRK-9912",
+        "notes": ""
+      },
+      {
+        "productId": "prod-i00000407",
+        "productName": "لاقط صحن رباعي",
+        "brand": "عام",
+        "code": "LNB-QUAD",
+        "quantity": 1,
+        "serialNumber": "SN-LNB-4482",
+        "notes": ""
+      }
+    ],
+    "terms": [
+      "الرجاء قراءة الكفالة وكتيب التعليمات قبل الاستخدام.",
+      "الكفالة لا تشمل الكسر وسوء الاستخدام للمنتج.",
+      "هذا الضمان لا يغطي الفساد الذي يتسبب به المنتج من خلال النقل او التركيب والتشغيل بطريقة غير مطابقة لدليل الاستعمال.",
+      "يلغى الضمان في حال تم تدخل اي مصلح خارجي بالمنتج وليس من طرف شركة ابو رامز للاجهزة الكهربائية.",
+      "هذا المنتج مضمون من كل عيب مصنعي.",
+      "الاصلاحات التي تتم في اطار مدة الكفالة تكون مجانا.",
+      "القطع واليد العاملة بدون مقابل."
+    ],
+    "status": "active",
+    "companyName": "شركة أبو رامز للأجهزة الكهربائية",
+    "companyPhone": "059-1234567",
+    "notes": "تسليم وتركيب معتمد من المعرض"
+  }
+]

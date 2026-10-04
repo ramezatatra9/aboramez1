@@ -344,9 +344,97 @@ app.post('/api/invoices/:id/resend-telegram', async (req, res) => {
   }
 });
 
+// تحويل فاتورة العرض إلى فاتورة مبيعات فعلية
+app.post('/api/invoices/:id/convert-to-sales', async (req, res) => {
+  try {
+    const { employeeName } = req.body;
+    const result = dataStore.convertQuotationToSalesInvoice(req.params.id, employeeName || 'مسؤول المبيعات');
+    const { invoice, warranty } = result;
+
+    // إرسال تيليجرام بعد تحويل العرض لفاتورة فعلية
+    const settings = dataStore.getSettings();
+    if (settings.telegramBotToken && settings.telegramChatId) {
+      try {
+        const telegramResult = await telegramService.sendInvoiceNotification(invoice, settings);
+        dataStore.updateInvoiceTelegramStatus(invoice.id, telegramResult.ok, telegramResult.error);
+      } catch (e) {
+        console.error('Telegram on quotation convert error:', e.message);
+      }
+    }
+
+    res.json({ success: true, invoice, warranty });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// -------------------------------------------------------------
+// APIs: الكفالات والضمان (Warranties)
+// -------------------------------------------------------------
+
+// جلب جميع الكفالات
+app.get('/api/warranties', (req, res) => {
+  try {
+    dataStore.checkWarrantyStatuses();
+    const warranties = dataStore.getWarranties();
+    res.json({ success: true, warranties });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// جلب كفالة واحدة
+app.get('/api/warranties/:id', (req, res) => {
+  try {
+    const warranty = dataStore.getWarrantyById(req.params.id);
+    if (!warranty) return res.status(404).json({ success: false, error: 'الكفالة غير موجودة' });
+    res.json({ success: true, warranty });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// إنشاء كفالة يدوياً لفاتورة موجودة
+app.post('/api/warranties/from-invoice/:invoiceId', (req, res) => {
+  try {
+    const invoice = dataStore.getInvoiceById(req.params.invoiceId);
+    if (!invoice) return res.status(404).json({ success: false, error: 'الفاتورة غير موجودة' });
+    const { durationMonths, customerAddress } = req.body;
+    const warranty = dataStore.createWarrantyFromInvoice(invoice, {
+      durationMonths: durationMonths || 12,
+      customerAddress: customerAddress || invoice.customerAddress || ''
+    });
+    res.json({ success: true, warranty });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// تحديث بيانات كفالة (مدة الكفالة، السيريال، العنوان)
+app.patch('/api/warranties/:id', (req, res) => {
+  try {
+    const updated = dataStore.updateWarranty(req.params.id, req.body);
+    if (!updated) return res.status(404).json({ success: false, error: 'الكفالة غير موجودة' });
+    res.json({ success: true, warranty: updated });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// حذف كفالة
+app.delete('/api/warranties/:id', (req, res) => {
+  try {
+    const deleted = dataStore.deleteWarranty(req.params.id);
+    res.json({ success: true, deleted });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // -------------------------------------------------------------
 // APIs: الإعدادات وتيليجرام (Settings & Telegram)
 // -------------------------------------------------------------
+
 
 // جلب الإعدادات
 app.get('/api/settings', (req, res) => {

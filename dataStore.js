@@ -8,6 +8,7 @@ const INVOICES_FILE = path.join(DATA_DIR, 'invoices.json');
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
 const RECEIPTS_FILE = path.join(DATA_DIR, 'receipts.json');
 const CUSTOMERS_FILE = path.join(DATA_DIR, 'customers.json');
+const WARRANTIES_FILE = path.join(DATA_DIR, 'warranties.json');
 const BACKUPS_DIR = path.join(__dirname, 'backups');
 if (!fs.existsSync(BACKUPS_DIR)) {
   fs.mkdirSync(BACKUPS_DIR, { recursive: true });
@@ -96,6 +97,48 @@ async function deleteReceiptFromSupabase(id) {
   } catch (err) {
     console.error('Supabase receipt delete error:', err.message);
   }
+}
+
+async function syncWarrantyToSupabase(warranty) {
+  if (!supabase) return;
+  try {
+    await supabase.from('warranties').upsert({
+      id: String(warranty.id),
+      warrantyNumber: warranty.warrantyNumber,
+      invoiceId: String(warranty.invoiceId || ''),
+      invoiceNumber: warranty.invoiceNumber || null,
+      createdAt: warranty.createdAt,
+      purchaseDate: warranty.purchaseDate,
+      durationMonths: warranty.durationMonths,
+      expiryDate: warranty.expiryDate,
+      customerName: warranty.customerName,
+      customerPhone: warranty.customerPhone,
+      customerAddress: warranty.customerAddress,
+      items: warranty.items,
+      status: warranty.status
+    });
+  } catch (err) {
+    // Non-blocking notice
+  }
+}
+
+async function deleteWarrantyFromSupabase(id) {
+  if (!supabase) return;
+  try {
+    await supabase.from('warranties').delete().eq('id', id);
+  } catch (err) {
+    // Non-blocking notice
+  }
+}
+
+function calculateExpiryDate(startDateInput, durationMonths = 12) {
+  const d = new Date(startDateInput || Date.now());
+  if (isNaN(d.getTime())) {
+    return new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString();
+  }
+  const months = parseInt(durationMonths) || 12;
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString();
 }
 
 async function syncSettingsToSupabase(settings) {
@@ -366,15 +409,21 @@ const dataStore = {
     const invoices = this.getInvoices();
     const nextNumber = invoices.length > 0 ? Math.max(...invoices.map(i => i.invoiceNumber || 1000)) + 1 : 1001;
 
+    const isQuotation = !!invoiceData.isQuotation || invoiceData.invoiceType === 'quotation';
+    const invoiceType = isQuotation ? 'quotation' : (invoiceData.invoiceType === 'purchase' ? 'purchase' : 'sales');
+
     const invoice = {
       id: "INV-" + nextNumber,
       invoiceNumber: nextNumber,
-      invoiceType: invoiceData.invoiceType === 'purchase' ? 'purchase' : 'sales', // 'sales' or 'purchase'
+      invoiceType,
+      isQuotation,
       createdAt: new Date().toISOString(),
       employeeName: invoiceData.employeeName?.trim() || "غير محدد",
-      customerName: invoiceData.customerName?.trim() || (invoiceData.invoiceType === 'purchase' ? "مورد بضاعة" : "زبون نقدي"),
+      customerName: invoiceData.customerName?.trim() || (isQuotation ? "عرض سعر لزبون" : (invoiceType === 'purchase' ? "مورد بضاعة" : "زبون نقدي")),
       customerPhone: invoiceData.customerPhone?.trim() || "",
+      customerAddress: invoiceData.customerAddress?.trim() || "",
       customerId: invoiceData.customerId || null,
+      customerSystemNumber: invoiceData.customerSystemNumber || '',
       notes: invoiceData.notes || "",
       items: invoiceData.items || [],
       summary: invoiceData.summary || {
@@ -391,6 +440,9 @@ const dataStore = {
         duration: invoiceData.installmentDetails?.duration || "",
         scheduleNotes: invoiceData.installmentDetails?.scheduleNotes || ""
       } : null,
+      warrantyMonths: parseInt(invoiceData.warrantyMonths) || 12,
+      warrantyId: null,
+      warrantyNumber: null,
       telegramStatus: {
         sent: false,
         sentAt: null,
@@ -402,39 +454,129 @@ const dataStore = {
     writeJson(INVOICES_FILE, invoices);
     syncInvoiceToSupabase(invoice);
 
-    // إذا كانت فاتورة مبيعات وزبون: يتم ربطه إذا وجد أو إضافته كزبون جديد تلقائياً
-    if (invoice.invoiceType === 'sales' && invoice.customerName && invoice.customerName !== 'زبون نقدي') {
-      const customers = this.getCustomers();
-      const existing = customers.find(c => 
-        (invoice.customerId && c.id === invoice.customerId) ||
-        (c.name && c.name.trim().toLowerCase() === invoice.customerName.trim().toLowerCase())
-      );
-      const remainingToAdd = (invoice.paymentMethod === 'installments' && invoice.installmentDetails?.remainingAmount) ? invoice.installmentDetails.remainingAmount : 0;
-      if (existing) {
-        invoice.previousCustomerBalance = existing.balance || 0;
-        if (remainingToAdd > 0) {
-          this.adjustCustomerBalance(existing.id, remainingToAdd);
+    // إذا كانت فاتورة مبيعات فعلية (وليست للعرض فقط وليست مشتريات)
+    if (!isQuotation && invoice.invoiceType === 'sales') {
+      if (invoice.customerName && invoice.customerName !== 'زبون نقدي') {
+        const customers = this.getCustomers();
+        const existing = customers.find(c => 
+          (invoice.customerId && c.id === invoice.customerId) ||
+          (invoice.customerSystemNumber && c.systemNumber === invoice.customerSystemNumber) ||
+          (c.name && c.name.trim().toLowerCase() === invoice.customerName.trim().toLowerCase())
+        );
+        const remainingToAdd = (invoice.paymentMethod === 'installments' && invoice.installmentDetails?.remainingAmount) ? invoice.installmentDetails.remainingAmount : 0;
+        if (existing) {
+          invoice.previousCustomerBalance = existing.balance || 0;
+          if (remainingToAdd > 0) {
+            this.adjustCustomerBalance(existing.id, remainingToAdd);
+          }
+          invoice.customerId = existing.id;
+          invoice.customerSystemNumber = existing.systemNumber;
+          invoice.currentCustomerBalance = (existing.balance || 0) + remainingToAdd;
+          if (invoice.customerAddress && !existing.address) {
+            this.saveCustomer({ id: existing.id, address: invoice.customerAddress });
+          }
+        } else {
+          const newCust = this.saveCustomer({
+            name: invoice.customerName,
+            phone: invoice.customerPhone || '',
+            address: invoice.customerAddress || '',
+            balance: remainingToAdd,
+            notes: 'أضيف تلقائياً من فاتورة مبيعات #' + invoice.invoiceNumber
+          });
+          invoice.previousCustomerBalance = 0;
+          invoice.customerId = newCust.id;
+          invoice.customerSystemNumber = newCust.systemNumber;
+          invoice.currentCustomerBalance = remainingToAdd;
         }
-        invoice.customerId = existing.id;
-        invoice.customerSystemNumber = existing.systemNumber;
-        invoice.currentCustomerBalance = (existing.balance || 0) + remainingToAdd;
-      } else {
-        const newCust = this.saveCustomer({
-          name: invoice.customerName,
-          phone: invoice.customerPhone || '',
-          balance: remainingToAdd,
-          notes: 'أضيف تلقائياً من فاتورة مبيعات #' + invoice.invoiceNumber
-        });
-        invoice.previousCustomerBalance = 0;
-        invoice.customerId = newCust.id;
-        invoice.customerSystemNumber = newCust.systemNumber;
-        invoice.currentCustomerBalance = remainingToAdd;
       }
+
+      // توليد الكفالة تلقائياً لكل عملية بيع جديدة
+      try {
+        const warranty = this.createWarrantyFromInvoice(invoice, {
+          durationMonths: invoice.warrantyMonths,
+          customerAddress: invoice.customerAddress
+        });
+        invoice.warrantyId = warranty.id;
+        invoice.warrantyNumber = warranty.warrantyNumber;
+      } catch (warErr) {
+        console.error('Error auto-generating warranty for invoice:', warErr.message);
+      }
+
       writeJson(INVOICES_FILE, invoices);
       syncInvoiceToSupabase(invoice);
     }
 
     return invoice;
+  },
+
+  convertQuotationToSalesInvoice(invoiceId, employeeName = 'مسؤول المبيعات') {
+    const invoices = this.getInvoices();
+    const idx = invoices.findIndex(i => i.id === invoiceId || String(i.invoiceNumber) === String(invoiceId));
+    if (idx === -1) {
+      throw new Error('الفاتورة غير موجودة');
+    }
+
+    const inv = invoices[idx];
+    if (!inv.isQuotation && inv.invoiceType !== 'quotation') {
+      throw new Error('هذه الفاتورة معتمدة مسبقاً وليست للعرض فقط');
+    }
+
+    // 1. تحويل الحالة إلى مبيعات فعلية
+    inv.isQuotation = false;
+    inv.invoiceType = 'sales';
+    inv.convertedAt = new Date().toISOString();
+    inv.convertedBy = employeeName;
+
+    // 2. خصم المخزون
+    this.deductStockForInvoice(inv.items, employeeName || inv.employeeName);
+
+    // 3. ربط الزبون وتحديث الرصيد إذا كان هناك متبقي
+    if (inv.customerName && inv.customerName !== 'زبون نقدي') {
+      const customers = this.getCustomers();
+      const existing = customers.find(c =>
+        (inv.customerId && c.id === inv.customerId) ||
+        (inv.customerSystemNumber && c.systemNumber === inv.customerSystemNumber) ||
+        (c.name && c.name.trim().toLowerCase() === inv.customerName.trim().toLowerCase())
+      );
+      const remainingToAdd = (inv.paymentMethod === 'installments' && inv.installmentDetails?.remainingAmount)
+        ? inv.installmentDetails.remainingAmount
+        : 0;
+
+      if (existing) {
+        inv.previousCustomerBalance = existing.balance || 0;
+        if (remainingToAdd > 0) {
+          this.adjustCustomerBalance(existing.id, remainingToAdd);
+        }
+        inv.customerId = existing.id;
+        inv.customerSystemNumber = existing.systemNumber;
+        inv.currentCustomerBalance = (existing.balance || 0) + remainingToAdd;
+      } else {
+        const newCust = this.saveCustomer({
+          name: inv.customerName,
+          phone: inv.customerPhone || '',
+          address: inv.customerAddress || '',
+          balance: remainingToAdd,
+          notes: 'أضيف تلقائياً عند اعتماد فاتورة العرض #' + inv.invoiceNumber
+        });
+        inv.previousCustomerBalance = 0;
+        inv.customerId = newCust.id;
+        inv.customerSystemNumber = newCust.systemNumber;
+        inv.currentCustomerBalance = remainingToAdd;
+      }
+    }
+
+    // 4. توليد الكفالة تلقائياً
+    const warranty = this.createWarrantyFromInvoice(inv, {
+      durationMonths: inv.warrantyMonths || 12,
+      customerAddress: inv.customerAddress || ''
+    });
+    inv.warrantyId = warranty.id;
+    inv.warrantyNumber = warranty.warrantyNumber;
+
+    writeJson(INVOICES_FILE, invoices);
+    syncInvoiceToSupabase(inv);
+
+    return { invoice: inv, warranty };
   },
 
   updateInvoiceTelegramStatus(id, sent, error = null) {
@@ -561,9 +703,145 @@ const dataStore = {
     return filtered.length !== receipts.length;
   },
 
+  // -----------------------------------------------------------
+  // الكفالات والضمان (Warranties & Serial Tracking)
+  // -----------------------------------------------------------
+  getWarranties() {
+    return readJson(WARRANTIES_FILE, []);
+  },
+
+  getWarrantyById(id) {
+    const warranties = this.getWarranties();
+    return warranties.find(w => w.id === id || String(w.warrantyNumber) === String(id));
+  },
+
+  getWarrantiesByInvoiceId(invoiceId) {
+    const warranties = this.getWarranties();
+    return warranties.filter(w => w.invoiceId === invoiceId);
+  },
+
+  createWarrantyFromInvoice(invoice, opts) {
+    if (!opts) opts = {};
+    const warranties = this.getWarranties();
+    const durationMonths = parseInt(opts.durationMonths) || 12;
+    const nextNum = warranties.length > 0
+      ? Math.max(...warranties.map(w => w.warrantyNumber || 5000)) + 1
+      : 5001;
+
+    const purchaseDate = invoice.createdAt || new Date().toISOString();
+    const expiryDate = calculateExpiryDate(purchaseDate, durationMonths);
+    const settings = this.getSettings();
+
+    let durationText = durationMonths + ' شهراً';
+    if (durationMonths === 12) durationText = 'سنة واحدة (12 شهراً)';
+    else if (durationMonths === 24) durationText = 'سنتان (24 شهراً)';
+    else if (durationMonths === 6) durationText = 'ستة أشهر';
+    else if (durationMonths === 3) durationText = 'ثلاثة أشهر';
+
+    const warranty = {
+      id: 'WAR-' + nextNum,
+      warrantyNumber: nextNum,
+      invoiceId: invoice.id,
+      invoiceNumber: invoice.invoiceNumber,
+      createdAt: new Date().toISOString(),
+      purchaseDate,
+      durationMonths,
+      durationText,
+      expiryDate,
+      customerName: invoice.customerName || '',
+      customerId: invoice.customerId || null,
+      customerSystemNumber: invoice.customerSystemNumber || '',
+      customerPhone: invoice.customerPhone || '',
+      customerAddress: (opts.customerAddress || invoice.customerAddress || ''),
+      items: (invoice.items || []).map(function(item) {
+        return {
+          productId: item.productId || '',
+          productName: item.productName || '',
+          brand: item.brand || item.brandAr || '',
+          code: item.code || '',
+          quantity: item.quantity || 1,
+          serialNumber: item.serialNumber || '',
+          notes: item.warrantyNote || ''
+        };
+      }),
+      terms: [
+        'الرجاء قراءة الكفالة وكتيب التعليمات قبل الاستخدام.',
+        'الكفالة لا تشمل الكسر وسوء الاستخدام للمنتج.',
+        'هذا الضمان لا يغطي الفساد الذي يتسبب به المنتج من خلال النقل او التركيب والتشغيل بطريقة غير مطابقة لدليل الاستعمال.',
+        'يلغى الضمان في حال تم تدخل اي مصلح خارجي بالمنتج وليس من طرف شركة ابو رامز للاجهزة الكهربائية.',
+        'هذا المنتج مضمون من كل عيب مصنعي.',
+        'الاصلاحات التي تتم في اطار مدة الكفالة تكون مجانا.',
+        'القطع واليد العاملة بدون مقابل.'
+      ],
+      status: 'active',
+      companyName: settings.companyName || 'شركة أبو رامز للأجهزة الكهربائية',
+      companyPhone: settings.companyPhone || '059-1234567',
+      companyAddress: settings.companyAddress || '',
+      notes: ''
+    };
+
+    warranties.unshift(warranty);
+    writeJson(WARRANTIES_FILE, warranties);
+    syncWarrantyToSupabase(warranty);
+    return warranty;
+  },
+
+  updateWarranty(id, updates) {
+    const warranties = this.getWarranties();
+    const idx = warranties.findIndex(w => w.id === id);
+    if (idx === -1) return null;
+
+    if (updates.durationMonths && parseInt(updates.durationMonths) !== warranties[idx].durationMonths) {
+      const months = parseInt(updates.durationMonths);
+      warranties[idx].durationMonths = months;
+      warranties[idx].expiryDate = calculateExpiryDate(warranties[idx].purchaseDate, months);
+    }
+
+    const allowed = ['customerAddress', 'customerPhone', 'notes', 'status', 'durationText'];
+    allowed.forEach(function(k) {
+      if (updates[k] !== undefined) warranties[idx][k] = updates[k];
+    });
+
+    if (Array.isArray(updates.items)) {
+      updates.items.forEach(function(upd, i) {
+        if (warranties[idx].items[i]) {
+          if (upd.serialNumber !== undefined) warranties[idx].items[i].serialNumber = upd.serialNumber;
+          if (upd.notes !== undefined) warranties[idx].items[i].notes = upd.notes;
+        }
+      });
+    }
+
+    warranties[idx].updatedAt = new Date().toISOString();
+    writeJson(WARRANTIES_FILE, warranties);
+    syncWarrantyToSupabase(warranties[idx]);
+    return warranties[idx];
+  },
+
+  deleteWarranty(id) {
+    const warranties = this.getWarranties();
+    const filtered = warranties.filter(w => w.id !== id);
+    writeJson(WARRANTIES_FILE, filtered);
+    deleteWarrantyFromSupabase(id);
+    return filtered.length !== warranties.length;
+  },
+
+  checkWarrantyStatuses() {
+    const warranties = this.getWarranties();
+    const now = new Date();
+    let changed = false;
+    warranties.forEach(function(w) {
+      if (w.status === 'active' && new Date(w.expiryDate) < now) {
+        w.status = 'expired';
+        changed = true;
+      }
+    });
+    if (changed) writeJson(WARRANTIES_FILE, warranties);
+  },
+
   // -------------------------------------------------------------
   // دليل وأرصدة ديون الزبائن (Customers & Outstanding Balances)
   // -------------------------------------------------------------
+
   getCustomers() {
     return readJson(CUSTOMERS_FILE, []);
   },

@@ -1119,6 +1119,8 @@ function actuallySwitchTab(tabId) {
     if (lastEmp && auditEmp && !auditEmp.value) auditEmp.value = lastEmp;
   } else if (tabId === 'settings') {
     loadBackupsList();
+  } else if (tabId === 'warranties') {
+    onWarrantiesTabActivated();
   }
 
   // إظهار أو إخفاء شريط الجرد العائم
@@ -3024,7 +3026,7 @@ function calculateInstallments(passedTotal = null) {
 }
 
 // إرسال وإنشاء الفاتورة
-async function submitInvoice() {
+async function submitInvoice(isQuotation) {
   const employeeName = document.getElementById('invEmployeeName').value.trim();
   const customerName = document.getElementById('invCustomerName').value.trim();
   const customerPhone = document.getElementById('invCustomerPhone').value.trim();
@@ -3083,6 +3085,7 @@ async function submitInvoice() {
   }
 
   const isPurchase = state.invoiceType === 'purchase';
+  const isQuotationMode = !!isQuotation && !isPurchase;
 
   // قراءة السعر المعدّل يدوياً (إن وجد)
   const overrideInput = document.getElementById('customTotalOverride');
@@ -3090,8 +3093,16 @@ async function submitInvoice() {
     ? parseFloat(overrideInput.value)
     : null;
 
+  // مدة الكفالة
+  const warrantyMonthsEl = document.getElementById('warrantyMonthsSelect');
+  const warrantyMonths = (warrantyMonthsEl && !isPurchase && !isQuotationMode)
+    ? parseInt(warrantyMonthsEl.value) || 12
+    : 0;
+
   const payload = {
     invoiceType: state.invoiceType || 'sales',
+    isQuotation: isQuotationMode,
+    warrantyMonths,
     employeeName,
     customerName,
     customerPhone,
@@ -3105,10 +3116,14 @@ async function submitInvoice() {
   };
 
   const btn = document.getElementById('btnSubmitInvoice');
+  const btnQ = document.getElementById('btnSubmitQuotation');
   btn.disabled = true;
-  btn.innerHTML = isPurchase 
+  if (btnQ) btnQ.disabled = true;
+  btn.innerHTML = isPurchase
     ? '<span>⏳</span><span>جاري حفظ فاتورة المشتريات وزيادة المخزن وتيليجرام...</span>'
-    : '<span>⏳</span><span>جاري حفظ الفاتورة وإرسال الإشعار لتيليجرام...</span>';
+    : isQuotationMode
+      ? '<span>⏳</span><span>جاري حفظ فاتورة العرض...</span>'
+      : '<span>⏳</span><span>جاري حفظ الفاتورة وإرسال الإشعار لتيليجرام...</span>';
 
   try {
     const res = await fetch('/api/invoices', {
@@ -3121,8 +3136,14 @@ async function submitInvoice() {
     if (data.success && data.invoice) {
       if (isPurchase) {
         showToast('🎉 تم إنشاء فاتورة المشتريات وزيادة كميات المخزن بنجاح!', 'success');
+      } else if (isQuotationMode) {
+        showToast('📄 تم حفظ فاتورة العرض للعرض فقط بنجاح! (لم يُخصَم من المخزون)', 'success');
       } else {
         showToast('🎉 تم إنشاء فاتورة المبيعات بنجاح!', 'success');
+        // إشعار بإنشاء الكفالة
+        if (warrantyMonths > 0) {
+          setTimeout(() => showToast('🛡️ تم إنشاء وثيقة الكفالة تلقائياً في تبويب الكفالات', 'info'), 1500);
+        }
       }
 
       // فحص نتيجة تيليجرام
@@ -3172,6 +3193,7 @@ async function submitInvoice() {
     showToast('حدث خطأ أثناء الاتصال بالخادم', 'error');
   } finally {
     btn.disabled = false;
+    if (btnQ) btnQ.disabled = false;
     btn.innerHTML = isPurchase
       ? '<span>🚀</span><span>إنشاء فاتورة مشتريات وتوريد البضاعة للمخزن</span>'
       : '<span>🚀</span><span>إنشاء الفاتورة وإرسال لتيليجرام</span>';
@@ -4835,6 +4857,8 @@ function setInvoiceType(type) {
   }
 
   updateCartUI();
+  // إظهار/إخفاء حقل الكفالة وزر العرض فقط
+  if (typeof updateInvoiceFormWarrantyUI === 'function') updateInvoiceFormWarrantyUI();
 }
 
 function openAddProductModalForInvoice() {
