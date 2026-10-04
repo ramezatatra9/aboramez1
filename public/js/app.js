@@ -766,19 +766,36 @@ async function sendInvoicePdfToTelegram(invoice) {
   try {
     const isPurchase = invoice.invoiceType === 'purchase';
     const html = buildPrintableInvoiceHtml(invoice);
-    const fileName = `فاتورة_${invoice.invoiceNumber || invoice.id}.pdf`;
+    const invoiceNum = invoice.invoiceNumber || invoice.id;
+    const fileName = `فاتورة_${isPurchase ? 'مشتريات' : 'مبيعات'}_${invoiceNum}.pdf`;
     const pdfBlob = await generatePdfBlobFromHtml(html, fileName);
     const cur = state.settings.currency || 'شيكل';
     const totalAmount = invoice.summary?.totalAmount || 0;
+    const totalQty = invoice.summary?.totalQuantity || (invoice.items || []).reduce((acc, it) => acc + (it.quantity || 1), 0);
+    const itemsCount = (invoice.items || []).length;
+
+    let profitText = '';
+    if (!isPurchase && invoice.summary?.totalProfit) {
+      profitText = `\n📈 <b>صافي الربح:</b> 🟢 <b>+${Number(invoice.summary.totalProfit).toLocaleString('en-US')} ${cur}</b> (${invoice.summary.profitMarginPercentage || 0}%)`;
+    }
+
+    let paymentText = '';
+    if (!isPurchase) {
+      paymentText = invoice.paymentMethod === 'installments'
+        ? `\n💳 <b>طريقة السداد:</b> ⏳ أقساط (متبقي: ${Number(invoice.installmentDetails?.remainingAmount || 0).toLocaleString('en-US')} ${cur})`
+        : `\n💳 <b>طريقة السداد:</b> 💵 نقداً (كاش مسدد بالكامل)`;
+    }
 
     const caption = 
-`📄 <b>فاتورة ${isPurchase ? 'مشتريات وتوريد' : 'مبيعات'} #${invoice.invoiceNumber || invoice.id} (ملف PDF رسمي)</b>
+`📄 <b>فاتورة ${isPurchase ? 'مشتريات وتوريد' : 'مبيعات'} معتمدة #${invoiceNum} (ملف PDF رسمي)</b>
 🏢 <b>${state.settings.companyName || 'رامز عطاطرة'}</b>
 ━━━━━━━━━━━━━━━━━━
-👤 <b>${isPurchase ? 'المورد:' : 'الزبون:'}</b> ${invoice.customerName}
-💰 <b>إجمالي الفاتورة:</b> <b>${totalAmount.toLocaleString('en-US')} ${cur}</b>
+👤 <b>${isPurchase ? 'المورد:' : 'الزبون:'}</b> <b>${invoice.customerName}</b>
+👨‍💼 <b>الموظف:</b> ${invoice.employeeName || 'غير محدد'}
+💰 <b>إجمالي الفاتورة:</b> <b>${totalAmount.toLocaleString('en-US')} ${cur}</b>${profitText}${paymentText}
+📦 <b>الأصناف:</b> ${itemsCount} صنف (${totalQty} قطعة)
 📅 <b>التاريخ:</b> ${formatAppDateTime(invoice.createdAt)}
-<i>📎 مرفق أعلاه ملف الفاتورة الرسمي بصيغة PDF جاهز للطباعة.</i>`;
+<i>📎 مرفق أعلاه ملف الفاتورة الرسمي بصيغة PDF معتمد وقابل للمعاينة والطباعة والمشاركة.</i>`;
 
     await sendPdfDocumentToTelegram(pdfBlob, fileName, caption);
   } catch (err) {
@@ -1100,6 +1117,8 @@ function actuallySwitchTab(tabId) {
     const lastEmp = localStorage.getItem('last_employee_name');
     const auditEmp = document.getElementById('invAuditEmployeeName');
     if (lastEmp && auditEmp && !auditEmp.value) auditEmp.value = lastEmp;
+  } else if (tabId === 'settings') {
+    loadBackupsList();
   }
 
   // إظهار أو إخفاء شريط الجرد العائم
@@ -1239,6 +1258,180 @@ async function testTelegramConnection() {
   } catch (err) {
     showToast('تعذر الاتصال بالخادم لفحص تيليجرام', 'error');
   }
+}
+
+// -------------------------------------------------------------
+// إدارة النسخ الاحتياطي وحماية البيانات (Backup & Restore)
+// -------------------------------------------------------------
+
+async function loadBackupsList() {
+  const tableBody = document.getElementById('backupsTableBody');
+  if (!tableBody) return;
+
+  try {
+    tableBody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 1rem;">جاري جلب قائمة النسخ الاحتياطية...</td></tr>';
+    const res = await fetch('/api/backups');
+    const data = await res.json();
+
+    if (data.success && Array.isArray(data.backups) && data.backups.length > 0) {
+      tableBody.innerHTML = data.backups.map((b, idx) => {
+        const isAuto = b.isAuto || b.filename.includes('auto');
+        const badge = isAuto 
+          ? '<span class="badge" style="background: #e0f2fe; color: #0369a1;">تلقائي 🌙</span>'
+          : '<span class="badge" style="background: #f1f5f9; color: #475569;">يدوي 👤</span>';
+
+        return `
+          <tr>
+            <td style="font-weight: 700;">${idx + 1}</td>
+            <td>
+              <div style="font-family: monospace; font-size: 0.85rem; font-weight: 600; direction: ltr; text-align: right;">${escapeHtml(b.filename)}</div>
+            </td>
+            <td>${formatAppDateTime(b.createdAt)}</td>
+            <td><span class="badge badge-primary">${b.sizeFormatted || (b.sizeBytes + ' B')}</span></td>
+            <td>${badge}</td>
+            <td style="text-align: center;">
+              <a href="/api/backups/download/${encodeURIComponent(b.filename)}" class="btn btn-sm btn-secondary" title="تحميل ملف النسخة" download>
+                <span>📥</span>
+                <span>تحميل</span>
+              </a>
+              <button class="btn btn-sm btn-warning" onclick="restoreFromExistingBackup('${escapeHtml(b.filename)}')" title="استعادة هذه النسخة" style="margin-right: 4px;">
+                <span>↩️</span>
+                <span>استرجاع</span>
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    } else {
+      tableBody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">لا توجد نسخ احتياطية محفوظة حالياً على الخادم. اضغط "إنشاء نسخة جديدة" للبدء.</td></tr>';
+    }
+  } catch (err) {
+    tableBody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--danger); padding: 1rem;">تعذر جلب قائمة النسخ الاحتياطية</td></tr>';
+  }
+}
+
+async function createAndDownloadBackup() {
+  showToast('جاري إنشاء النسخة الاحتياطية الشاملة...', 'info');
+  try {
+    const res = await fetch('/api/backups/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label: 'manual_download' })
+    });
+    const data = await res.json();
+    if (data.success && data.backup) {
+      showToast('✅ تم إنشاء النسخة بنجاح! جاري بدء التحميل...', 'success');
+      const downloadUrl = `/api/backups/download/${encodeURIComponent(data.backup.filename)}`;
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = data.backup.filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+
+      loadBackupsList();
+    } else {
+      showToast(data.error || 'فشل إنشاء النسخة الاحتياطية', 'error');
+    }
+  } catch (err) {
+    showToast('تعذر الاتصال بالخادم لإنشاء النسخة الاحتياطية', 'error');
+  }
+}
+
+async function sendBackupToTelegramNow() {
+  const settings = state.settings || {};
+  if (!settings.telegramBotToken || !settings.telegramChatId) {
+    showToast('يرجى ضبط معرف ورمز بوت تيليجرام أولاً لإرسال النسخة الاحتياطية', 'error');
+    return;
+  }
+
+  showToast('جاري إنشاء النسخة وإرسالها إلى تيليجرام...', 'info');
+  try {
+    const res = await fetch('/api/backups/send-telegram', { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      showToast('✈️ تم إرسال ملف النسخة الاحتياطية بنجاح إلى تيليجرام!', 'success');
+      loadBackupsList();
+    } else {
+      showToast(`فشل الإرسال: ${data.error}`, 'error');
+    }
+  } catch (err) {
+    showToast('تعذر الاتصال بالخادم لإرسال النسخة الاحتياطية', 'error');
+  }
+}
+
+async function handleRestoreFileInput(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  if (!file.name.endsWith('.json')) {
+    showToast('يرجى اختيار ملف نسخة احتياطية صالح بصيغة JSON (.json)', 'error');
+    event.target.value = '';
+    return;
+  }
+
+  showConfirmDialog({
+    title: '⚠️ تأكيد استعادة النسخة الاحتياطية',
+    message: `هل أنت متأكد من رغبتك في استعادة البيانات من الملف "${file.name}"؟ سيتم استبدال البيانات الحالية (مع حفظ نسخة أمان تلقائية قبل الاستعادة).`,
+    confirmText: 'نعم، استعادة البيانات الآن',
+    cancelText: 'إلغاء',
+    isDanger: true,
+    onConfirm: async () => {
+      showToast('جاري استعادة البيانات والتحقق من سلامة الملف...', 'info');
+      try {
+        const formData = new FormData();
+        formData.append('backupFile', file);
+
+        const res = await fetch('/api/backups/restore', {
+          method: 'POST',
+          body: formData
+        });
+
+        const data = await res.json();
+        if (data.success) {
+          showToast(`🎉 تم استعادة البيانات بنجاح! (${data.counts.products} صنف، ${data.counts.invoices} فاتورة، ${data.counts.customers} زبون)`, 'success');
+          await Promise.all([loadProducts(), loadInvoices(), loadCustomers(), loadReceipts(), loadDashboardStats()]);
+          loadBackupsList();
+        } else {
+          showToast(data.error || 'فشلت عملية الاستعادة', 'error');
+        }
+      } catch (err) {
+        showToast('تعذر رفع ملف الاستعادة إلى الخادم', 'error');
+      } finally {
+        event.target.value = '';
+      }
+    }
+  });
+}
+
+function restoreFromExistingBackup(filename) {
+  showConfirmDialog({
+    title: '⚠️ استعادة نسخة احتياطية سابقة',
+    message: `هل تريد استعادة البيانات المسجلة في ملف "${filename}"؟ سيتم تحديث المنتجات والفواتير والزبائن، مع الاحتفاظ بنسخة احتياطية احترازية.`,
+    confirmText: 'استرجاع النسخة الآن',
+    cancelText: 'إلغاء',
+    isDanger: true,
+    onConfirm: async () => {
+      showToast('جاري استعادة النسخة...', 'info');
+      try {
+        const res = await fetch('/api/backups/restore', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filename })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('🎉 تم استرجاع النسخة الاحتياطية بنجاح!', 'success');
+          await Promise.all([loadProducts(), loadInvoices(), loadCustomers(), loadReceipts(), loadDashboardStats()]);
+          loadBackupsList();
+        } else {
+          showToast(data.error || 'فشلت الاستعادة', 'error');
+        }
+      } catch (e) {
+        showToast('تعذر استعادة النسخة الاحتياطية', 'error');
+      }
+    }
+  });
 }
 
 // -------------------------------------------------------------
@@ -2004,6 +2197,83 @@ function loadAllCatalogProducts() {
 // -------------------------------------------------------------
 // إدارة نافذة إضافة / تعديل منتج
 // -------------------------------------------------------------
+// ---------------------------------------------------------------
+// كشف الماركة تلقائياً من اسم المنتج
+// ---------------------------------------------------------------
+const BRAND_DETECT_RULES = [
+  { brand: 'LG',           brandAr: 'ال جي (LG)',           icon: '🔴', patterns: [/\bal\s*g[ei]\b/i, /\bال\s*جي\b/, /\blg\b/i] },
+  { brand: 'Samsung',      brandAr: 'سامسونج',              icon: '🔷', patterns: [/samsung/i, /سامسونج/, /سامسونغ/] },
+  { brand: 'Beko',         brandAr: 'بيكو',                 icon: '🔵', patterns: [/beko/i, /بيكو/] },
+  { brand: 'Simfer',       brandAr: 'سيمفير / سمفير',       icon: '🍲', patterns: [/simfer/i, /سيمفير/, /سمفير/] },
+  { brand: 'Manger Home',  brandAr: 'منجر هوم / مانجر',    icon: '🏠', patterns: [/manger\s*home/i, /منجر\s*هوم/, /مانجر\s*هوم/, /منجر\s*هوم/] },
+  { brand: 'RAF',          brandAr: 'راف (RAF)',             icon: '⚡', patterns: [/\braf\b/i, /\bراف\b/] },
+  { brand: 'Luxor',        brandAr: 'لوكسر',                icon: '💡', patterns: [/luxor/i, /لوكسر/, /لوكسور/] },
+  { brand: 'Zacash',       brandAr: 'زكش / زاكاش',          icon: '🍹', patterns: [/zacash/i, /زكش/, /زاكاش/, /زكاش/] },
+  { brand: 'Lawrence',     brandAr: 'لورنس',                icon: '📻', patterns: [/lawrence/i, /لورنس/] },
+  { brand: 'Universal',    brandAr: 'يونيفرسال',            icon: '⭐', patterns: [/universal/i, /يونيفرسال/] },
+  { brand: 'Haier',        brandAr: 'هاير',                 icon: '🌀', patterns: [/haier/i, /هاير/] },
+  { brand: 'Midea',        brandAr: 'ميديا',                icon: '❄️', patterns: [/midea/i, /ميديا/] },
+  { brand: 'Sharp',        brandAr: 'شارب',                 icon: '⚡', patterns: [/sharp/i, /شارب/] },
+  { brand: 'TCL',          brandAr: 'تي سي ال',             icon: '📺', patterns: [/\btcl\b/i, /تي\s*سي\s*ال/] },
+  { brand: 'Bompani',      brandAr: 'بومباني',              icon: '🍳', patterns: [/bompani/i, /بومباني/] },
+  { brand: 'Crest',        brandAr: 'كريست',                icon: '👑', patterns: [/\bcrest\b/i, /كريست/] },
+  { brand: 'Trust',        brandAr: 'ترست',                 icon: '🛡️', patterns: [/\btrust\b/i, /ترست/] },
+  { brand: 'Candy',        brandAr: 'كاندي',                icon: '🍬', patterns: [/\bcandy\b/i, /كاندي/] },
+  { brand: 'Tefal',        brandAr: 'تيفال',                icon: '🍳', patterns: [/tefal/i, /تيفال/] },
+  { brand: 'Hisense',      brandAr: 'هايسنس',              icon: '📺', patterns: [/hisense/i, /هايسنس/] },
+  { brand: 'Atlantic',     brandAr: 'اتلانتيك',            icon: '🌊', patterns: [/atlantic/i, /اتلانتيك/] },
+  { brand: 'Dahua',        brandAr: 'دهوا',                 icon: '📹', patterns: [/dahua/i, /دهوا/] },
+  { brand: 'KMG',          brandAr: 'كي ام جي',            icon: '🧊', patterns: [/\bkmg\b/i, /كي\s*ام\s*جي/] },
+  { brand: 'Matrix',       brandAr: 'ماتركس',               icon: '🖥️', patterns: [/matrix/i, /ماتركس/] },
+  { brand: 'Prestige',     brandAr: 'برستيج',               icon: '🏆', patterns: [/prestige/i, /برستيج/] },
+  { brand: 'General Lux',  brandAr: 'جنرال لوكس',          icon: '✨', patterns: [/general\s*lux/i, /جنرال\s*لوكس/] },
+  { brand: 'General Queen',brandAr: 'جنرال كوين',           icon: '👑', patterns: [/general\s*queen/i, /جنرال\s*كوين/] },
+  { brand: 'Samex',        brandAr: 'سامكس',                icon: '🔥', patterns: [/samex/i, /سامكس/] },
+  { brand: 'Molar',        brandAr: 'مولار',                icon: '🧊', patterns: [/molar/i, /مولار/] },
+  { brand: 'ADC',          brandAr: 'ADC',                  icon: '🔌', patterns: [/\badc\b/i, /\bا\.د\.س\b/] },
+  { brand: 'iPlug',        brandAr: 'ايبلوج',               icon: '🔌', patterns: [/iplug/i, /آي\s*بلوج/, /ايبلوج/] },
+];
+
+function detectBrandFromName(name) {
+  if (!name || name.trim().length < 2) return null;
+  const lower = name.toLowerCase();
+  for (const rule of BRAND_DETECT_RULES) {
+    for (const pat of rule.patterns) {
+      if (pat.test(name) || pat.test(lower)) {
+        return rule;
+      }
+    }
+  }
+  return null;
+}
+
+function handleProductNameInput(value) {
+  const badge = document.getElementById('brandDetectBadge');
+  const iconEl = document.getElementById('brandDetectIcon');
+  const nameEl = document.getElementById('brandDetectName');
+  const brandField = document.getElementById('prodDetectedBrand');
+  const brandArField = document.getElementById('prodDetectedBrandAr');
+
+  const detected = detectBrandFromName(value);
+  if (detected) {
+    iconEl.textContent = detected.icon;
+    nameEl.textContent = `سيُحفظ تحت: ${detected.brand} — ${detected.brandAr}`;
+    badge.style.display = 'flex';
+    brandField.value = detected.brand;
+    brandArField.value = detected.brandAr;
+  } else {
+    badge.style.display = 'none';
+    brandField.value = '';
+    brandArField.value = '';
+  }
+}
+
+function clearDetectedBrand() {
+  document.getElementById('brandDetectBadge').style.display = 'none';
+  document.getElementById('prodDetectedBrand').value = '';
+  document.getElementById('prodDetectedBrandAr').value = '';
+}
+
 function openAddProductModal() {
   document.getElementById('productModalTitle').textContent = 'إضافة منتج جديد للشركة';
   document.getElementById('editProductId').value = '';
@@ -2016,6 +2286,8 @@ function openAddProductModal() {
   document.getElementById('prodStock').value = '10';
   document.getElementById('prodImageUrl').value = '';
   document.getElementById('prodDescription').value = '';
+  // إعادة تعيين الماركة المكتشفة
+  clearDetectedBrand();
 
   document.getElementById('productModal').classList.add('active');
 }
@@ -2034,6 +2306,22 @@ function openEditProductModal(id) {
   document.getElementById('prodStock').value = prod.stock ?? 10;
   document.getElementById('prodImageUrl').value = prod.image || '';
   document.getElementById('prodDescription').value = prod.description || '';
+
+  // عرض الماركة المحفوظة مسبقاً أو إعادة الكشف
+  clearDetectedBrand();
+  if (prod.brand && prod.brand !== 'أخرى') {
+    const rule = BRAND_DETECT_RULES.find(r => r.brand === prod.brand);
+    const badge = document.getElementById('brandDetectBadge');
+    if (rule) {
+      document.getElementById('brandDetectIcon').textContent = rule.icon;
+      document.getElementById('brandDetectName').textContent = `محفوظة: ${rule.brand} — ${rule.brandAr}`;
+      badge.style.display = 'flex';
+      document.getElementById('prodDetectedBrand').value = prod.brand;
+      document.getElementById('prodDetectedBrandAr').value = prod.brandAr || rule.brandAr;
+    }
+  } else {
+    handleProductNameInput(prod.name || '');
+  }
 
   calcProductModalProfit();
   document.getElementById('productModal').classList.add('active');
@@ -2102,6 +2390,10 @@ async function saveProductFromModal() {
     return;
   }
 
+  // قراءة الماركة المكتشفة تلقائياً
+  const detectedBrand = document.getElementById('prodDetectedBrand').value.trim();
+  const detectedBrandAr = document.getElementById('prodDetectedBrandAr').value.trim();
+
   try {
     const res = await fetch('/api/products', {
       method: 'POST',
@@ -2111,6 +2403,8 @@ async function saveProductFromModal() {
         code,
         name,
         category,
+        brand: detectedBrand || 'أخرى',
+        brandAr: detectedBrandAr || 'أخرى / عام',
         costPrice,
         sellPrice,
         stock,
@@ -2613,8 +2907,13 @@ function updateInvoiceSummary() {
     totalAmount += (isPurchase ? item.costPrice : item.sellPrice) * item.quantity;
   });
 
-  const totalProfit = isPurchase ? 0 : (totalAmount - totalCost);
-  const profitMargin = (!isPurchase && totalAmount > 0) ? ((totalProfit / totalAmount) * 100).toFixed(1) : 0;
+  // التحقق من وجود سعر مخصص يدوياً
+  const overrideInput = document.getElementById('customTotalOverride');
+  const overrideVal = overrideInput ? parseFloat(overrideInput.value) : NaN;
+  const effectiveTotal = (!isPurchase && !isNaN(overrideVal) && overrideVal > 0) ? overrideVal : totalAmount;
+
+  const totalProfit = isPurchase ? 0 : (effectiveTotal - totalCost);
+  const profitMargin = (!isPurchase && effectiveTotal > 0) ? ((totalProfit / effectiveTotal) * 100).toFixed(1) : 0;
 
   // تحديث البطاقة الجانبية
   const elQty = document.getElementById('sumTotalQty');
@@ -2624,8 +2923,12 @@ function updateInvoiceSummary() {
   const rowCost = document.getElementById('rowSumCost');
   const rowProfit = document.getElementById('rowSumProfit');
   const sumLabelFinal = document.getElementById('sumLabelFinalAmount');
+  const customPriceBlock = document.getElementById('customPriceBlock');
 
   if (elQty) elQty.textContent = `${totalQty} قطعة`;
+
+  // إخفاء حقل التعديل في وضع المشتريات
+  if (customPriceBlock) customPriceBlock.style.display = isPurchase ? 'none' : 'block';
 
   if (isPurchase) {
     if (rowCost) rowCost.style.display = 'none';
@@ -2637,13 +2940,47 @@ function updateInvoiceSummary() {
     if (rowProfit) rowProfit.style.display = 'flex';
     if (sumLabelFinal) sumLabelFinal.textContent = 'المبلغ النهائي للفاتورة:';
     if (elCost) elCost.textContent = `${totalCost.toLocaleString('en-US')} ${currency}`;
-    if (elProfit) elProfit.textContent = `+${totalProfit.toLocaleString('en-US')} ${currency} (${profitMargin}%)`;
-    if (elAmount) elAmount.textContent = `${totalAmount.toLocaleString('en-US')} ${currency}`;
+    // تلوين الربح تلقائياً (أخضر = ربح، أحمر = خسارة)
+    if (elProfit) {
+      elProfit.style.color = totalProfit >= 0 ? 'var(--success-dark)' : '#dc2626';
+      elProfit.textContent = `${totalProfit >= 0 ? '+' : ''}${totalProfit.toLocaleString('en-US')} ${currency} (${profitMargin}%)`;
+    }
+    if (elAmount) {
+      elAmount.textContent = `${effectiveTotal.toLocaleString('en-US')} ${currency}`;
+      // إظهار فرق السعر المعدّل عن المحسوب
+      const diffEl = document.getElementById('customPriceDiff');
+      if (diffEl && !isNaN(overrideVal) && overrideVal > 0) {
+        const diff = overrideVal - totalAmount;
+        if (Math.abs(diff) > 0.01) {
+          const sign = diff > 0 ? '+' : '';
+          diffEl.style.color = diff > 0 ? '#16a34a' : '#dc2626';
+          diffEl.textContent = `فرق التعديل: ${sign}${diff.toLocaleString('en-US')} ${currency} عن السعر المحسوب (${totalAmount.toLocaleString('en-US')} ${currency})`;
+          diffEl.style.display = 'block';
+        } else {
+          diffEl.style.display = 'none';
+        }
+      } else if (diffEl) {
+        diffEl.style.display = 'none';
+      }
+    }
   }
 
   // حساب الأقساط إذا كانت مختارة
-  calculateInstallments(totalAmount);
+  calculateInstallments(effectiveTotal);
 }
+
+function applyCustomTotal(val) {
+  updateInvoiceSummary();
+}
+
+function clearCustomTotal() {
+  const inp = document.getElementById('customTotalOverride');
+  if (inp) inp.value = '';
+  const diffEl = document.getElementById('customPriceDiff');
+  if (diffEl) diffEl.style.display = 'none';
+  updateInvoiceSummary();
+}
+
 
 // طريقة الدفع
 function selectPaymentMethod(method) {
@@ -2730,7 +3067,11 @@ async function submitInvoice() {
     const durationLabel = durationType === 'months' ? 'شهر' : 'يوم';
     const duration = `${durationNumber} ${durationLabel}`;
 
-    const totalAmount = state.cart.reduce((s, i) => s + (i.sellPrice * i.quantity), 0);
+    // استخدام السعر المعدّل إن وجد
+    const overrideInput = document.getElementById('customTotalOverride');
+    const overrideVal = overrideInput ? parseFloat(overrideInput.value) : NaN;
+    const baseTotal = state.cart.reduce((s, i) => s + (i.sellPrice * i.quantity), 0);
+    const totalAmount = (!isNaN(overrideVal) && overrideVal > 0) ? overrideVal : baseTotal;
     const remainingAmount = Math.max(0, totalAmount - downPayment);
 
     installmentDetails = {
@@ -2743,6 +3084,12 @@ async function submitInvoice() {
 
   const isPurchase = state.invoiceType === 'purchase';
 
+  // قراءة السعر المعدّل يدوياً (إن وجد)
+  const overrideInput = document.getElementById('customTotalOverride');
+  const customTotalOverride = (!isPurchase && overrideInput && parseFloat(overrideInput.value) > 0)
+    ? parseFloat(overrideInput.value)
+    : null;
+
   const payload = {
     invoiceType: state.invoiceType || 'sales',
     employeeName,
@@ -2753,7 +3100,8 @@ async function submitInvoice() {
     notes,
     items: state.cart,
     paymentMethod: isPurchase ? 'cash' : state.currentPaymentMethod,
-    installmentDetails: isPurchase ? null : installmentDetails
+    installmentDetails: isPurchase ? null : installmentDetails,
+    customTotalOverride  // السعر المعدّل يدوياً (null = استخدم المحسوب)
   };
 
   const btn = document.getElementById('btnSubmitInvoice');

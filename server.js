@@ -172,7 +172,8 @@ app.post('/api/invoices', async (req, res) => {
       notes,
       items,
       paymentMethod,
-      installmentDetails
+      installmentDetails,
+      customTotalOverride  // سعر معدّل يدوياً (اختياري)
     } = req.body;
 
     const isPurchase = invoiceType === 'purchase';
@@ -207,8 +208,14 @@ app.post('/api/invoices', async (req, res) => {
       totalCost += totalItemCost;
       totalAmount += totalItemSell;
 
+      const prod = dataStore.getProductById(item.productId || item.id);
+      const code = item.code || prod?.code || '';
+      const brand = item.brandAr || item.brand || prod?.brandAr || prod?.brand || '';
+
       return {
         productId: item.productId || item.id,
+        code,
+        brand,
         productName: item.productName || item.name,
         productImage: item.productImage || item.image || '',
         quantity,
@@ -221,14 +228,21 @@ app.post('/api/invoices', async (req, res) => {
       };
     });
 
-    const totalProfit = isPurchase ? 0 : (totalAmount - totalCost);
-    const profitMarginPercentage = (!isPurchase && totalAmount > 0) ? parseFloat(((totalProfit / totalAmount) * 100).toFixed(1)) : 0;
+    // تطبيق السعر المعدّل يدوياً (إن وجد) على إجمالي الفاتورة
+    const effectiveTotalAmount = (!isPurchase && customTotalOverride && parseFloat(customTotalOverride) > 0)
+      ? parseFloat(customTotalOverride)
+      : totalAmount;
+
+    const totalProfit = isPurchase ? 0 : (effectiveTotalAmount - totalCost);
+    const profitMarginPercentage = (!isPurchase && effectiveTotalAmount > 0)
+      ? parseFloat(((totalProfit / effectiveTotalAmount) * 100).toFixed(1))
+      : 0;
 
     // معالجة الأقساط (لفواتير المبيعات)
     let validatedInstallments = null;
     if (!isPurchase && paymentMethod === 'installments') {
       const downPayment = parseFloat(installmentDetails?.downPayment) || 0;
-      const remainingAmount = Math.max(0, totalAmount - downPayment);
+      const remainingAmount = Math.max(0, effectiveTotalAmount - downPayment);
       validatedInstallments = {
         downPayment,
         remainingAmount,
@@ -249,9 +263,11 @@ app.post('/api/invoices', async (req, res) => {
       summary: {
         totalQuantity,
         totalCost,
-        totalAmount,
+        totalAmount: effectiveTotalAmount,
+        totalAmountBeforeOverride: customTotalOverride ? totalAmount : undefined,
         totalProfit,
-        profitMarginPercentage
+        profitMarginPercentage,
+        customPriceApplied: !!customTotalOverride
       },
       paymentMethod: (!isPurchase && paymentMethod === 'installments') ? 'installments' : 'cash',
       installmentDetails: validatedInstallments
@@ -317,7 +333,9 @@ app.post('/api/invoices/:id/resend-telegram', async (req, res) => {
     }
 
     const settings = dataStore.getSettings();
-    const result = await telegramService.sendInvoiceNotification(invoice, settings);
+    const result = invoice.invoiceType === 'purchase'
+      ? await telegramService.sendPurchaseInvoiceNotification(invoice, settings)
+      : await telegramService.sendInvoiceNotification(invoice, settings);
     dataStore.updateInvoiceTelegramStatus(invoice.id, result.ok, result.error);
 
     res.json({ success: true, result });
@@ -1180,12 +1198,167 @@ app.post('/api/reset-sales', (req, res) => {
   }
 });
 
+// -------------------------------------------------------------
+// APIs: النسخ الاحتياطي وحماية البيانات (Backup & Restore)
+// -------------------------------------------------------------
+
+// جلب قائمة ملفات النسخ الاحتياطي
+app.get('/api/backups', (req, res) => {
+  try {
+    const list = dataStore.getBackupList();
+    res.json({ success: true, backups: list });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// إنشاء نسخة احتياطية جديدة
+app.post('/api/backups/create', (req, res) => {
+  try {
+    const label = req.body?.label || req.query?.label || 'manual';
+    const result = dataStore.createBackup(label);
+    res.json({ success: true, backup: result, message: 'تم إنشاء النسخة الاحتياطية بنجاح!' });
+  } catch (err) {
+    console.error('Backup create error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// تحميل ملف النسخة الاحتياطية
+app.get('/api/backups/download/:filename', (req, res) => {
+  try {
+    const filePath = dataStore.getBackupFilePath(req.params.filename);
+    if (!filePath) {
+      return res.status(404).json({ success: false, error: 'ملف النسخة الاحتياطية غير موجود' });
+    }
+    res.download(filePath, req.params.filename);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// إرسال النسخة الاحتياطية فوراً لتيليجرام
+app.post('/api/backups/send-telegram', async (req, res) => {
+  try {
+    const settings = dataStore.getSettings();
+    if (!settings.telegramBotToken || !settings.telegramChatId) {
+      return res.status(400).json({ success: false, error: 'لم يتم ضبط إعدادات تيليجرام بعد' });
+    }
+
+    const backup = dataStore.createBackup('telegram_cloud');
+    const buffer = fs.readFileSync(backup.filePath);
+
+    const caption = 
+`📦 <b>نسخة احتياطية شاملة للنظام (Cloud Backup)</b>
+🏢 <b>${settings.companyName || 'شركة أبو رامز'}</b>
+━━━━━━━━━━━━━━━━━━
+📅 <b>الوقت:</b> ${formatServerDateTime(new Date())}
+📦 <b>الأصناف:</b> <b>${backup.counts.products} صنف</b>
+🧾 <b>الفواتير:</b> <b>${backup.counts.invoices} فاتورة</b>
+👥 <b>الزبائن:</b> <b>${backup.counts.customers} زبون</b>
+💰 <b>سندات القبض:</b> <b>${backup.counts.receipts} سند</b>
+━━━━━━━━━━━━━━━━━━
+<i>🔒 احتفظ بهذا الملف بأمان، يتيح لك استرجاع كامل بيانات المتجر في أي وقت بنقرة زر.</i>`;
+
+    const result = await telegramService.sendDocument(
+      settings.telegramBotToken,
+      settings.telegramChatId,
+      buffer,
+      backup.filename,
+      caption,
+      'HTML'
+    );
+
+    if (result.ok) {
+      res.json({ success: true, message: 'تم إرسال النسخة الاحتياطية لتيليجرام بنجاح!' });
+    } else {
+      res.status(500).json({ success: false, error: result.error || 'تعذر الإرسال لتيليجرام' });
+    }
+  } catch (err) {
+    console.error('Send backup to telegram error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// استعادة نسخة احتياطية
+app.post('/api/backups/restore', pdfUpload.single('backupFile'), (req, res) => {
+  try {
+    let payload = null;
+
+    if (req.file && req.file.buffer) {
+      const content = req.file.buffer.toString('utf-8');
+      payload = JSON.parse(content);
+    } else if (req.body && req.body.data) {
+      payload = req.body;
+    } else if (req.body && req.body.filename) {
+      const filePath = dataStore.getBackupFilePath(req.body.filename);
+      if (!filePath) {
+        return res.status(404).json({ success: false, error: 'الملف غير موجود' });
+      }
+      payload = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    }
+
+    if (!payload || !payload.data) {
+      return res.status(400).json({ success: false, error: 'ملف النسخة الاحتياطية غير صالح أو تالف' });
+    }
+
+    const restoreResult = dataStore.restoreBackup(payload);
+    console.log(`✅ تم استعادة نسخة احتياطية بنجاح في: ${formatServerDateTime(new Date())}`);
+
+    res.json({
+      success: true,
+      message: 'تم استعادة النسخة الاحتياطية بنجاح!',
+      counts: restoreResult.counts
+    });
+  } catch (err) {
+    console.error('Restore backup error:', err);
+    res.status(400).json({ success: false, error: 'فشل استعادة النسخة: ' + err.message });
+  }
+});
+
+// جدولة النسخ الاحتياطي التلقائي اليومي (كل 24 ساعة)
+function startAutoBackupSchedule() {
+  const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+  setInterval(async () => {
+    try {
+      console.log('⏰ بدء إنشاء النسخة الاحتياطية التلقائية اليومية...');
+      const backup = dataStore.createBackup('auto_daily');
+      console.log(`✅ تم إنشاء النسخة الاحتياطية التلقائية: ${backup.filename}`);
+
+      // إرسال لتيليجرام إذا كان البوت مهيأ
+      const settings = dataStore.getSettings();
+      if (settings.telegramBotToken && settings.telegramChatId) {
+        const buffer = fs.readFileSync(backup.filePath);
+        const caption = 
+`🌙 <b>النسخة الاحتياطية التلقائية اليومية (إغلاق اليوم)</b>
+🏢 <b>${settings.companyName || 'شركة أبو رامز'}</b>
+📅 <b>التاريخ:</b> ${formatServerDateTime(new Date())}
+📦 الأصناف: <b>${backup.counts.products}</b> | 🧾 الفواتير: <b>${backup.counts.invoices}</b> | 👥 الزبائن: <b>${backup.counts.customers}</b>`;
+
+        await telegramService.sendDocument(
+          settings.telegramBotToken,
+          settings.telegramChatId,
+          buffer,
+          backup.filename,
+          caption,
+          'HTML'
+        );
+        console.log('✈️ تم إرسال النسخة الاحتياطية اليومية لتيليجرام بنجاح');
+      }
+    } catch (e) {
+      console.error('Auto backup schedule error:', e.message);
+    }
+  }, TWENTY_FOUR_HOURS);
+}
+
 // تشغيل الخادم
 app.listen(PORT, '0.0.0.0', async () => {
   console.log(`=======================================================`);
   console.log(`🚀 نظام المبيعات وإصدار الفواتير يعمل بنجاح على:`);
   console.log(`🔗 الرابط المحلي: http://localhost:${PORT}`);
   console.log(`=======================================================`);
+  // بدء جدولة النسخ الاحتياطي التلقائي
+  startAutoBackupSchedule();
   // فحص ومزامنة البيانات السحابية مع Supabase
   await dataStore.initFromSupabase();
 });

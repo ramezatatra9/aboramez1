@@ -1,4 +1,10 @@
 // وحدة الربط مع تيليجرام (Telegram Bot Service)
+let dataStore = null;
+try {
+  dataStore = require('./dataStore');
+} catch (e) {
+  console.warn('dataStore load in telegramService:', e.message);
+}
 
 function escapeHtml(text) {
   if (!text) return '';
@@ -8,24 +14,80 @@ function escapeHtml(text) {
     .replace(/>/g, '&gt;');
 }
 
-function formatCurrency(amount, currency = 'شيكل') {
+function formatCurrency(amount, currency = '₪') {
   const num = parseFloat(amount) || 0;
-  return `${num.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ${currency}`;
+  const sym = (!currency || currency === 'شيكل' || currency === 'ILS') ? '₪' : currency;
+  return `${num.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ${sym}`;
 }
 
 function formatDateTime(dateInput) {
   const d = new Date(dateInput || Date.now());
-  const day = d.getDate();
-  const month = d.getMonth() + 1;
+  const day = d.getDate().toString().padStart(2, '0');
+  const month = (d.getMonth() + 1).toString().padStart(2, '0');
   const year = d.getFullYear();
   let hours = d.getHours();
   const minutes = d.getMinutes().toString().padStart(2, '0');
   const period = hours >= 12 ? 'مساءً' : 'صباحاً';
   hours = hours % 12 || 12;
-  return `${day}-${month}-${year} الساعة ${hours}:${minutes} ${period}`;
+  return `${day}/${month}/${year} — ${hours}:${minutes} ${period}`;
+}
+
+function getNumberEmoji(num) {
+  const emojis = ['0️⃣', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
+  if (num >= 1 && num <= 10) return emojis[num];
+  return `${num}️⃣`;
+}
+
+function formatPhoneDisplay(phone) {
+  if (!phone) return '';
+  return `${escapeHtml(phone)}`;
 }
 
 const telegramService = {
+  /**
+   * إرسال رسالة HTML مع آلية أمان ذكية (Fallback) للإرسال كنص مجرد عند أي خطأ في الوسوم
+   */
+  async sendHtmlWithFallback(botToken, chatId, htmlMessage) {
+    const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
+    try {
+      let response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: htmlMessage,
+          parse_mode: 'HTML'
+        })
+      });
+
+      let result = await response.json();
+
+      // إذا رفض تيليجرام وسوم HTML بسبب Parse error، إعادة المحاولة فوراً بنص نظيف مجرد
+      if (!result.ok && result.description && result.description.toLowerCase().includes('parse')) {
+        console.warn('Telegram HTML parse failed, retrying with stripped text:', result.description);
+        const plainText = htmlMessage.replace(/<[^>]*>/g, '');
+        response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: plainText
+          })
+        });
+        result = await response.json();
+      }
+
+      if (!result.ok) {
+        throw new Error(result.description || 'فشل إرسال الإشعار إلى تيليجرام');
+      }
+
+      return { ok: true, data: result };
+    } catch (err) {
+      console.error('Error sending telegram message:', err);
+      return { ok: false, error: err.message };
+    }
+  },
+
   /**
    * إرسال رسالة فحص واختبار الاتصال مع تيليجرام
    */
@@ -44,119 +106,129 @@ const telegramService = {
 ⏰ <b>الوقت:</b> ${formatDateTime(new Date())}
 ✅ تم ضبط البوت بنجاح! ستصلك إشعارات الفواتير وتفاصيل الأرباح فور إنشائها من قِبل الموظفين مباشرة على هذا الحساب.`;
 
-    const url = `https://api.telegram.org/bot${cleanToken}/sendMessage`;
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: cleanChatId,
-        text: message,
-        parse_mode: 'HTML'
-      })
-    });
-
-    const result = await response.json();
-    if (!result.ok) {
-      throw new Error(result.description || 'فشل إرسال الرسالة عبر تيليجرام');
-    }
-
-    return result;
+    return this.sendHtmlWithFallback(cleanToken, cleanChatId, message);
   },
 
   /**
-   * تنسيق وإرسال تفاصيل الفاتورة الكاملة إلى تيليجرام
+   * تنسيق وإرسال تفاصيل الفاتورة الكاملة (مبيعات) إلى تيليجرام بتصميم احترافي وشامل
+   */
+  /**
+   * تنسيق وإرسال تفاصيل الفاتورة الكاملة (مبيعات) إلى تيليجرام
    */
   async sendInvoiceNotification(invoice, settings) {
     const botToken = settings?.telegramBotToken?.trim();
     const chatId = settings?.telegramChatId?.trim();
-    const currency = settings?.currency || 'شيكل';
+    const currency = settings?.currency || '₪';
 
     if (!botToken || !chatId) {
       console.warn('Telegram token or chat ID not set. Skipping notification.');
       return { ok: false, error: 'لم يتم ضبط إعدادات تيليجرام (Bot Token أو Chat ID)' };
     }
 
-    const companyName = settings.companyName || 'رامز عطاطرة';
+    const companyName = settings.companyName || 'شركة أبو رامز';
     const invoiceDate = formatDateTime(invoice.createdAt);
+    const invoiceNum = invoice.invoiceNumber || invoice.id;
+    const isInstallments = invoice.paymentMethod === 'installments';
 
-    // بناء قائمة المنتجات
+    // بناء قائمة المنتجات المباعة
     let itemsText = '';
-    (invoice.items || []).forEach((item, idx) => {
-      const itemTotalSell = (item.sellPrice || 0) * (item.quantity || 1);
-      const itemUnitProfit = (item.sellPrice || 0) - (item.costPrice || 0);
-      const itemTotalProfit = itemUnitProfit * (item.quantity || 1);
+    const items = invoice.items || [];
+    const totalItemsCount = items.length;
+    const maxDisplayItems = 20;
+    const itemsToDisplay = items.slice(0, maxDisplayItems);
+
+    itemsToDisplay.forEach((item, idx) => {
+      const qty = item.quantity || 1;
+      const sellPrice = item.sellPrice || 0;
+      const costPrice = item.costPrice || 0;
+      const itemTotalSell = sellPrice * qty;
+      const itemUnitProfit = sellPrice - costPrice;
+      const itemTotalProfit = itemUnitProfit * qty;
 
       itemsText += 
-`▫️ <b>${idx + 1}. ${escapeHtml(item.productName)}</b>
-   الكمية: <b>${item.quantity}</b> | سعر البيع: ${formatCurrency(item.sellPrice, currency)}
-   رأس المال (التكلفة): ${formatCurrency(item.costPrice, currency)}
-   ربح القطعة: <b>${formatCurrency(itemUnitProfit, currency)}</b>
-   إجمالي البند: <b>${formatCurrency(itemTotalSell, currency)}</b> (إجمالي ربح الصنف: +${formatCurrency(itemTotalProfit, currency)})
+`${getNumberEmoji(idx + 1)} ${escapeHtml(item.productName)}
+الكمية: ${qty} × ${formatCurrency(sellPrice, currency)} = ${formatCurrency(itemTotalSell, currency)}
+التكلفة: ${formatCurrency(costPrice, currency)}
+الربح: 🟢 ${formatCurrency(itemTotalProfit, currency)}
+
 `;
     });
 
-    // تفاصيل طريقة الدفع
-    let paymentDetailsText = '';
-    if (invoice.paymentMethod === 'installments') {
-      const inst = invoice.installmentDetails || {};
-      paymentDetailsText = 
-`💳 <b>طريقة الدفع:</b> ⏳ <b>أقساط مجدولة</b>
-   🔹 <b>الدفعة الأولى المدفوعة:</b> ${formatCurrency(inst.downPayment, currency)}
-   🔹 <b>المبلغ المتبقي:</b> ${formatCurrency(inst.remainingAmount, currency)}
-   🔹 <b>مدة سداد باقي المبلغ:</b> <b>${escapeHtml(inst.duration || 'غير محددة')}</b>
-${inst.scheduleNotes ? `   🔹 <b>ملاحظات الأقساط:</b> ${escapeHtml(inst.scheduleNotes)}\n` : ''}`;
-    } else {
-      paymentDetailsText = 
-`💳 <b>طريقة الدفع:</b> ✅ <b>نقداً (كاش كامل)</b>`;
+    if (totalItemsCount > maxDisplayItems) {
+      itemsText += `<i>... وباقي ${totalItemsCount - maxDisplayItems} أصناف أخرى مسجلة بالفاتورة</i>\n\n`;
     }
 
+    // تفاصيل طريقة السداد والأقساط
     const totalProfit = invoice.summary?.totalProfit || 0;
     const totalAmount = invoice.summary?.totalAmount || 0;
     const totalCost = invoice.summary?.totalCost || 0;
     const profitMargin = invoice.summary?.profitMarginPercentage || (totalAmount > 0 ? ((totalProfit / totalAmount) * 100).toFixed(1) : 0);
 
-    const message = 
-`🧾 <b>فاتورة مبيعات جديدة #${invoice.invoiceNumber || invoice.id}</b>
-🏢 <b>${escapeHtml(companyName)}</b>
-━━━━━━━━━━━━━━━━━━
-👨‍💼 <b>الموظف المسؤول:</b> ${escapeHtml(invoice.employeeName || 'غير محدد')}
-👤 <b>الزبون:</b> ${escapeHtml(invoice.customerName)}
-${invoice.customerPhone ? `📞 <b>هاتف الزبون:</b> ${escapeHtml(invoice.customerPhone)}\n` : ''}📅 <b>التاريخ:</b> ${invoiceDate}
-━━━━━━━━━━━━━━━━━━
-📦 <b>تفاصيل المنتجات المباعة:</b>
-${itemsText}
-━━━━━━━━━━━━━━━━━━
-💰 <b>الحساب المالي والأرباح:</b>
-💵 <b>إجمالي الفاتورة النهائي:</b> <b>${formatCurrency(totalAmount, currency)}</b>
-📉 <b>إجمالي التكلفة (رأس المال):</b> ${formatCurrency(totalCost, currency)}
-📈 <b>صافي الربح لكامل الفاتورة:</b> 🟢 <b>${formatCurrency(totalProfit, currency)}</b> (${profitMargin}%)
-━━━━━━━━━━━━━━━━━━
-${paymentDetailsText}
-${invoice.notes ? `\n📝 <b>ملاحظات:</b> ${escapeHtml(invoice.notes)}\n` : ''}
-<i>نظام إدارة الفواتير والمبيعات الآلي</i>`;
+    let paymentStatusText = '';
+    let summaryText = '';
 
-    const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: message,
-          parse_mode: 'HTML'
-        })
-      });
+    if (isInstallments) {
+      const inst = invoice.installmentDetails || {};
+      const downPayment = parseFloat(inst.downPayment) || 0;
+      const remainingAmount = (inst.remainingAmount !== undefined) ? parseFloat(inst.remainingAmount) : Math.max(0, totalAmount - downPayment);
+      const duration = inst.duration || 'غير محدد';
 
-      const result = await response.json();
-      if (!result.ok) {
-        throw new Error(result.description || 'فشل إرسال الإشعار إلى تيليجرام');
+      paymentStatusText = 
+`💵 المدفوع: ${formatCurrency(downPayment, currency)}
+🔴 المتبقي: ${formatCurrency(remainingAmount, currency)}
+📅 مدة التقسيط: ${escapeHtml(duration)}`;
+
+      if (downPayment === 0) {
+        summaryText = `إجمالي الفاتورة ${formatCurrency(totalAmount, currency)}، لم يتم دفع أي مبلغ حتى الآن، والمتبقي ${formatCurrency(remainingAmount, currency)}.\nصافي ربح الفاتورة ${formatCurrency(totalProfit, currency)}.`;
+      } else {
+        summaryText = `إجمالي الفاتورة ${formatCurrency(totalAmount, currency)}، تم دفع ${formatCurrency(downPayment, currency)} كدفعة أولى، والمتبقي ${formatCurrency(remainingAmount, currency)}.\nصافي ربح الفاتورة ${formatCurrency(totalProfit, currency)}.`;
       }
+    } else {
+      paymentStatusText = 
+`💵 المدفوع: ${formatCurrency(totalAmount, currency)}
+🟢 المتبقي: 0 ₪`;
 
-      return { ok: true, data: result };
-    } catch (err) {
-      console.error('Error sending telegram message:', err);
-      return { ok: false, error: err.message };
+      summaryText = `إجمالي الفاتورة ${formatCurrency(totalAmount, currency)}، تم استلام كامل المبلغ نقداً.\nصافي ربح الفاتورة ${formatCurrency(totalProfit, currency)}.`;
     }
+
+    const message = 
+`🧾 <b>فاتورة مبيعات #${invoiceNum}</b>
+
+🏢 <b>${escapeHtml(companyName)}</b>
+📅 ${invoiceDate}
+👨‍💼 الموظف: ${escapeHtml(invoice.employeeName || 'غير محدد')}
+👤 الزبون: ${escapeHtml(invoice.customerName)}
+💳 طريقة الدفع: ${isInstallments ? 'أقساط' : 'نقداً'}
+
+━━━━━━━━━━━━━━
+
+📦 <b>المنتجات</b>
+
+${itemsText.trim()}
+
+━━━━━━━━━━━━━━
+
+💰 <b>ملخص الفاتورة</b>
+
+💵 إجمالي المبيعات: ${formatCurrency(totalAmount, currency)}
+📦 إجمالي التكلفة: ${formatCurrency(totalCost, currency)}
+📈 صافي الربح: ${formatCurrency(totalProfit, currency)}
+📊 هامش الربح: ${profitMargin}%
+
+━━━━━━━━━━━━━━
+
+💳 <b>حالة السداد</b>
+
+${paymentStatusText}
+
+━━━━━━━━━━━━━━
+
+📌
+${summaryText}
+
+⚡ نظام رامز عطاطرة لإدارة المبيعات والفواتير`;
+
+    return this.sendHtmlWithFallback(botToken, chatId, message);
   },
 
   /**
@@ -165,62 +237,86 @@ ${invoice.notes ? `\n📝 <b>ملاحظات:</b> ${escapeHtml(invoice.notes)}\n`
   async sendPurchaseInvoiceNotification(invoice, settings) {
     const botToken = settings?.telegramBotToken?.trim();
     const chatId = settings?.telegramChatId?.trim();
-    const currency = settings?.currency || 'شيكل';
+    const currency = settings?.currency || '₪';
 
     if (!botToken || !chatId) {
-      return { ok: false, error: 'لم يتم ضبط إعدادات تيليجرام' };
+      return { ok: false, error: 'لم يتم ضبط إعدادات تيليجرام (Bot Token أو Chat ID)' };
     }
 
-    const companyName = settings.companyName || 'رامز عطاطرة';
+    const companyName = settings.companyName || 'شركة أبو رامز';
     const invoiceDate = formatDateTime(invoice.createdAt);
+    const invoiceNum = invoice.invoiceNumber || invoice.id;
 
+    // بناء قائمة الأصناف المشتراة
     let itemsText = '';
-    (invoice.items || []).forEach((item, idx) => {
+    const items = invoice.items || [];
+    const totalItemsCount = items.length;
+    const maxDisplayItems = 20;
+    const itemsToDisplay = items.slice(0, maxDisplayItems);
+
+    itemsToDisplay.forEach((item, idx) => {
+      const qty = item.quantity || 1;
       const itemCost = item.costPrice || 0;
-      const itemTotalCost = itemCost * (item.quantity || 1);
+      const itemTotalCost = itemCost * qty;
+
+      let product = null;
+      if (dataStore && (item.productId || item.id)) {
+        try {
+          product = dataStore.getProductById(item.productId || item.id);
+        } catch (e) {}
+      }
+
+      const currentStock = product ? product.stock : null;
+
       itemsText += 
-`▫️ <b>${idx + 1}. ${escapeHtml(item.productName)}</b>
-   الكمية المشتراة: <b>${item.quantity}</b> | سعر الشراء (التكلفة): ${formatCurrency(itemCost, currency)}
-   إجمالي الشراء للصنف: <b>${formatCurrency(itemTotalCost, currency)}</b>
-`;
+`${getNumberEmoji(idx + 1)} ${escapeHtml(item.productName)}
+الكمية: ${qty} قطع
+سعر التكلفة: ${formatCurrency(itemCost, currency)} للقطعة
+إجمالي الصنف: ${formatCurrency(itemTotalCost, currency)}
+${currentStock !== null ? `📦 المخزون الحالي: ${currentStock} قطع\n` : ''}\n`;
     });
 
+    if (totalItemsCount > maxDisplayItems) {
+      itemsText += `<i>... وباقي ${totalItemsCount - maxDisplayItems} أصناف مشتراة أخرى</i>\n\n`;
+    }
+
     const totalCost = invoice.summary?.totalCost || invoice.summary?.totalAmount || 0;
-    const totalQty = invoice.summary?.totalQuantity || 0;
+    const totalQty = invoice.summary?.totalQuantity || items.reduce((acc, it) => acc + (it.quantity || 1), 0);
+    const phoneRow = invoice.customerPhone ? `\n📞 ${escapeHtml(invoice.customerPhone)}` : '';
+    const notesRow = invoice.notes ? `\n━━━━━━━━━━━━━━\n\n📝 <b>ملاحظات</b>\n${escapeHtml(invoice.notes)}\n` : '';
 
     const message = 
-`📥 <b>فاتورة مشتريات وتوريد بضاعة جديدة #${invoice.invoiceNumber || invoice.id}</b>
-🏢 <b>${escapeHtml(companyName)}</b>
-━━━━━━━━━━━━━━━━━━
-👨‍💼 <b>الموظف المستلم:</b> ${escapeHtml(invoice.employeeName || 'غير محدد')}
-🚚 <b>المورد / المصدر:</b> ${escapeHtml(invoice.customerName || 'مورد بضاعة')}
-${invoice.customerPhone ? `📞 <b>هاتف المورد:</b> ${escapeHtml(invoice.customerPhone)}\n` : ''}📅 <b>التاريخ:</b> ${invoiceDate}
-━━━━━━━━━━━━━━━━━━
-📦 <b>الأصناف المشتراة المضافة للمخزون:</b>
-${itemsText}
-━━━━━━━━━━━━━━━━━━
-💰 <b>إجمالي قيمة المشتريات:</b> <b>${formatCurrency(totalCost, currency)}</b>
-🔢 <b>إجمالي عدد القطع الواردة للمخزن:</b> <b>${totalQty} قطعة</b>
-${invoice.notes ? `\n📝 <b>ملاحظات التوريد:</b> ${escapeHtml(invoice.notes)}\n` : ''}
-<i>تمت زيادة المخزون تلقائياً بالكميات المشتراة</i>`;
+`📥 <b>فاتورة مشتريات #${invoiceNum}</b>
 
-    const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: message,
-          parse_mode: 'HTML'
-        })
-      });
-      const result = await response.json();
-      return { ok: result.ok, data: result };
-    } catch (err) {
-      console.error('Error sending purchase invoice notification:', err);
-      return { ok: false, error: err.message };
-    }
+🏢 <b>${escapeHtml(companyName)}</b>
+📅 ${invoiceDate}
+👨‍💼 الموظف المستلم: ${escapeHtml(invoice.employeeName || 'غير محدد')}
+🚚 المورد: ${escapeHtml(invoice.customerName || 'مورد بضاعة')}${phoneRow}
+
+━━━━━━━━━━━━━━
+
+📦 <b>الأصناف الجديدة</b>
+
+${itemsText.trim()}
+
+━━━━━━━━━━━━━━
+
+💰 <b>ملخص المشتريات</b>
+
+💵 إجمالي قيمة المشتريات: ${formatCurrency(totalCost, currency)}
+📦 إجمالي الكمية المضافة: ${totalQty} قطع
+📋 عدد الأصناف: ${totalItemsCount}
+${notesRow}
+━━━━━━━━━━━━━━
+
+✅ تم استلام البضاعة وإضافتها إلى المخزون بنجاح.
+
+💰 <b>إجمالي قيمة التوريد:</b> ${formatCurrency(totalCost, currency)}
+📦 <b>تمت إضافة ${totalQty} قطع إلى المخزون.</b>
+
+⚡ نظام رامز عطاطرة لإدارة المشتريات والمخزون`;
+
+    return this.sendHtmlWithFallback(botToken, chatId, message);
   },
 
   /**
@@ -322,50 +418,43 @@ ${invoice.notes ? `\n📝 <b>ملاحظات التوريد:</b> ${escapeHtml(inv
   /**
    * إرسال إشعار سند قبض مالي جديد بتنسيق واضح ومفهوم
    */
+  /**
+   * إرسال إشعار سند قبض مالي جديد بتنسيق معتمد
+   */
   async sendReceiptNotification(receipt, settings) {
     const botToken = settings?.telegramBotToken?.trim();
     const chatId = settings?.telegramChatId?.trim();
-    const currency = settings?.currency || 'شيكل';
+    const currency = settings?.currency || '₪';
 
     if (!botToken || !chatId) {
       return { ok: false, error: 'لم يتم ضبط إعدادات تيليجرام' };
     }
 
-    const companyName = settings.companyName || 'رامز عطاطرة';
-    const methodNames = {
-      cash: '💵 نقداً (كاش)',
-      transfer: '🏦 تحويل بنكي',
-      check: '📝 شيك مصرفي'
-    };
-    const paymentMethodText = methodNames[receipt.paymentMethod] || '💵 نقداً (كاش)';
-    const prevBal = parseFloat(receipt.previousBalance) || 0;
+    const companyName = settings.companyName || 'شركة أبو رامز';
+    const receiptDate = formatDateTime(receipt.createdAt);
+    const receiptNum = receipt.receiptNumber || receipt.id;
     const remBal = parseFloat(receipt.remainingBalance) || 0;
 
-    let balanceSection = '';
-    if (prevBal > 0 || remBal >= 0) {
-      balanceSection = 
-`━━━━━━━━━━━━━━━━━━
-📊 <b>حركة الحساب والذمة المالية للزبون:</b>
-🔹 <b>الدين السابق قبل السند:</b> ${formatCurrency(prevBal, currency)}
-🔹 <b>المبلغ المسدد الآن:</b> -${formatCurrency(receipt.amount, currency)}
-📉 <b>الرصيد المتبقي بذمته حالياً:</b> <b>${formatCurrency(remBal, currency)}</b>`;
-    }
-
     const message = 
-`💰 <b>سند قبض مالي معتمد جديد #${receipt.receiptNumber}</b>
-🏢 <b>${escapeHtml(companyName)}</b>
-━━━━━━━━━━━━━━━━━━
-👤 <b>اسم الزبون:</b> <b>${escapeHtml(receipt.customerName)}</b>${receipt.customerSystemNumber ? ` [رقم الحساب: #${escapeHtml(receipt.customerSystemNumber)}]` : ''}
-${receipt.customerPhone ? `📞 <b>هاتف الزبون:</b> ${escapeHtml(receipt.customerPhone)}\n` : ''}👨‍💼 <b>الموظف المستلم:</b> ${escapeHtml(receipt.employeeName || 'غير محدد')}
-📅 <b>تاريخ ووقت السند:</b> ${formatDateTime(receipt.createdAt)}
-━━━━━━━━━━━━━━━━━━
-💵 <b>المبلغ المقبوض:</b> 🟢 <b>${formatCurrency(receipt.amount, currency)}</b>
-💳 <b>طريقة الدفع:</b> ${paymentMethodText}
-${receipt.description ? `📝 <b>البيان / مقابل:</b> ${escapeHtml(receipt.description)}\n` : ''}${balanceSection}
-${receipt.notes ? `\n📌 <b>ملاحظات:</b> ${escapeHtml(receipt.notes)}\n` : ''}
-<i>✅ تم خصم المبلغ من رصيد دين الزبون آلياً وتوثيق السند في السجلات.</i>`;
+`💰 <b>سند قبض #${receiptNum}</b>
 
-    return this.sendRawMessage(botToken, chatId, message, 'HTML');
+🏢 <b>${escapeHtml(companyName)}</b>
+
+👤 <b>الزبون:</b> ${escapeHtml(receipt.customerName)}
+💵 <b>المبلغ المقبوض:</b> 🟢 <b>${formatCurrency(receipt.amount, currency)}</b>
+
+⏳المبلغ المتبقي : <b>${formatCurrency(remBal, currency)}</b>
+📅 <b>تاريخ القبض:</b> ${receiptDate}
+
+━━━━━━━━━━━━━━
+
+✅ تم تسجيل عملية القبض بنجاح.
+
+📎 مرفق سند القبض الرسمي بصيغة PDF.
+
+⚡ نظام رامز عطاطرة للإدارة المالية`;
+
+    return this.sendHtmlWithFallback(botToken, chatId, message);
   },
 
   /**
@@ -374,35 +463,58 @@ ${receipt.notes ? `\n📌 <b>ملاحظات:</b> ${escapeHtml(receipt.notes)}\n`
   async sendCustomerReminderNotification({ customer, debt, lastReceipt, daysSinceLastReceipt, settings }) {
     const botToken = settings?.telegramBotToken?.trim();
     const chatId = settings?.telegramChatId?.trim();
-    const currency = settings?.currency || 'شيكل';
+    const currency = settings?.currency || '₪';
 
     if (!botToken || !chatId) {
       return { ok: false, error: 'لم يتم ضبط إعدادات تيليجرام' };
     }
 
-    const companyName = settings.companyName || 'رامز عطاطرة';
-    let lastPaymentDesc = '⚠️ <i>لم يتم تسجيل أي سند قبض سابق لهذا الزبون في النظام</i>';
+    const companyName = settings.companyName || 'شركة أبو رامز';
+    const debtAmount = parseFloat(debt) || 0;
 
+    let lastPaymentDesc = 'لم يتم تسجيل أي دفعة سابقة في النظام.';
     if (lastReceipt) {
       const recDate = formatDateTime(lastReceipt.createdAt);
-      lastPaymentDesc = `<b>منذ ${daysSinceLastReceipt} يوماً</b> (بتاريخ ${recDate} بمبلغ <b>${formatCurrency(lastReceipt.amount, currency)}</b>)`;
+      lastPaymentDesc = `بتاريخ ${recDate} بمبلغ ${formatCurrency(lastReceipt.amount, currency)} (منذ ${daysSinceLastReceipt} يوماً).`;
     }
 
-    const message = 
-`⏰ <b>تذكير استحقاق دفعة مالية لزبون</b>
-🏢 <b>${escapeHtml(companyName)}</b>
-━━━━━━━━━━━━━━━━━━
-👤 <b>اسم الزبون:</b> <b>${escapeHtml(customer.name)}</b>
-🔢 <b>رقم الحساب بالنظام:</b> #${escapeHtml(customer.systemNumber || '--')}
-${customer.phone ? `📞 <b>هاتف الزبون:</b> <a href="tel:${escapeHtml(customer.phone)}">${escapeHtml(customer.phone)}</a>\n` : ''}━━━━━━━━━━━━━━━━━━
-💰 <b>إجمالي الدين المتبقي بذمته:</b> 🔴 <b>${formatCurrency(debt, currency)}</b>
-⏳ <b>تاريخ آخر دفعة تم سدادها:</b> ${lastPaymentDesc}
-━━━━━━━━━━━━━━━━━━
-⚠️ <b>حالة الحساب:</b> ${daysSinceLastReceipt > 30 ? '🔴 <b>تأخير شديد عن السداد</b>' : '🟠 <b>دفعة مستحقة المتابعة</b>'}
-${customer.notes ? `📝 <b>ملاحظات مسجلة على الزبون:</b> ${escapeHtml(customer.notes)}\n` : ''}
-<i>📞 يُرجى الاتصال بالزبون أو إرسال كشف الحساب لتحصيل الدفعة المستحقة.</i>`;
+    const noteDesc = customer.notes
+      ? escapeHtml(customer.notes)
+      : `يوجد دين مسجل على الزبون بقيمة ${formatCurrency(debtAmount, currency)}.`;
 
-    return this.sendRawMessage(botToken, chatId, message, 'HTML');
+    const statusDesc = (daysSinceLastReceipt > 30 || !lastReceipt)
+      ? 'مبلغ مستحق — يحتاج متابعة للتحصيل'
+      : 'دفعة مستحقة المتابعة';
+
+    const message = 
+`⏰ <b>تنبيه: حساب عميل يحتاج متابعة</b>
+
+🏢 <b>${escapeHtml(companyName)}</b>
+
+👤 <b>الزبون:</b> ${escapeHtml(customer.name)}
+🔢 <b>رقم الحساب:</b> #${escapeHtml(customer.systemNumber || '--')}
+
+━━━━━━━━━━━━━━
+
+🔴 <b>المبلغ المستحق:</b> <b>${formatCurrency(debtAmount, currency)}</b>
+
+📅 <b>آخر دفعة:</b>
+${lastPaymentDesc}
+
+⚠️ <b>حالة الحساب:</b>
+${statusDesc}
+
+📝 <b>ملاحظة:</b>
+${noteDesc}
+
+━━━━━━━━━━━━━━
+
+📞 <b>الإجراء المطلوب:</b>
+يرجى التواصل مع الزبون لمتابعة تحصيل المبلغ، أو إرسال كشف حسابه لمعرفة تفاصيل المديونية.
+
+⚡ نظام رامز عطاطرة لإدارة حسابات العملاء والتحصيل`;
+
+    return this.sendHtmlWithFallback(botToken, chatId, message);
   },
 
   /**
@@ -449,34 +561,58 @@ ${detailsText}
   async sendFinancialReportNotification(reportData, settings) {
     const botToken = settings?.telegramBotToken?.trim();
     const chatId = settings?.telegramChatId?.trim();
-    const currency = settings?.currency || 'شيكل';
+    const currency = settings?.currency || '₪';
     if (!botToken || !chatId) return { ok: false, error: 'إعدادات تيليجرام غير مضبوطة' };
 
-    const companyName = settings.companyName || 'رامز عطاطرة';
-    const periodTitle = reportData.periodTitle || 'كامل الفترة';
+    const companyName = settings.companyName || 'شركة أبو رامز';
+    let periodTitle = reportData.periodTitle || 'أكتوبر 2026';
+    periodTitle = periodTitle.replace(/^شهر\s*/, '').replace(/\s*\(.*\)$/, '').trim();
+
+    const reportDate = formatDateTime(new Date());
     const totalSales = parseFloat(reportData.totalSales) || 0;
     const totalCost = parseFloat(reportData.totalCost) || 0;
     const totalProfit = parseFloat(reportData.totalProfit) || 0;
     const profitMargin = reportData.profitMargin || (totalSales > 0 ? ((totalProfit / totalSales) * 100).toFixed(1) : 0);
     const invoiceCount = reportData.invoiceCount || 0;
+    const cashSales = reportData.cashSales !== undefined ? parseFloat(reportData.cashSales) : 0;
+    const installmentSales = reportData.installmentSales !== undefined ? parseFloat(reportData.installmentSales) : 0;
 
     const message = 
-`📊 <b>التقرير المالي وحساب الأرباح الرسمي</b>
-🏢 <b>${escapeHtml(companyName)}</b>
-━━━━━━━━━━━━━━━━━━
-⏱️ <b>فترة التقرير:</b> <b>${escapeHtml(periodTitle)}</b>
-📅 <b>تاريخ الإصدار:</b> ${formatDateTime(new Date())}
-🔢 <b>عدد الفواتير الصادرة:</b> <b>${invoiceCount} فاتورة</b>
-━━━━━━━━━━━━━━━━━━
-💰 <b>الملخص المالي العام:</b>
-💵 <b>إجمالي المبيعات (الإيرادات):</b> <b>${formatCurrency(totalSales, currency)}</b>
-📉 <b>إجمالي التكلفة (رأس المال):</b> ${formatCurrency(totalCost, currency)}
-📈 <b>صافي الربح المحقق:</b> 🟢 <b>${formatCurrency(totalProfit, currency)}</b>
-🎯 <b>نسبة هامش الربح:</b> <b>${profitMargin}%</b>
-━━━━━━━━━━━━━━━━━━
-${reportData.cashSales !== undefined ? `▫️ مبيعات الكاش المباشر: ${formatCurrency(reportData.cashSales, currency)}\n` : ''}${reportData.installmentSales !== undefined ? `▫️ مبيعات الأقساط المجدولة: ${formatCurrency(reportData.installmentSales, currency)}\n` : ''}<i>📎 تجدون أعلاه ملف الـ PDF المعتمد للتقرير المالي شاملاً كافة التفاصيل.</i>`;
+`📊 <b>التقرير المالي — ${escapeHtml(periodTitle)}</b>
 
-    return this.sendRawMessage(botToken, chatId, message, 'HTML');
+🏢 <b>${escapeHtml(companyName)}</b>
+📅 صادر بتاريخ: ${reportDate}
+🧾 عدد الفواتير: ${invoiceCount} فاتورة
+
+━━━━━━━━━━━━━━
+
+💰 <b>النتيجة المالية</b>
+
+💵 إجمالي المبيعات: ${formatCurrency(totalSales, currency)}
+📦 تكلفة البضاعة: ${formatCurrency(totalCost, currency)}
+━━━━━━━━━━━━━━
+🟢 صافي الربح: ${formatCurrency(totalProfit, currency)}
+📊 هامش الربح: ${profitMargin}%
+
+━━━━━━━━━━━━━━
+
+💳 <b>حسب طريقة الدفع</b>
+
+💵 مبيعات نقدية: ${formatCurrency(cashSales, currency)}
+⏳ مبيعات بالأقساط: ${formatCurrency(installmentSales, currency)}
+
+━━━━━━━━━━━━━━
+
+📌 <b>الخلاصة</b>
+
+تم تحقيق مبيعات بقيمة ${formatCurrency(totalSales, currency)} خلال الفترة،
+وبعد خصم تكلفة البضاعة البالغة ${formatCurrency(totalCost, currency)}، بلغ صافي الربح ${formatCurrency(totalProfit, currency)}.
+
+📎 مرفق التقرير المالي الكامل بصيغة PDF.
+
+⚡ نظام رامز عطاطرة للإدارة المالية والأرباح`;
+
+    return this.sendHtmlWithFallback(botToken, chatId, message);
   },
 
   /**
@@ -602,6 +738,46 @@ ${balDesc}
 <i>📎 مرفق كشف الحساب الرسمي المعتمد بصيغة PDF يحتوي على جميع الحركات والتواريخ بالتفصيل.</i>`;
 
     return this.sendRawMessage(botToken, chatId, message, 'HTML');
+  },
+
+  /**
+   * إرسال مستند أو ملف (PDF أو JSON للنسخ الاحتياطي) إلى تيليجرام
+   */
+  async sendDocument(botToken, chatId, fileBuffer, fileName, caption = '', parseMode = 'HTML') {
+    if (!botToken || !chatId || !fileBuffer) {
+      return { ok: false, error: 'بيانات إرسال المستند غير مكتملة' };
+    }
+
+    try {
+      const cleanToken = botToken.trim();
+      const cleanChatId = chatId.trim();
+      const url = `https://api.telegram.org/bot${cleanToken}/sendDocument`;
+
+      const formData = new FormData();
+      formData.append('chat_id', cleanChatId);
+      const blob = new Blob([fileBuffer], { type: 'application/octet-stream' });
+      formData.append('document', blob, fileName);
+
+      if (caption) {
+        formData.append('caption', caption);
+        if (parseMode) formData.append('parse_mode', parseMode);
+      }
+
+      const response = await fetch(url, {
+        method: 'POST',
+        body: formData
+      });
+
+      const result = await response.json();
+      if (!result.ok) {
+        throw new Error(result.description || 'فشل إرسال الملف إلى تيليجرام');
+      }
+
+      return { ok: true, data: result };
+    } catch (err) {
+      console.error('Error sending telegram document:', err);
+      return { ok: false, error: err.message };
+    }
   }
 };
 

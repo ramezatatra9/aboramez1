@@ -1,0 +1,93 @@
+{
+  "id": "/?source=pwa",
+  "name": "شركة أبو رامز - المبيعات والجرد",
+  "short_name": "أبو رامز",
+  "description": "نظام إدارة المبيعات والفواتير والمخزون وسندات القبض وحسابات الزبائن مع إشعارات تيليجرام الفورية",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
+  "orientation": "any",
+  "background_color": "#0f172a",
+  "theme_color": "#2563eb",
+  "lang": "ar",
+  "dir": "rtl",
+  "categories": ["business", "finance", "productivity"],
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "فاتورة مبيعات جديدة",
+      "short_name": "فاتورة جديدة",
+      "description": "إنشاء فاتورة كاش أو أقساط جديدة",
+      "url": "/?tab=create-invoice",
+      "icons": [
+        {
+          "src": "/icons/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "الجرد والمستودع",
+      "short_name": "الجرد والمخزون",
+      "description": "فحص وتحديث كميات الأصناف والمخزون",
+      "url": "/?tab=inventory",
+      "icons": [
+        {
+          "src": "/icons/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "سند قبض مالي",
+      "short_name": "سند قبض",
+      "description": "تحصيل دفعة مالية وإصدار سند رسمي",
+      "url": "/?tab=receipts",
+      "icons": [
+        {
+          "src": "/icons/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "ديون وأرصدة الزبائن",
+      "short_name": "الزبائن",
+      "description": "متابعة كشوفات الحساب والديون المستحقة",
+      "url": "/?tab=customers",
+      "icons": [
+        {
+          "src": "/icons/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
+}

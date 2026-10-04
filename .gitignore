@@ -1,6 +1,10 @@
 # Dependencies
 node_modules/
 
+# Backups
+backups/
+
+
 # Uploads & Temp files
 uploads/
 *.log
@@ -9,3 +13,4 @@ uploads/
 .env
 .DS_Store
 Thumbs.db
+

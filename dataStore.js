@@ -8,6 +8,10 @@ const INVOICES_FILE = path.join(DATA_DIR, 'invoices.json');
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
 const RECEIPTS_FILE = path.join(DATA_DIR, 'receipts.json');
 const CUSTOMERS_FILE = path.join(DATA_DIR, 'customers.json');
+const BACKUPS_DIR = path.join(__dirname, 'backups');
+if (!fs.existsSync(BACKUPS_DIR)) {
+  fs.mkdirSync(BACKUPS_DIR, { recursive: true });
+}
 
 // مزامنة خلفية غير معطلة مع Supabase (Non-blocking background sync)
 async function syncProductToSupabase(product) {
@@ -407,11 +411,13 @@ const dataStore = {
       );
       const remainingToAdd = (invoice.paymentMethod === 'installments' && invoice.installmentDetails?.remainingAmount) ? invoice.installmentDetails.remainingAmount : 0;
       if (existing) {
+        invoice.previousCustomerBalance = existing.balance || 0;
         if (remainingToAdd > 0) {
           this.adjustCustomerBalance(existing.id, remainingToAdd);
         }
         invoice.customerId = existing.id;
         invoice.customerSystemNumber = existing.systemNumber;
+        invoice.currentCustomerBalance = (existing.balance || 0) + remainingToAdd;
       } else {
         const newCust = this.saveCustomer({
           name: invoice.customerName,
@@ -419,9 +425,13 @@ const dataStore = {
           balance: remainingToAdd,
           notes: 'أضيف تلقائياً من فاتورة مبيعات #' + invoice.invoiceNumber
         });
+        invoice.previousCustomerBalance = 0;
         invoice.customerId = newCust.id;
         invoice.customerSystemNumber = newCust.systemNumber;
+        invoice.currentCustomerBalance = remainingToAdd;
       }
+      writeJson(INVOICES_FILE, invoices);
+      syncInvoiceToSupabase(invoice);
     }
 
     return invoice;
@@ -822,6 +832,135 @@ const dataStore = {
     } catch (err) {
       console.warn('⚠️ تنبيه: تعذر استرداد بيانات Supabase عند البدء، يتم الاعتماد على البيانات المحلية:', err.message);
     }
+  },
+
+  // -----------------------------------------------------------
+  // نظام النسخ الاحتياطي وحماية البيانات
+  // -----------------------------------------------------------
+  createBackup(label = 'manual') {
+    const products = this.getProducts();
+    const invoices = this.getInvoices();
+    const customers = this.getCustomers();
+    const receipts = this.getReceipts();
+    const settings = this.getSettings();
+
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const dateStr = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    const filename = `backup_${dateStr}_${label}.json`;
+    const filePath = path.join(BACKUPS_DIR, filename);
+
+    const payload = {
+      system: 'شركة أبو رامز - نظام المبيعات والفواتير',
+      version: '1.0',
+      label,
+      createdAt: now.toISOString(),
+      counts: {
+        products: products.length,
+        invoices: invoices.length,
+        customers: customers.length,
+        receipts: receipts.length
+      },
+      data: {
+        settings,
+        products,
+        invoices,
+        customers,
+        receipts
+      }
+    };
+
+    const jsonStr = JSON.stringify(payload, null, 2);
+    fs.writeFileSync(filePath, jsonStr, 'utf-8');
+
+    // تدوير وحفظ آخر 30 نسخة احتياطية فقط لمنع امتلاء القرص
+    try {
+      const files = fs.readdirSync(BACKUPS_DIR)
+        .filter(f => f.startsWith('backup_') && f.endsWith('.json'))
+        .map(f => ({ name: f, time: fs.statSync(path.join(BACKUPS_DIR, f)).mtimeMs }))
+        .sort((a, b) => b.time - a.time);
+
+      if (files.length > 30) {
+        files.slice(30).forEach(oldF => {
+          try { fs.unlinkSync(path.join(BACKUPS_DIR, oldF.name)); } catch (e) {}
+        });
+      }
+    } catch (e) {
+      console.warn('Backup cleanup warning:', e.message);
+    }
+
+    return {
+      filename,
+      filePath,
+      sizeBytes: Buffer.byteLength(jsonStr),
+      createdAt: now.toISOString(),
+      counts: payload.counts
+    };
+  },
+
+  getBackupList() {
+    if (!fs.existsSync(BACKUPS_DIR)) return [];
+    const files = fs.readdirSync(BACKUPS_DIR)
+      .filter(f => f.startsWith('backup_') && f.endsWith('.json'))
+      .map(filename => {
+        const fullPath = path.join(BACKUPS_DIR, filename);
+        const stats = fs.statSync(fullPath);
+        return {
+          filename,
+          sizeBytes: stats.size,
+          sizeFormatted: (stats.size / 1024).toFixed(1) + ' KB',
+          createdAt: stats.mtime.toISOString(),
+          isAuto: filename.includes('auto')
+        };
+      })
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    return files;
+  },
+
+  getBackupFilePath(filename) {
+    const safeName = path.basename(filename);
+    const fullPath = path.join(BACKUPS_DIR, safeName);
+    if (fs.existsSync(fullPath)) return fullPath;
+    return null;
+  },
+
+  restoreBackup(backupPayload) {
+    if (!backupPayload || !backupPayload.data) {
+      throw new Error('ملف النسخة الاحتياطية غير صالح أو تالف');
+    }
+
+    const { products, invoices, customers, receipts, settings } = backupPayload.data;
+
+    // 1. أخذ نسخة أمان احترازية فورية قبل تطبيق الاستعادة
+    this.createBackup('pre_restore_safety');
+
+    // 2. تطبيق استعادة البيانات بأمان
+    if (Array.isArray(products)) {
+      writeJson(PRODUCTS_FILE, products);
+    }
+    if (Array.isArray(invoices)) {
+      writeJson(INVOICES_FILE, invoices);
+    }
+    if (Array.isArray(customers)) {
+      writeJson(CUSTOMERS_FILE, customers);
+    }
+    if (Array.isArray(receipts)) {
+      writeJson(RECEIPTS_FILE, receipts);
+    }
+    if (settings && typeof settings === 'object') {
+      writeJson(SETTINGS_FILE, settings);
+    }
+
+    return {
+      success: true,
+      restoredAt: new Date().toISOString(),
+      counts: {
+        products: Array.isArray(products) ? products.length : 0,
+        invoices: Array.isArray(invoices) ? invoices.length : 0,
+        customers: Array.isArray(customers) ? customers.length : 0,
+        receipts: Array.isArray(receipts) ? receipts.length : 0
+      }
+    };
   }
 };
 
