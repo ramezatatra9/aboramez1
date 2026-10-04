@@ -374,6 +374,52 @@
               </div>
             </div>
 
+            <!-- Datalist for all brands across the system -->
+            <datalist id="systemBrandsList"></datalist>
+
+            <!-- Quick Inline Product & Brand Adder (مخصص لفواتير التوريد +20 صنف وتغذية المخزن والماركات فوراً) -->
+            <div class="quick-new-item-box" id="quickNewProductSection" style="margin-bottom: 1.25rem; background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%); border: 2px dashed #059669; border-radius: 12px; padding: 1rem; box-shadow: 0 4px 12px rgba(5, 150, 105, 0.08);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 8px;">
+                <div style="font-weight: 800; color: #065f46; font-size: 0.95rem; display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 1.2rem; background: #059669; color: #fff; width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;">⚡</span>
+                  <span id="quickNewProductTitle">إدخال صنف وماركة جديدة مباشرة للفاتورة والمخزن معاً</span>
+                  <span class="badge" style="background: #047857; color: #fff; font-size: 0.72rem; padding: 3px 8px; border-radius: 6px;">حفظ فوري بدون نوافذ منبثقة</span>
+                </div>
+                <div style="font-size: 0.8rem; color: #047857; font-weight: 600;">
+                  <span>💡 اكتب الصنف والماركة والسعر واضغط Enter للإضافة السريعة والتنقل التلقائي</span>
+                </div>
+              </div>
+
+              <form id="formQuickNewProduct" onsubmit="event.preventDefault(); submitQuickNewProductForInvoice();" style="display: grid; grid-template-columns: 2fr 1.3fr 1fr 1fr 0.8fr auto; gap: 8px; align-items: end;">
+                <div>
+                  <label style="font-size: 0.78rem; font-weight: 700; color: #065f46; display: block; margin-bottom: 4px;">اسم الصنف الجديد <span class="req">*</span></label>
+                  <input type="text" id="qnpName" class="form-control" placeholder="مثال: غسالة بيكو 8 كجم ديجيتال..." required style="padding: 7px 10px; font-size: 0.88rem; background: #fff; border: 1.5px solid #a7f3d0;" oninput="handleQnpNameInput(this.value)">
+                </div>
+                <div>
+                  <label style="font-size: 0.78rem; font-weight: 700; color: #065f46; display: block; margin-bottom: 4px;">الماركة (تُسجل تلقائياً) <span class="req">*</span></label>
+                  <input type="text" id="qnpBrand" class="form-control" placeholder="اكتب أو اختر ماركة..." list="systemBrandsList" required style="padding: 7px 10px; font-size: 0.88rem; background: #fff; border: 1.5px solid #a7f3d0;">
+                </div>
+                <div>
+                  <label style="font-size: 0.78rem; font-weight: 700; color: #065f46; display: block; margin-bottom: 4px;">سعر التكلفة (الشراء) <span class="req">*</span></label>
+                  <input type="number" id="qnpCost" class="form-control" placeholder="التكلفة" min="0" step="any" required style="padding: 7px 10px; font-size: 0.88rem; background: #fff; border: 1.5px solid #a7f3d0;" oninput="handleQnpCostInput(this.value)">
+                </div>
+                <div>
+                  <label style="font-size: 0.78rem; font-weight: 700; color: #065f46; display: block; margin-bottom: 4px;">سعر البيع المقترح</label>
+                  <input type="number" id="qnpSell" class="form-control" placeholder="البيع" min="0" step="any" style="padding: 7px 10px; font-size: 0.88rem; background: #fff; border: 1.5px solid #a7f3d0;">
+                </div>
+                <div>
+                  <label style="font-size: 0.78rem; font-weight: 700; color: #065f46; display: block; margin-bottom: 4px;">الكمية <span class="req">*</span></label>
+                  <input type="number" id="qnpQty" class="form-control" value="1" min="1" step="1" required style="padding: 7px 10px; font-size: 0.88rem; background: #fff; border: 1.5px solid #a7f3d0; text-align: center; font-weight: 800;">
+                </div>
+                <div>
+                  <button type="submit" id="btnSubmitQuickProduct" class="btn btn-success" style="padding: 7px 16px; font-size: 0.88rem; font-weight: 800; height: 38px; white-space: nowrap; box-shadow: 0 3px 8px rgba(5,150,105,0.35);">
+                    <span>➕</span>
+                    <span>إضافة وحفظ (Enter)</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+
             <!-- Table of selected items -->
             <div style="overflow-x: auto;">
               <table class="items-table" id="selectedItemsTable">
@@ -547,14 +593,14 @@
                 <span id="btnSubmitInvoiceText">إنشاء الفاتورة وإرسال لتيليجرام</span>
               </button>
 
-              <!-- زر عرض الأسعار للعرض فقط (Quotation) - يظهر فقط في وضع المبيعات -->
+              <!-- زر عرض الأسعار للعرض فقط (Quotation) - يظهر في وضع المبيعات -->
               <button class="btn btn-lg btn-block" id="btnSubmitQuotation" onclick="submitInvoice(true)"
-                style="margin-top: 0.6rem; background: linear-gradient(135deg, #7c3aed, #4f46e5); color: white; border: none; display: none;">
+                style="margin-top: 0.6rem; background: linear-gradient(135deg, #7c3aed, #4f46e5); color: white; border: none; font-weight: 800; padding: 0.85rem; border-radius: 10px; cursor: pointer;">
                 <span>📄</span>
-                <span>فاتورة مبيعات للعرض فقط</span>
+                <span>إنشاء عرض سعر (فاتورة تقديرية - لا تخصم من المخزون)</span>
               </button>
-              <div id="quotationHintText" style="font-size: 0.76rem; text-align: center; color: #7c3aed; margin-top: 4px; display: none;">
-                📋 لا يخصم من المخزون • لا يُسجَّل كدين حتى يوافق الزبون
+              <div id="quotationHintText" style="font-size: 0.82rem; text-align: center; color: #6d28d9; margin-top: 5px; font-weight: 600;">
+                💡 عرض السعر لا يخصم كميات المخزون ولا يسجل ديون، ويمكن اعتماده لاحقاً بضغطة زر
               </div>
 
               <p style="font-size: 0.78rem; text-align: center; color: var(--text-muted); margin-top: 0.75rem;" id="btnSubmitInvoiceHint">
@@ -1137,6 +1183,10 @@
           <span class="badge badge-primary" id="warrantiesCountBadge">0 كفالة</span>
         </div>
         <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+          <button type="button" class="btn btn-primary" onclick="openCreateWarrantyModal()" style="font-weight: 700; display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #16a34a, #15803d); border: none; padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer; color: white;">
+            <span>➕</span>
+            <span>إنشاء كفالة جديدة (يدوياً)</span>
+          </button>
           <div class="search-box" style="min-width: 220px;">
             <span>🔍</span>
             <input type="text" id="warrantiesSearchInput" placeholder="ابحث باسم الزبون، رقم الكفالة..." oninput="filterWarranties(this.value)">
@@ -1690,6 +1740,12 @@
         </div>
 
         <div class="form-group">
+          <label class="form-label" for="prodBrandInput">الماركة التجارية (اختر ماركة مسجلة أو اكتب ماركة جديدة فوراً لتضاف للنظام):</label>
+          <input type="text" id="prodBrandInput" class="form-control" placeholder="مثال: Beko, هايسنس, Samsung, شارب..." list="systemBrandsList">
+          <div class="input-hint">تتوفر الماركة في كافة فلاتر النظام وشبكة الماركات فور الحفظ</div>
+        </div>
+
+        <div class="form-group">
           <label class="form-label" for="prodName">
             <span class="req">*</span> اسم المنتج:
           </label>
@@ -1785,6 +1841,14 @@
       </div>
 
       <div class="modal-footer no-print">
+        <button class="btn btn-primary" id="btnModalInvoiceWarranty" style="display:none;" onclick="openWarrantyForCurrentInvoice()">
+          <span>🛡️</span>
+          <span>عرض وثيقة الكفالة</span>
+        </button>
+        <button class="btn" id="btnModalInvoiceConvertToSales" style="display:none; background:linear-gradient(135deg,#7c3aed,#4f46e5); color:white; font-weight:700;" onclick="convertQuotationToSales(state.currentViewingInvoice.id)">
+          <span>🔄</span>
+          <span>تحويل إلى مبيعات فعلية وخصم المخزون</span>
+        </button>
         <button class="btn btn-telegram" id="btnModalResendTelegram" onclick="resendCurrentInvoiceTelegram()">
           <span>✈️</span>
           <span>إرسال الفاتورة PDF لتيليجرام</span>
@@ -2332,103 +2396,124 @@
   <!-- Toast Notification Container -->
   <div class="toast-container" id="toastContainer"></div>
 
-  <!-- ======================================================= -->
-  <!-- Modal: معاينة وطباعة الكفالة -->
-  <!-- ======================================================= -->
-  <div class="modal-overlay" id="warrantyViewModal" style="display:none; z-index:2000;" onclick="if(event.target===this)closeWarrantyModal()">
-    <div class="modal-box" style="max-width: 720px; width: 95%; max-height: 92vh; overflow-y: auto; padding: 0;" onclick="event.stopPropagation()">
+  <!-- ============================================================ -->
+  <!-- Modal: عرض وتعديل الكفالة                                   -->
+  <!-- ============================================================ -->
+  <div class="modal-backdrop" id="warrantyViewModal" style="z-index: 9999;" onclick="if(event.target===this)closeWarrantyModal()">
+    <div class="modal-card" style="max-width: 760px; width: 95%; max-height: 92vh; overflow-y: auto; padding: 0; border-radius: 16px; box-shadow: 0 25px 70px rgba(0,0,0,0.35);" onclick="event.stopPropagation()">
 
       <!-- Header -->
-      <div style="padding: 1.2rem 1.5rem; background: linear-gradient(135deg, #1e40af, #1d4ed8); color: white; display: flex; justify-content: space-between; align-items: center; border-radius: 12px 12px 0 0;">
-        <div style="display:flex; align-items: center; gap: 10px;">
-          <span style="font-size:1.6rem;">🛡️</span>
+      <div style="padding: 1.2rem 1.5rem; background: linear-gradient(135deg, #1e40af, #2563eb); color: white; display: flex; justify-content: space-between; align-items: center; border-radius: 16px 16px 0 0;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 1.8rem;">🛡️</span>
           <div>
-            <div style="font-size:1.1rem; font-weight:800;">وثيقة الكفالة والضمان</div>
-            <div style="font-size:0.82rem; opacity:0.85;" id="warModalSubtitle">رقم الكفالة: ---</div>
+            <div style="font-size: 1.15rem; font-weight: 800;">وثيقة الكفالة والضمان الرسمي</div>
+            <div style="font-size: 0.82rem; opacity: 0.9;" id="warModalSubtitle">—</div>
           </div>
         </div>
-        <div style="display:flex; gap:0.5rem;">
-          <button onclick="printWarranty()" class="btn btn-sm" style="background:white; color:#1e40af; font-weight:700;">
-            🖨️ طباعة الكفالة
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+          <button id="warToggleEditBtn" type="button" onclick="toggleWarrantyEditSection()" style="background: rgba(255,255,255,0.22); border: none; color: white; border-radius: 8px; padding: 7px 14px; cursor: pointer; font-size: 0.85rem; font-weight: 700;">
+            ✏️ تعديل مدة وبيانات الكفالة
           </button>
-          <button onclick="closeWarrantyModal()" style="background:rgba(255,255,255,0.2); border:none; color:white; border-radius:8px; padding:6px 12px; cursor:pointer; font-size:0.9rem;">✕</button>
+          <button type="button" onclick="printWarranty()" style="background: white; color: #1e40af; border: none; border-radius: 8px; padding: 7px 14px; cursor: pointer; font-size: 0.85rem; font-weight: 800;">
+            🖨️ طباعة
+          </button>
+          <button type="button" onclick="closeWarrantyModal()" style="background: rgba(255,255,255,0.18); border: none; color: white; border-radius: 8px; padding: 7px 12px; cursor: pointer; font-size: 1rem;">
+            ✕
+          </button>
         </div>
       </div>
 
-      <!-- Warranty Edit + Preview body -->
-      <div style="padding: 1.5rem;" id="warrantyModalBody">
+      <div style="padding: 1.5rem;">
 
-        <!-- Edit Serial Section -->
-        <div style="background:#f0fdf4; border:1.5px solid #86efac; border-radius:10px; padding:1rem; margin-bottom:1rem;">
-          <div style="font-weight:700; color:#15803d; margin-bottom:0.5rem;">✏️ تعديل بيانات الكفالة:</div>
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+        <!-- قسم التعديل (مخفي افتراضياً، يظهر عند الضغط على زر التعديل) -->
+        <div id="warEditSection" style="display: none; background: #f0fdf4; border: 2px solid #86efac; border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.9rem;">
+            <div style="font-weight: 800; color: #15803d; font-size: 1rem;">✏️ تعديل بيانات ومدة الكفالة</div>
+            <span style="font-size: 0.78rem; background: #dcfce7; color: #166534; padding: 3px 8px; border-radius: 6px; font-weight: 700;">يتم إعادة احتساب تاريخ الانتهاء تلقائياً</span>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem;">
             <div>
-              <label style="font-size:0.82rem; font-weight:600; color:#374151;">مدة الكفالة (أشهر):</label>
-              <select id="warEditDuration" class="form-control" style="margin-top:3px;">
+              <label style="font-size: 0.83rem; font-weight: 700; color: #1e293b;">🗓️ مدة الكفالة الجديدة:</label>
+              <select id="warEditDuration" class="form-control" style="margin-top: 4px; font-weight: 700;">
                 <option value="3">3 أشهر</option>
                 <option value="6">6 أشهر</option>
-                <option value="12">12 شهراً (سنة)</option>
-                <option value="24">24 شهراً (سنتان)</option>
-                <option value="36">36 شهراً (3 سنوات)</option>
+                <option value="12">سنة واحدة (12 شهراً)</option>
+                <option value="24">سنتان (24 شهراً)</option>
+                <option value="36">3 سنوات (36 شهراً)</option>
+                <option value="60">5 سنوات (60 شهراً)</option>
               </select>
             </div>
             <div>
-              <label style="font-size:0.82rem; font-weight:600; color:#374151;">رقم هاتف الزبون:</label>
-              <input type="tel" id="warEditPhone" class="form-control" style="margin-top:3px;">
+              <label style="font-size: 0.83rem; font-weight: 700; color: #1e293b;">👤 اسم الزبون:</label>
+              <input type="text" id="warEditCustomerName" class="form-control" style="margin-top: 4px;" placeholder="اسم الزبون...">
+            </div>
+            <div>
+              <label style="font-size: 0.83rem; font-weight: 700; color: #1e293b;">📞 رقم هاتف الزبون:</label>
+              <input type="tel" id="warEditPhone" class="form-control" style="margin-top: 4px;" placeholder="05X-XXXXXXX">
+            </div>
+            <div>
+              <label style="font-size: 0.83rem; font-weight: 700; color: #1e293b;">📅 تاريخ الشراء:</label>
+              <input type="date" id="warEditPurchaseDate" class="form-control" style="margin-top: 4px;">
             </div>
             <div style="grid-column: 1/-1;">
-              <label style="font-size:0.82rem; font-weight:600; color:#374151;">عنوان الزبون:</label>
-              <input type="text" id="warEditAddress" class="form-control" style="margin-top:3px;">
+              <label style="font-size: 0.83rem; font-weight: 700; color: #1e293b;">📍 عنوان الزبون:</label>
+              <input type="text" id="warEditAddress" class="form-control" style="margin-top: 4px;" placeholder="المدينة / البلدة / العنوان...">
             </div>
             <div style="grid-column: 1/-1;">
-              <label style="font-size:0.82rem; font-weight:600; color:#374151;">ملاحظات إضافية:</label>
-              <input type="text" id="warEditNotes" class="form-control" style="margin-top:3px;">
+              <label style="font-size: 0.83rem; font-weight: 700; color: #1e293b;">📝 ملاحظات إضافية:</label>
+              <input type="text" id="warEditNotes" class="form-control" style="margin-top: 4px;" placeholder="ملاحظات التسليم أو شروط خاصة...">
             </div>
           </div>
 
-          <!-- Serial numbers per item -->
-          <div style="margin-top:0.75rem;">
-            <div style="font-weight:600; color:#374151; font-size:0.85rem; margin-bottom:0.4rem;">🔢 أرقام السيريال للأصناف (اختياري):</div>
+          <div style="margin-top: 1rem; border-top: 1px solid #bbf7d0; padding-top: 0.75rem;">
+            <div style="font-weight: 700; color: #166534; font-size: 0.85rem; margin-bottom: 0.5rem;">🔢 أرقام السيريال للأصناف المشمولة:</div>
             <div id="warItemsSerialList"></div>
           </div>
 
-          <button onclick="saveWarrantyEdits()" class="btn btn-primary btn-sm" style="margin-top:0.75rem; width:100%;">
-            💾 حفظ التعديلات
-          </button>
+          <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+            <button id="warSaveEditBtn" type="button" onclick="saveWarrantyEdits()" class="btn btn-primary" style="flex: 1; font-weight: 800; padding: 0.75rem;">
+              💾 حفظ التعديلات الآن
+            </button>
+            <button type="button" onclick="toggleWarrantyEditSection()" class="btn btn-secondary" style="font-weight: 700; padding: 0.75rem 1.25rem;">
+              إلغاء التعديل
+            </button>
+          </div>
         </div>
 
-        <!-- Warranty Document Preview -->
-        <div id="warrantyPrintArea" style="background:white; border:2px solid #1e40af; border-radius:10px; padding:1.5rem; font-family: 'Cairo', sans-serif; direction:rtl;">
+        <!-- ورقة الكفالة للمعاينة والطباعة -->
+        <div id="warrantyPrintArea" style="background: white; border: 2.5px solid #1e40af; border-radius: 12px; padding: 1.75rem; font-family: 'Cairo', sans-serif; direction: rtl; box-shadow: 0 4px 15px rgba(0,0,0,0.06);">
           <!-- Header -->
-          <div style="text-align:center; border-bottom:2px solid #1e40af; padding-bottom:1rem; margin-bottom:1rem;">
-            <div style="font-size:1.5rem; font-weight:900; color:#1e40af;" id="warPrintCompany">شركة أبو رامز للأجهزة الكهربائية</div>
-            <div style="font-size:0.9rem; color:#475569;" id="warPrintCompanyPhone"></div>
-            <div style="font-size:1.1rem; font-weight:800; margin-top:0.5rem; letter-spacing:1px; color:#1e40af;">وثيقة كفالة وضمان المنتج</div>
+          <div style="text-align: center; border-bottom: 2.5px solid #1e40af; padding-bottom: 1rem; margin-bottom: 1.25rem;">
+            <div style="font-size: 1.6rem; font-weight: 900; color: #1e40af;" id="warPrintCompany">شركة أبو رامز للأجهزة الكهربائية</div>
+            <div style="font-size: 0.88rem; color: #475569; margin-top: 3px;" id="warPrintCompanyPhone"></div>
+            <div style="font-size: 1.05rem; font-weight: 800; margin-top: 0.6rem; color: #1e40af; letter-spacing: 1px;">— وثيقة كفالة وضمان المنتج —</div>
           </div>
 
           <!-- Warranty Info Grid -->
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem 1rem; margin-bottom:1rem; font-size:0.88rem;">
-            <div><span style="color:#64748b; font-weight:600;">رقم الكفالة:</span> <strong id="warPrintNum" style="color:#1e40af;"></strong></div>
-            <div><span style="color:#64748b; font-weight:600;">رقم الفاتورة:</span> <strong id="warPrintInvoiceNum"></strong></div>
-            <div><span style="color:#64748b; font-weight:600;">اسم الزبون:</span> <strong id="warPrintCustomer"></strong></div>
-            <div><span style="color:#64748b; font-weight:600;">رقم الهاتف:</span> <strong id="warPrintPhone"></strong></div>
-            <div><span style="color:#64748b; font-weight:600;">العنوان:</span> <strong id="warPrintAddress"></strong></div>
-            <div><span style="color:#64748b; font-weight:600;">تاريخ الشراء:</span> <strong id="warPrintPurchaseDate"></strong></div>
-            <div><span style="color:#64748b; font-weight:600;">مدة الكفالة:</span> <strong id="warPrintDuration" style="color:#15803d;"></strong></div>
-            <div><span style="color:#64748b; font-weight:600;">تاريخ الانتهاء:</span> <strong id="warPrintExpiry" style="color:#dc2626;"></strong></div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem 1.5rem; margin-bottom: 1.25rem; font-size: 0.88rem; line-height: 2;">
+            <div><span style="color: #64748b; font-weight: 600;">رقم الكفالة:</span> <strong id="warPrintNum" style="color: #1e40af; font-size: 1rem;"></strong></div>
+            <div><span style="color: #64748b; font-weight: 600;">رقم الفاتورة:</span> <strong id="warPrintInvoiceNum"></strong></div>
+            <div><span style="color: #64748b; font-weight: 600;">اسم الزبون:</span> <strong id="warPrintCustomer"></strong></div>
+            <div><span style="color: #64748b; font-weight: 600;">رقم الهاتف:</span> <strong id="warPrintPhone"></strong></div>
+            <div><span style="color: #64748b; font-weight: 600;">العنوان:</span> <strong id="warPrintAddress"></strong></div>
+            <div><span style="color: #64748b; font-weight: 600;">تاريخ الشراء:</span> <strong id="warPrintPurchaseDate"></strong></div>
+            <div><span style="color: #64748b; font-weight: 600;">مدة الكفالة:</span> <strong id="warPrintDuration" style="color: #15803d; font-size: 0.95rem;"></strong></div>
+            <div><span style="color: #64748b; font-weight: 600;">تاريخ انتهاء الكفالة:</span> <strong id="warPrintExpiry" style="color: #dc2626; font-size: 0.95rem;"></strong></div>
           </div>
 
-          <!-- Products -->
-          <div style="margin-bottom:1rem;">
-            <div style="font-weight:800; color:#1e40af; font-size:0.9rem; margin-bottom:0.5rem; border-bottom:1px solid #e2e8f0; padding-bottom:4px;">📦 الأصناف المشمولة بالكفالة:</div>
-            <table style="width:100%; border-collapse:collapse; font-size:0.84rem;" id="warPrintItemsTable">
+          <!-- Products Table -->
+          <div style="margin-bottom: 1.25rem;">
+            <div style="font-weight: 800; color: #1e40af; font-size: 0.92rem; margin-bottom: 0.5rem; border-bottom: 1.5px solid #cbd5e1; padding-bottom: 5px;">📦 الأصناف المشمولة بالكفالة:</div>
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;" id="warPrintItemsTable">
               <thead>
-                <tr style="background:#eff6ff;">
-                  <th style="text-align:right; padding:5px 8px; border:1px solid #cbd5e1;">#</th>
-                  <th style="text-align:right; padding:5px 8px; border:1px solid #cbd5e1;">اسم الصنف</th>
-                  <th style="text-align:right; padding:5px 8px; border:1px solid #cbd5e1;">الماركة</th>
-                  <th style="text-align:right; padding:5px 8px; border:1px solid #cbd5e1;">الكمية</th>
-                  <th style="text-align:right; padding:5px 8px; border:1px solid #cbd5e1;">السيريال</th>
+                <tr style="background: #eff6ff;">
+                  <th style="text-align: center; padding: 6px 8px; border: 1px solid #cbd5e1; width: 40px;">#</th>
+                  <th style="text-align: right; padding: 6px 8px; border: 1px solid #cbd5e1;">اسم الصنف</th>
+                  <th style="text-align: right; padding: 6px 8px; border: 1px solid #cbd5e1;">الماركة</th>
+                  <th style="text-align: center; padding: 6px 8px; border: 1px solid #cbd5e1; width: 60px;">الكمية</th>
+                  <th style="text-align: right; padding: 6px 8px; border: 1px solid #cbd5e1;">رقم السيريال (Serial No.)</th>
                 </tr>
               </thead>
               <tbody id="warPrintItemsBody"></tbody>
@@ -2436,31 +2521,116 @@
           </div>
 
           <!-- Terms -->
-          <div style="background:#fef9c3; border:1.5px solid #fde68a; border-radius:8px; padding:1rem; margin-bottom:1rem; font-size:0.82rem;">
-            <div style="font-weight:800; color:#92400e; margin-bottom:0.5rem;">⚠️ شروط وأحكام الكفالة:</div>
-            <ul style="margin:0; padding-right:1.2rem; color:#374151; line-height:1.8;" id="warPrintTermsList"></ul>
+          <div style="background: #fef9c3; border: 1.5px solid #fde68a; border-radius: 8px; padding: 1rem; margin-bottom: 1.25rem; font-size: 0.83rem;">
+            <div style="font-weight: 800; color: #92400e; margin-bottom: 0.5rem;">⚠️ شروط وأحكام الكفالة:</div>
+            <ul style="margin: 0; padding-right: 1.5rem; color: #374151; line-height: 2;" id="warPrintTermsList"></ul>
           </div>
 
           <!-- Guarantee Statement -->
-          <div style="background:#f0fdf4; border:2px solid #86efac; border-radius:8px; padding:1rem; font-size:0.85rem; color:#14532d;">
-            <div style="font-weight:800; font-size:0.95rem; text-align:center; margin-bottom:0.5rem; color:#15803d;">✅ ضمان الشركة</div>
-            <div style="text-align:center; line-height:2;">
-              هذا المنتج مضمون من كل عيب مصنعي<br>
-              الإصلاحات التي تتم في إطار مدة الكفالة تكون <strong>مجاناً</strong><br>
-              <strong>القطع واليد العاملة بدون مقابل</strong>
-            </div>
+          <div style="background: #f0fdf4; border: 2px solid #86efac; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; text-align: center; font-size: 0.88rem; color: #14532d; line-height: 2.2;">
+            <div style="font-weight: 800; color: #15803d; font-size: 0.95rem; margin-bottom: 0.25rem;">✅ ضمان الشركة</div>
+            هذا المنتج مضمون من كل عيب مصنعي<br>
+            الإصلاحات التي تتم في إطار مدة الكفالة تكون <strong>مجاناً</strong><br>
+            <strong>القطع واليد العاملة بدون مقابل</strong>
           </div>
 
-          <!-- Signature -->
-          <div style="margin-top:1.5rem; display:flex; justify-content:space-between; font-size:0.82rem; color:#475569;">
-            <div style="text-align:center;">
-              <div style="border-top:1px solid #94a3b8; padding-top:6px; margin-top:30px; min-width:120px;">توقيع الزبون</div>
+          <!-- Signatures -->
+          <div style="display: flex; justify-content: space-between; font-size: 0.82rem; color: #475569; padding-top: 1rem;">
+            <div style="text-align: center;">
+              <div style="border-top: 1px solid #94a3b8; padding-top: 6px; margin-top: 36px; min-width: 140px;">توقيع الزبون المستلم</div>
             </div>
-            <div style="text-align:center;">
-              <div style="font-weight:700; color:#1e40af;" id="warPrintCompanyStamp">ختم ومهر الشركة</div>
-              <div style="border-top:1px solid #94a3b8; padding-top:6px; margin-top:30px; min-width:120px;">توقيع المسؤول</div>
+            <div style="text-align: center;">
+              <div style="font-weight: 800; color: #1e40af;" id="warPrintCompanyStamp">ختم ومهر الشركة المعتمد</div>
+              <div style="border-top: 1px solid #94a3b8; padding-top: 6px; margin-top: 36px; min-width: 140px;">توقيع المسؤول</div>
             </div>
           </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- Modal: إنشاء كفالة يدوياً (بدون فاتورة)                        -->
+  <!-- ============================================================ -->
+  <div class="modal-backdrop" id="createWarrantyModal" style="z-index: 9998;" onclick="if(event.target===this)closeCreateWarrantyModal()">
+    <div class="modal-card" style="max-width: 620px; width: 95%; max-height: 90vh; overflow-y: auto; padding: 0; border-radius: 16px; box-shadow: 0 25px 70px rgba(0,0,0,0.35);" onclick="event.stopPropagation()">
+      <div style="padding: 1.2rem 1.5rem; background: linear-gradient(135deg, #16a34a, #15803d); color: white; display: flex; justify-content: space-between; align-items: center; border-radius: 16px 16px 0 0;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 1.6rem;">📋</span>
+          <div>
+            <div style="font-size: 1.1rem; font-weight: 800;">إنشاء كفالة جديدة يدوياً</div>
+            <div style="font-size: 0.8rem; opacity: 0.9;">إصدار وثيقة ضمان وضمانة مستقلة بدون فاتورة</div>
+          </div>
+        </div>
+        <button type="button" onclick="closeCreateWarrantyModal()" style="background: rgba(255,255,255,0.18); border: none; color: white; border-radius: 8px; padding: 7px 12px; cursor: pointer; font-size: 1rem;">✕</button>
+      </div>
+
+      <div style="padding: 1.5rem;">
+        <!-- بيانات الزبون -->
+        <div style="background: #faf5ff; border: 1.5px solid #c4b5fd; border-radius: 10px; padding: 1rem; margin-bottom: 1rem;">
+          <div style="font-weight: 800; color: #6d28d9; margin-bottom: 0.85rem; font-size: 0.92rem;">👤 بيانات الزبون</div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+            <div style="grid-column: 1/-1;">
+              <label style="font-size: 0.82rem; font-weight: 700; color: #374151;">اسم الزبون الكامل *</label>
+              <input type="text" id="cwCustomerName" class="form-control" style="margin-top: 4px;" placeholder="أدخل اسم الزبون...">
+            </div>
+            <div>
+              <label style="font-size: 0.82rem; font-weight: 700; color: #374151;">رقم الهاتف</label>
+              <input type="tel" id="cwCustomerPhone" class="form-control" style="margin-top: 4px;" placeholder="05X-XXXXXXX">
+            </div>
+            <div>
+              <label style="font-size: 0.82rem; font-weight: 700; color: #374151;">تاريخ الشراء / التركيب</label>
+              <input type="date" id="cwPurchaseDate" class="form-control" style="margin-top: 4px;">
+            </div>
+            <div style="grid-column: 1/-1;">
+              <label style="font-size: 0.82rem; font-weight: 700; color: #374151;">العنوان / المنطقة</label>
+              <input type="text" id="cwCustomerAddress" class="form-control" style="margin-top: 4px;" placeholder="المدينة / البلدة / الحي...">
+            </div>
+          </div>
+        </div>
+
+        <!-- مدة الكفالة -->
+        <div style="background: #eff6ff; border: 1.5px solid #93c5fd; border-radius: 10px; padding: 1rem; margin-bottom: 1rem;">
+          <div style="font-weight: 800; color: #1d4ed8; margin-bottom: 0.6rem; font-size: 0.92rem;">🗓️ مدة الكفالة المطلوبة</div>
+          <select id="cwDuration" class="form-control" style="font-weight: 700;">
+            <option value="3">3 أشهر</option>
+            <option value="6">6 أشهر</option>
+            <option value="12" selected>سنة واحدة (12 شهراً) — الافتراضي</option>
+            <option value="24">سنتان (24 شهراً)</option>
+            <option value="36">3 سنوات (36 شهراً)</option>
+            <option value="60">5 سنوات (60 شهراً)</option>
+          </select>
+        </div>
+
+        <!-- الأصناف المشمولة -->
+        <div style="background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 10px; padding: 1rem; margin-bottom: 1rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+            <div style="font-weight: 800; color: #15803d; font-size: 0.92rem;">📦 الأصناف المشمولة بالكفالة</div>
+            <button type="button" onclick="addWarrantyItem()" style="background: #16a34a; color: white; border: none; border-radius: 7px; padding: 5px 12px; cursor: pointer; font-size: 0.82rem; font-weight: 700;">
+              + إضافة صنف
+            </button>
+          </div>
+          <div style="font-size: 0.78rem; color: #6b7280; margin-bottom: 0.5rem; display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 6px; font-weight: 600; padding: 0 4px;">
+            <span>اسم الصنف *</span><span>الماركة</span><span>رقم السيريال</span><span></span>
+          </div>
+          <div id="cwItemsList"></div>
+        </div>
+
+        <!-- ملاحظات -->
+        <div style="margin-bottom: 1.25rem;">
+          <label style="font-size: 0.82rem; font-weight: 700; color: #374151;">📝 ملاحظات الكفالة (اختياري)</label>
+          <input type="text" id="cwNotes" class="form-control" style="margin-top: 4px;" placeholder="تسليم، تركيب معتمد، كفالة شاملة القطع...">
+        </div>
+
+        <!-- أزرار -->
+        <div style="display: flex; gap: 0.75rem;">
+          <button id="cwSubmitBtn" type="button" onclick="submitCreateWarranty()" class="btn btn-primary" style="flex: 1; font-weight: 800; padding: 0.85rem; background: linear-gradient(135deg, #16a34a, #15803d); border: none;">
+            💾 حفظ وإنشاء الكفالة
+          </button>
+          <button type="button" onclick="closeCreateWarrantyModal()" class="btn" style="background: #f1f5f9; color: #374151; border: none; border-radius: 8px; padding: 0.85rem 1.25rem; font-weight: 700; cursor: pointer;">
+            إلغاء
+          </button>
         </div>
       </div>
     </div>

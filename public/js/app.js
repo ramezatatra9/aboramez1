@@ -1450,9 +1450,171 @@ async function loadProducts() {
       renderCatalog();
       updateCategoryChips();
       updateInvoiceDropdown();
+      populateSystemBrandsDatalist();
     }
   } catch (err) {
     console.error('فشل تحميل المنتجات:', err);
+  }
+}
+
+// -------------------------------------------------------------
+// مزامنة الماركات في النظام وتوفيرها فوراً في القوائم الذكية
+// -------------------------------------------------------------
+function populateSystemBrandsDatalist() {
+  const datalist = document.getElementById('systemBrandsList');
+  if (!datalist) return;
+
+  const brandsSet = new Set();
+
+  if (Array.isArray(POPULAR_BRANDS)) {
+    POPULAR_BRANDS.forEach(b => { if (b && b !== 'all') brandsSet.add(b); });
+  }
+
+  if (typeof BRAND_DETECT_RULES !== 'undefined' && Array.isArray(BRAND_DETECT_RULES)) {
+    BRAND_DETECT_RULES.forEach(r => {
+      if (r.brand && r.brand !== 'أخرى') brandsSet.add(r.brand);
+      if (r.brandAr && r.brandAr !== 'أخرى / عام') brandsSet.add(r.brandAr);
+    });
+  }
+
+  if (Array.isArray(state.products)) {
+    state.products.forEach(p => {
+      if (p.brand && p.brand !== 'أخرى') brandsSet.add(p.brand);
+      if (p.brandAr && p.brandAr !== 'أخرى / عام') brandsSet.add(p.brandAr);
+    });
+  }
+
+  const sorted = Array.from(brandsSet).sort((a, b) => a.localeCompare(b, 'ar'));
+  datalist.innerHTML = sorted.map(b => `<option value="${escapeHtml(b)}"></option>`).join('');
+}
+
+// -------------------------------------------------------------
+// الإدخال السريع لصنف وماركة جديدة داخل الفاتورة والمخزن
+// -------------------------------------------------------------
+function handleQnpNameInput(value) {
+  const brandInput = document.getElementById('qnpBrand');
+  if (brandInput && !brandInput.value.trim() && typeof detectBrandFromName === 'function') {
+    const detected = detectBrandFromName(value);
+    if (detected) {
+      brandInput.value = detected.brand;
+    }
+  }
+}
+
+function handleQnpCostInput(value) {
+  const cost = parseFloat(value);
+  const sellInput = document.getElementById('qnpSell');
+  if (!isNaN(cost) && cost > 0 && sellInput && (!sellInput.value || sellInput.dataset.autoFilled)) {
+    sellInput.value = Math.round(cost * 1.15);
+    sellInput.dataset.autoFilled = 'true';
+  }
+}
+
+async function submitQuickNewProductForInvoice() {
+  const nameInput = document.getElementById('qnpName');
+  const brandInput = document.getElementById('qnpBrand');
+  const costInput = document.getElementById('qnpCost');
+  const sellInput = document.getElementById('qnpSell');
+  const qtyInput = document.getElementById('qnpQty');
+
+  if (!nameInput || !brandInput || !costInput) return;
+
+  const name = nameInput.value.trim();
+  const brand = brandInput.value.trim() || 'أخرى';
+  const costPrice = parseFloat(costInput.value);
+  let sellPrice = parseFloat(sellInput?.value);
+  const qty = parseInt(qtyInput?.value) || 1;
+
+  if (!name) {
+    showToast('يرجى كتابة اسم الصنف الجديد', 'error');
+    nameInput.focus();
+    return;
+  }
+
+  if (isNaN(costPrice) || costPrice < 0) {
+    showToast('يرجى تحديد سعر التكلفة (الشراء)', 'error');
+    costInput.focus();
+    return;
+  }
+
+  if (isNaN(sellPrice) || sellPrice <= 0) {
+    sellPrice = costPrice > 0 ? Math.round(costPrice * 1.15) : 0;
+  }
+
+  const btn = document.getElementById('btnSubmitQuickProduct');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span>⏳</span> <span>جاري الحفظ...</span>';
+  }
+
+  try {
+    const code = 'PRD-' + Math.floor(1000 + Math.random() * 9000);
+    const isPurchase = state.invoiceType === 'purchase';
+
+    const res = await fetch('/api/products', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        code,
+        name,
+        brand,
+        brandAr: brand,
+        category: isPurchase ? 'مشتريات وتوريد' : 'أجهزة كهربائية وأدوات',
+        costPrice,
+        sellPrice,
+        stock: isPurchase ? 0 : qty, // في المشتريات يزيد المخزون تلقائياً عند حفظ الفاتورة
+        image: '',
+        description: `صنف مضاف سريعاً - ماركة: ${brand}`
+      })
+    });
+
+    const data = await res.json();
+    if (data.success && data.product) {
+      const newProd = data.product;
+
+      // 1. تحديث قائمة المنتجات وشبكات الماركات فوراً
+      await loadProducts();
+
+      // 2. إدراج الصنف مباشرة في سلة الفاتورة الحالية
+      const existing = state.cart.find(i => i.productId === newProd.id);
+      if (existing) {
+        existing.quantity += qty;
+      } else {
+        state.cart.push({
+          productId: newProd.id,
+          productName: newProd.name,
+          productImage: newProd.image || '',
+          costPrice: parseFloat(newProd.costPrice) || 0,
+          sellPrice: parseFloat(newProd.sellPrice) || 0,
+          quantity: qty
+        });
+      }
+
+      updateCartUI();
+      updateFloatingCartUI();
+
+      // 3. إعادة تعيين الحقول وإبقاء التركيز لإدخال الصنف التالي مباشرة
+      nameInput.value = '';
+      costInput.value = '';
+      if (sellInput) {
+        sellInput.value = '';
+        delete sellInput.dataset.autoFilled;
+      }
+      if (qtyInput) qtyInput.value = '1';
+
+      showToast(`تم حفظ "${newProd.name}" (ماركة ${brand}) وإضافته للفاتورة!`, 'success');
+      nameInput.focus();
+    } else {
+      showToast(data.error || 'فشل حفظ الصنف الجديد', 'error');
+    }
+  } catch (err) {
+    console.error('Error adding quick product:', err);
+    showToast('حدث خطأ أثناء حفظ الصنف', 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<span>➕</span> <span>إضافة وحفظ (Enter)</span>';
+    }
   }
 }
 
@@ -2255,6 +2417,7 @@ function handleProductNameInput(value) {
   const nameEl = document.getElementById('brandDetectName');
   const brandField = document.getElementById('prodDetectedBrand');
   const brandArField = document.getElementById('prodDetectedBrandAr');
+  const brandInput = document.getElementById('prodBrandInput');
 
   const detected = detectBrandFromName(value);
   if (detected) {
@@ -2263,6 +2426,9 @@ function handleProductNameInput(value) {
     badge.style.display = 'flex';
     brandField.value = detected.brand;
     brandArField.value = detected.brandAr;
+    if (brandInput && !brandInput.value.trim()) {
+      brandInput.value = detected.brand;
+    }
   } else {
     badge.style.display = 'none';
     brandField.value = '';
@@ -2274,6 +2440,8 @@ function clearDetectedBrand() {
   document.getElementById('brandDetectBadge').style.display = 'none';
   document.getElementById('prodDetectedBrand').value = '';
   document.getElementById('prodDetectedBrandAr').value = '';
+  const brandInput = document.getElementById('prodBrandInput');
+  if (brandInput) brandInput.value = '';
 }
 
 function openAddProductModal() {
@@ -2281,6 +2449,8 @@ function openAddProductModal() {
   document.getElementById('editProductId').value = '';
   document.getElementById('prodCode').value = 'PRD-' + Math.floor(100 + Math.random() * 900);
   document.getElementById('prodName').value = '';
+  const brandInput = document.getElementById('prodBrandInput');
+  if (brandInput) brandInput.value = '';
   document.getElementById('prodCategory').value = '';
   document.getElementById('prodCostPrice').value = '';
   document.getElementById('prodSellPrice').value = '';
@@ -2302,6 +2472,8 @@ function openEditProductModal(id) {
   document.getElementById('editProductId').value = prod.id;
   document.getElementById('prodCode').value = prod.code || '';
   document.getElementById('prodName').value = prod.name || '';
+  const brandInput = document.getElementById('prodBrandInput');
+  if (brandInput) brandInput.value = prod.brand || '';
   document.getElementById('prodCategory').value = prod.category || '';
   document.getElementById('prodCostPrice').value = prod.costPrice || '';
   document.getElementById('prodSellPrice').value = prod.sellPrice || '';
@@ -2392,9 +2564,12 @@ async function saveProductFromModal() {
     return;
   }
 
-  // قراءة الماركة المكتشفة تلقائياً
-  const detectedBrand = document.getElementById('prodDetectedBrand').value.trim();
-  const detectedBrandAr = document.getElementById('prodDetectedBrandAr').value.trim();
+  // قراءة الماركة المكتوبة أو المكتشفة تلقائياً
+  const brandInputVal = document.getElementById('prodBrandInput')?.value?.trim();
+  const detectedBrand = document.getElementById('prodDetectedBrand')?.value?.trim();
+  const detectedBrandAr = document.getElementById('prodDetectedBrandAr')?.value?.trim();
+  const finalBrand = brandInputVal || detectedBrand || 'أخرى';
+  const finalBrandAr = (finalBrand === detectedBrand && detectedBrandAr) ? detectedBrandAr : finalBrand;
 
   try {
     const res = await fetch('/api/products', {
@@ -2405,8 +2580,8 @@ async function saveProductFromModal() {
         code,
         name,
         category,
-        brand: detectedBrand || 'أخرى',
-        brandAr: detectedBrandAr || 'أخرى / عام',
+        brand: finalBrand,
+        brandAr: finalBrandAr,
         costPrice,
         sellPrice,
         stock,
@@ -3258,8 +3433,14 @@ function renderInvoicesTable() {
   tbody.innerHTML = filtered.map(inv => {
     const dateStr = formatAppDateTime(inv.createdAt);
 
+    const isQuotation = !!inv.isQuotation || inv.invoiceType === 'quotation';
+    const isSales = !isQuotation && (inv.invoiceType === 'sales');
+    const isPurchase = inv.invoiceType === 'purchase';
+
     const isInstallments = inv.paymentMethod === 'installments';
-    const payBadge = isInstallments ? `
+    const payBadge = isQuotation ? `
+      <span class="badge" style="background:#7c3aed;color:white;font-weight:700;">📄 عرض سعر (تقديري)</span>
+    ` : isInstallments ? `
       <span class="badge badge-warning" title="الدفعة الأولى: ${inv.installmentDetails?.downPayment} | المتبقي: ${inv.installmentDetails?.remainingAmount} (${inv.installmentDetails?.duration})">
         ⏳ أقساط (${inv.installmentDetails?.duration || 'مجدولة'})
       </span>
@@ -3272,9 +3453,16 @@ function renderInvoicesTable() {
       <span class="badge badge-danger" title="${inv.telegramStatus?.error || 'لم يتم الإرسال'}">⚠️ لم يرسل</span>
     `;
 
+    let numBadge = '';
+    if (isQuotation) numBadge = '<div style="font-size:0.72rem;color:#7c3aed;font-weight:700;">عرض سعر</div>';
+    else if (isPurchase) numBadge = '<div style="font-size:0.72rem;color:#059669;font-weight:700;">مشتريات</div>';
+
     return `
-      <tr>
-        <td><strong style="color: var(--primary-dark);">#${inv.invoiceNumber || inv.id}</strong></td>
+      <tr style="${isQuotation ? 'background:#faf5ff;' : ''}">
+        <td>
+          <strong style="color: ${isQuotation ? '#7c3aed' : 'var(--primary-dark)'};">#${inv.invoiceNumber || inv.id}</strong>
+          ${numBadge}
+        </td>
         <td style="font-size: 0.82rem; color: var(--text-muted);">${dateStr}</td>
         <td><strong>${inv.employeeName || 'غير محدد'}</strong></td>
         <td>
@@ -3283,13 +3471,23 @@ function renderInvoicesTable() {
         </td>
         <td>${payBadge}</td>
         <td style="font-weight: 800;">${(inv.summary?.totalAmount || 0).toLocaleString('en-US')} ${currency}</td>
-        <td style="color: var(--success-dark); font-weight: 800;">+${(inv.summary?.totalProfit || 0).toLocaleString('en-US')} ${currency}</td>
+        <td style="color: ${isQuotation ? '#7c3aed' : 'var(--success-dark)'}; font-weight: 800;">${isQuotation ? '<span style="font-size:0.8rem;color:#7c3aed;">تقديري</span>' : '+' + (inv.summary?.totalProfit || 0).toLocaleString('en-US') + ' ' + currency}</td>
         <td>${tgBadge}</td>
         <td>
-          <div style="display: flex; gap: 0.35rem;">
+          <div style="display: flex; gap: 0.35rem; align-items: center; flex-wrap: wrap;">
             <button class="btn btn-sm btn-primary" onclick="openInvoiceViewModalById('${inv.id}')" title="معاينة وطباعة">
               🖨️ عرض
             </button>
+            ${isQuotation ? `
+              <button class="btn btn-sm" style="background:#7c3aed;color:white;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:0.78rem;font-weight:700;" onclick="convertQuotationToSales('${inv.id}')" title="تحويل العرض إلى مبيعات فعلية وخصم المخزون">
+                🔄 اعتماد ومبيعات
+              </button>
+            ` : ''}
+            ${isSales ? `
+              <button class="btn btn-sm" style="background:#1d4ed8;color:white;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:0.78rem;font-weight:700;" onclick="openWarrantyByInvoiceId('${inv.id}')" title="عرض وطباعة وثيقة الكفالة">
+                🛡️ كفالة
+              </button>
+            ` : ''}
             ${!tgSent ? `
               <button class="btn btn-sm btn-telegram" onclick="resendInvoiceTelegram('${inv.id}')" title="إعادة الإرسال لتيليجرام">
                 ✈️
@@ -3313,6 +3511,17 @@ function openInvoiceViewModalById(id) {
 function openInvoiceViewModal(invoice) {
   state.currentViewingInvoice = invoice;
   setInvoicePrintMode('customer'); // الافتراضي نسخة الزبون
+  const btnWar = document.getElementById('btnModalInvoiceWarranty');
+  const btnConv = document.getElementById('btnModalInvoiceConvertToSales');
+  const isQuotation = !!invoice.isQuotation || invoice.invoiceType === 'quotation';
+  const isSales = !isQuotation && (invoice.invoiceType === 'sales');
+
+  if (btnWar) {
+    btnWar.style.display = isSales ? 'inline-flex' : 'none';
+  }
+  if (btnConv) {
+    btnConv.style.display = isQuotation ? 'inline-flex' : 'none';
+  }
   document.getElementById('invoiceViewModal').classList.add('active');
 }
 
@@ -3350,17 +3559,19 @@ function renderPrintableInvoice() {
   const isInstallments = inv.paymentMethod === 'installments';
   const inst = inv.installmentDetails || {};
 
+  const isQuotation = !!inv.isQuotation || inv.invoiceType === 'quotation';
+
   container.innerHTML = `
     <div class="inv-header">
       <div>
         <div class="inv-company-title">${state.settings.companyName || 'شركة المبيعات'}</div>
         <div class="inv-company-sub">${state.settings.companyAddress || ''} | هاتف: ${state.settings.companyPhone || ''}</div>
-        <div style="font-size: 0.8rem; font-weight: 700; color: ${isInternal ? 'var(--primary)' : '#059669'}; margin-top: 0.25rem;">
-          ${isInternal ? '🔒 نسخة الإدارة والمحاسبة (تتضمن رأس المال والأرباح)' : '📄 فاتورة مبيعات رسمية - نسخة الزبون'}
+        <div style="font-size: 0.8rem; font-weight: 700; color: ${isInternal ? 'var(--primary)' : (isQuotation ? '#7c3aed' : '#059669')}; margin-top: 0.25rem;">
+          ${isInternal ? '🔒 نسخة الإدارة والمحاسبة (تتضمن رأس المال والأرباح)' : (isQuotation ? '📄 عرض سعر تقديري رسمي (Quotation) — الأصناف للعرض فقط وغير مخصومة من المخزون' : '📄 فاتورة مبيعات رسمية - نسخة الزبون')}
         </div>
       </div>
-      <div class="inv-number-badge">
-        <div class="inv-number-title">فاتورة #${inv.invoiceNumber || inv.id}</div>
+      <div class="inv-number-badge" style="${isQuotation ? 'border-color:#c4b5fd; background:#faf5ff;' : ''}">
+        <div class="inv-number-title" style="${isQuotation ? 'color:#7c3aed;' : ''}">${isQuotation ? 'عرض سعر' : 'فاتورة'} #${inv.invoiceNumber || inv.id}</div>
         <div style="font-size: 0.85rem; color: var(--text-muted);">${dateStr}</div>
       </div>
     </div>
@@ -4833,6 +5044,8 @@ function setInvoiceType(type) {
     if (btnSubmitText) btnSubmitText.textContent = 'إنشاء فاتورة مشتريات وتوريد البضاعة للمخزن';
     if (btnSubmitHint) btnSubmitHint.textContent = '✈️ سيتم زيادة كميات المخزون فوراً بالبضاعة المشتراة وإرسال إشعار التوريد لتيليجرام.';
     if (paySelector) paySelector.style.display = 'none';
+    const qnpTitle = document.getElementById('quickNewProductTitle');
+    if (qnpTitle) qnpTitle.textContent = '📥 إدخال صنف وماركة جديدة لفاتورة المشتريات والمخزن';
   } else {
     if (btnPurchase) btnPurchase.classList.remove('active');
     if (btnSales) btnSales.classList.add('active');
@@ -4854,6 +5067,8 @@ function setInvoiceType(type) {
     if (btnSubmitText) btnSubmitText.textContent = 'إنشاء الفاتورة وإرسال لتيليجرام';
     if (btnSubmitHint) btnSubmitHint.textContent = '✈️ سيتم إرسال كافة تفاصيل الفاتورة، المنتجات، الموظف، وتفاصيل الحساب إلى حساب تيليجرام فوراً.';
     if (paySelector) paySelector.style.display = 'block';
+    const qnpTitle = document.getElementById('quickNewProductTitle');
+    if (qnpTitle) qnpTitle.textContent = '⚡ إدخال صنف وماركة جديدة مباشرة للفاتورة والمخزن معاً';
   }
 
   updateCartUI();

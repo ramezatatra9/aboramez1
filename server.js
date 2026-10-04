@@ -87,7 +87,7 @@ app.get('/api/products', (req, res) => {
 // إضافة أو تعديل منتج
 app.post('/api/products', (req, res) => {
   try {
-    const { id, code, name, category, costPrice, sellPrice, stock, image, description } = req.body;
+    const { id, code, name, brand, brandAr, mainCategory, category, costPrice, sellPrice, stock, image, description } = req.body;
     if (!name || name.trim() === '') {
       return res.status(400).json({ success: false, error: 'اسم المنتج مطلوب' });
     }
@@ -96,6 +96,9 @@ app.post('/api/products', (req, res) => {
       id,
       code,
       name: name.trim(),
+      brand: (brand && brand.trim()) || 'أخرى',
+      brandAr: (brandAr && brandAr.trim()) || (brand && brand.trim()) || 'أخرى / عام',
+      mainCategory: mainCategory || 'أجهزة كهربائية كبيرة',
       category: category || 'عام',
       costPrice: parseFloat(costPrice) || 0,
       sellPrice: parseFloat(sellPrice) || 0,
@@ -164,11 +167,14 @@ app.get('/api/invoices/:id', (req, res) => {
 app.post('/api/invoices', async (req, res) => {
   try {
     const {
-      invoiceType, // 'sales' or 'purchase'
+      invoiceType, // 'sales' or 'purchase' or 'quotation'
+      isQuotation,
       employeeName,
       customerName,
       customerPhone,
+      customerAddress,
       customerId,
+      warrantyMonths,
       notes,
       items,
       paymentMethod,
@@ -176,7 +182,8 @@ app.post('/api/invoices', async (req, res) => {
       customTotalOverride  // سعر معدّل يدوياً (اختياري)
     } = req.body;
 
-    const isPurchase = invoiceType === 'purchase';
+    const isQuotationMode = (isQuotation === true || invoiceType === 'quotation');
+    const isPurchase = !isQuotationMode && invoiceType === 'purchase';
 
     if (!customerName || customerName.trim() === '') {
       return res.status(400).json({ success: false, error: isPurchase ? 'اسم المورد مطلوب' : 'اسم الزبون مطلوب' });
@@ -238,9 +245,9 @@ app.post('/api/invoices', async (req, res) => {
       ? parseFloat(((totalProfit / effectiveTotalAmount) * 100).toFixed(1))
       : 0;
 
-    // معالجة الأقساط (لفواتير المبيعات)
+    // معالجة الأقساط (لفواتير المبيعات الفعلية فقط)
     let validatedInstallments = null;
-    if (!isPurchase && paymentMethod === 'installments') {
+    if (!isPurchase && !isQuotationMode && paymentMethod === 'installments') {
       const downPayment = parseFloat(installmentDetails?.downPayment) || 0;
       const remainingAmount = Math.max(0, effectiveTotalAmount - downPayment);
       validatedInstallments = {
@@ -253,11 +260,14 @@ app.post('/api/invoices', async (req, res) => {
 
     // حفظ الفاتورة
     const newInvoice = dataStore.createInvoice({
-      invoiceType: isPurchase ? 'purchase' : 'sales',
+      invoiceType: isQuotationMode ? 'quotation' : (isPurchase ? 'purchase' : 'sales'),
+      isQuotation: isQuotationMode,
       employeeName,
       customerName,
       customerPhone,
+      customerAddress,
       customerId,
+      warrantyMonths: isQuotationMode ? 0 : (parseInt(warrantyMonths) || 12),
       notes,
       items: validatedItems,
       summary: {
@@ -269,25 +279,28 @@ app.post('/api/invoices', async (req, res) => {
         profitMarginPercentage,
         customPriceApplied: !!customTotalOverride
       },
-      paymentMethod: (!isPurchase && paymentMethod === 'installments') ? 'installments' : 'cash',
+      paymentMethod: (!isPurchase && !isQuotationMode && paymentMethod === 'installments') ? 'installments' : 'cash',
       installmentDetails: validatedInstallments
     });
 
     // تحديث المخزون:
     // إذا كانت فاتورة مشتريات -> زيادة المخزون
-    // إذا كانت فاتورة مبيعات -> خصم المخزون
+    // إذا كانت فاتورة مبيعات فعلية -> خصم المخزون
+    // إذا كانت عرض سعر (فاتورة تقديرية/وهمية) -> لا يتم تعديل المخزون مطلقاً!
     let updatedStockProducts = [];
-    if (isPurchase) {
+    if (isQuotationMode) {
+      updatedStockProducts = [];
+    } else if (isPurchase) {
       updatedStockProducts = dataStore.addStockForPurchaseInvoice(validatedItems, employeeName);
     } else {
       updatedStockProducts = dataStore.deductStockForInvoice(validatedItems, employeeName);
     }
 
-    // إرسال إشعار تيليجرام فوراً
+    // إرسال إشعار تيليجرام فوراً (لفواتير المبيعات والتوريد الفعلية فقط)
     const settings = dataStore.getSettings();
     let telegramResult = { ok: false, error: 'غير مهيأ' };
 
-    if (settings.telegramBotToken && settings.telegramChatId) {
+    if (!isQuotationMode && settings.telegramBotToken && settings.telegramChatId) {
       try {
         if (isPurchase) {
           telegramResult = await telegramService.sendPurchaseInvoiceNotification(newInvoice, settings);
@@ -390,6 +403,21 @@ app.get('/api/warranties/:id', (req, res) => {
     if (!warranty) return res.status(404).json({ success: false, error: 'الكفالة غير موجودة' });
     res.json({ success: true, warranty });
   } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// إنشاء كفالة يدوياً (بدون فاتورة)
+app.post('/api/warranties/manual', (req, res) => {
+  try {
+    const { customerName } = req.body;
+    if (!customerName || !customerName.trim()) {
+      return res.status(400).json({ success: false, error: 'اسم الزبون مطلوب' });
+    }
+    const warranty = dataStore.createManualWarranty(req.body);
+    res.json({ success: true, warranty });
+  } catch (err) {
+    console.error('Manual warranty error:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });

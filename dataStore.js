@@ -786,18 +786,96 @@ const dataStore = {
     return warranty;
   },
 
+  createManualWarranty(data) {
+    const warranties = this.getWarranties();
+    const durationMonths = parseInt(data.durationMonths) || 12;
+    const nextNum = warranties.length > 0
+      ? Math.max(...warranties.map(w => w.warrantyNumber || 5000)) + 1
+      : 5001;
+
+    const purchaseDate = data.purchaseDate ? new Date(data.purchaseDate).toISOString() : new Date().toISOString();
+    const expiryDate = calculateExpiryDate(purchaseDate, durationMonths);
+    const settings = this.getSettings();
+
+    let durationText = durationMonths + ' شهراً';
+    if (durationMonths === 12) durationText = 'سنة واحدة (12 شهراً)';
+    else if (durationMonths === 24) durationText = 'سنتان (24 شهراً)';
+    else if (durationMonths === 36) durationText = '3 سنوات (36 شهراً)';
+    else if (durationMonths === 6) durationText = 'ستة أشهر';
+    else if (durationMonths === 3) durationText = 'ثلاثة أشهر';
+
+    const warranty = {
+      id: 'WAR-' + nextNum,
+      warrantyNumber: nextNum,
+      invoiceId: null,
+      invoiceNumber: null,
+      createdAt: new Date().toISOString(),
+      purchaseDate,
+      durationMonths,
+      durationText,
+      expiryDate,
+      customerName: (data.customerName || '').trim(),
+      customerId: data.customerId || null,
+      customerSystemNumber: data.customerSystemNumber || '',
+      customerPhone: (data.customerPhone || '').trim(),
+      customerAddress: (data.customerAddress || '').trim(),
+      items: (data.items || []).map(function(item) {
+        return {
+          productId: item.productId || '',
+          productName: item.productName || '',
+          brand: item.brand || '',
+          code: item.code || '',
+          quantity: parseInt(item.quantity) || 1,
+          serialNumber: item.serialNumber || '',
+          notes: item.notes || ''
+        };
+      }),
+      terms: [
+        'الرجاء قراءة الكفالة وكتيب التعليمات قبل الاستخدام.',
+        'الكفالة لا تشمل الكسر وسوء الاستخدام للمنتج.',
+        'هذا الضمان لا يغطي الفساد الذي يتسبب به المنتج من خلال النقل او التركيب والتشغيل بطريقة غير مطابقة لدليل الاستعمال.',
+        'يلغى الضمان في حال تم تدخل اي مصلح خارجي بالمنتج وليس من طرف شركة ابو رامز للاجهزة الكهربائية.',
+        'هذا المنتج مضمون من كل عيب مصنعي.',
+        'الاصلاحات التي تتم في اطار مدة الكفالة تكون مجانا.',
+        'القطع واليد العاملة بدون مقابل.'
+      ],
+      status: 'active',
+      companyName: settings.companyName || 'شركة أبو رامز للأجهزة الكهربائية',
+      companyPhone: settings.companyPhone || '059-1234567',
+      companyAddress: settings.companyAddress || '',
+      notes: (data.notes || '').trim(),
+      manual: true
+    };
+
+    warranties.unshift(warranty);
+    writeJson(WARRANTIES_FILE, warranties);
+    syncWarrantyToSupabase(warranty);
+    return warranty;
+  },
+
   updateWarranty(id, updates) {
     const warranties = this.getWarranties();
-    const idx = warranties.findIndex(w => w.id === id);
+    const idx = warranties.findIndex(w => w.id === id || String(w.warrantyNumber) === String(id));
     if (idx === -1) return null;
 
-    if (updates.durationMonths && parseInt(updates.durationMonths) !== warranties[idx].durationMonths) {
-      const months = parseInt(updates.durationMonths);
+    if (updates.purchaseDate) {
+      warranties[idx].purchaseDate = new Date(updates.purchaseDate).toISOString();
+    }
+
+    if (updates.durationMonths !== undefined) {
+      const months = parseInt(updates.durationMonths) || 12;
       warranties[idx].durationMonths = months;
+      let durationText = months + ' شهراً';
+      if (months === 12) durationText = 'سنة واحدة (12 شهراً)';
+      else if (months === 24) durationText = 'سنتان (24 شهراً)';
+      else if (months === 36) durationText = '3 سنوات (36 شهراً)';
+      else if (months === 6) durationText = 'ستة أشهر';
+      else if (months === 3) durationText = 'ثلاثة أشهر';
+      warranties[idx].durationText = durationText;
       warranties[idx].expiryDate = calculateExpiryDate(warranties[idx].purchaseDate, months);
     }
 
-    const allowed = ['customerAddress', 'customerPhone', 'notes', 'status', 'durationText'];
+    const allowed = ['customerName', 'customerAddress', 'customerPhone', 'notes', 'status', 'durationText'];
     allowed.forEach(function(k) {
       if (updates[k] !== undefined) warranties[idx][k] = updates[k];
     });
@@ -807,6 +885,8 @@ const dataStore = {
         if (warranties[idx].items[i]) {
           if (upd.serialNumber !== undefined) warranties[idx].items[i].serialNumber = upd.serialNumber;
           if (upd.notes !== undefined) warranties[idx].items[i].notes = upd.notes;
+          if (upd.productName !== undefined) warranties[idx].items[i].productName = upd.productName;
+          if (upd.brand !== undefined) warranties[idx].items[i].brand = upd.brand;
         }
       });
     }

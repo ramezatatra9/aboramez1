@@ -2124,27 +2124,153 @@ textarea.form-control {
 
 /* Print Rules */
 @media print {
+  /* ======================================================
+     قاعدة الصفحة: ورقة A4 بهوامش ضيقة لأقصى استخدام للمساحة
+     ====================================================== */
+  @page {
+    size: A4 portrait;
+    margin: 8mm 10mm;
+  }
+
+  /* إخفاء كل شيء بحيث تظهر فقط منطقة الطباعة */
   body * {
     visibility: hidden;
   }
-  #printableArea, #printableArea *,
-  #printableReceiptArea, #printableReceiptArea * {
+
+  /* منطقة الطباعة الرئيسية (الفاتورة، سند القبض، الجرد، الكفالة) */
+  #printableArea,                 #printableArea *,
+  #printableReceiptArea,          #printableReceiptArea *,
+  #printableInventoryReportArea,  #printableInventoryReportArea * {
     visibility: visible;
   }
-  #printableArea, #printableReceiptArea {
-    position: absolute;
-    left: 0;
+
+  /* تموضع منطقة الطباعة لتملأ الصفحة من الأعلى */
+  #printableArea,
+  #printableReceiptArea,
+  #printableInventoryReportArea {
+    position: fixed;
     top: 0;
+    left: 0;
+    right: 0;
     width: 100%;
-    margin: 0;
-    padding: 20px;
-    box-shadow: none;
-    border: none;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: #fff !important;
   }
-  .no-print {
+
+  /* ======================================================
+     إخفاء جميع عناصر التنقل والأزرار والقوائم
+     ====================================================== */
+  .no-print,
+  .app-header,
+  .nav-tabs,
+  .tab-nav,
+  .floating-cart,
+  .modal-footer,
+  .modal-header button,
+  button,
+  .btn,
+  input[type="button"],
+  input[type="submit"],
+  .invoice-action-bar,
+  #printModeSelector,
+  .quick-add-section,
+  .card-header .btn,
+  .inv-actions,
+  #invPrintControls,
+  .action-buttons,
+  .printable-invoice > .no-print {
     display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* ======================================================
+     تصغير الخط بنسبة ذكية لضمان الاحتواء في صفحة واحدة
+     يستخدم vw لضمان التناسب مع عرض ورقة A4
+     ====================================================== */
+  #printableArea .inv-header,
+  #printableArea .inv-details-grid,
+  #printableArea .inv-table,
+  #printableArea .inv-totals-box,
+  #printableArea .inv-footer,
+  #printableArea .inv-installment-schedule,
+  #printableArea div,
+  #printableArea p,
+  #printableArea span,
+  #printableArea td,
+  #printableArea th {
+    font-size: 11px !important;
+    line-height: 1.35 !important;
+  }
+
+  /* حفاظ على الأحجام الكبيرة للعناوين الرئيسية لكن بتقليص مناسب */
+  #printableArea .inv-company-title { font-size: 16px !important; }
+  #printableArea .inv-number-title  { font-size: 14px !important; }
+  #printableArea .total-row td      { font-size: 13px !important; font-weight: 900 !important; }
+
+  /* ======================================================
+     ضغط الـ padding والـ margin لتوفير المساحة
+     ====================================================== */
+  #printableArea .inv-header        { padding: 6px 0 8px !important; margin-bottom: 8px !important; }
+  #printableArea .inv-details-grid  { gap: 8px !important; margin-bottom: 8px !important; padding: 6px 8px !important; }
+  #printableArea .inv-table         { margin-bottom: 8px !important; font-size: 10.5px !important; }
+  #printableArea .inv-table td,
+  #printableArea .inv-table th      { padding: 4px 6px !important; }
+  #printableArea .inv-totals-box    { margin-bottom: 6px !important; padding: 6px 8px !important; }
+  #printableArea .inv-footer        { margin-top: 10px !important; padding-top: 6px !important; font-size: 10px !important; }
+  #printableArea .inv-installment-schedule { padding: 6px 8px !important; margin-bottom: 6px !important; }
+
+  /* سند القبض */
+  #printableReceiptArea div,
+  #printableReceiptArea p,
+  #printableReceiptArea span,
+  #printableReceiptArea td,
+  #printableReceiptArea th {
+    font-size: 11px !important;
+    line-height: 1.35 !important;
+  }
+  #printableReceiptArea { padding: 12px !important; }
+
+  /* تقرير الجرد */
+  #printableInventoryReportArea div,
+  #printableInventoryReportArea p,
+  #printableInventoryReportArea span,
+  #printableInventoryReportArea td,
+  #printableInventoryReportArea th {
+    font-size: 10px !important;
+    line-height: 1.3 !important;
+  }
+  #printableInventoryReportArea td,
+  #printableInventoryReportArea th { padding: 3px 5px !important; }
+
+  /* ======================================================
+     منع فصل الصفوف والجداول بين الصفحات
+     ====================================================== */
+  table    { page-break-inside: auto !important; }
+  tr       { page-break-inside: avoid !important; page-break-after: auto !important; }
+  thead    { display: table-header-group !important; }
+  tfoot    { display: table-footer-group !important; }
+
+  /* إجبار كل المحتوى على صفحة واحدة عبر تقليص التحويل */
+  #printableArea,
+  #printableReceiptArea {
+    page-break-after: avoid !important;
+    page-break-before: avoid !important;
+    page-break-inside: avoid !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    transform-origin: top center;
+  }
+
+  /* تحريم الانتقال لصفحة ثانية */
+  html, body {
+    height: auto !important;
+    overflow: visible !important;
   }
 }
+
 
 /* =========================================================
    1. Visual Live Search (البحث المرئي الذكي عن المنتجات)
