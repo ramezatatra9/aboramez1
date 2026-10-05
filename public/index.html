@@ -1006,11 +1006,29 @@
               <button class="chip" id="invFilterBtnZero" onclick="setInventoryQuickFilter('zero', this)">نفدت (0)</button>
               <button class="chip" id="invFilterBtnLow" onclick="setInventoryQuickFilter('low', this)">قليلة (≤3)</button>
             </div>
+
+            <!-- اختيار طريقة ترتيب وتصنيف الأصناف في شاشة الجرد -->
+            <div style="display: flex; align-items: center; gap: 0.35rem;">
+              <span style="font-size: 0.82rem; font-weight: 700; color: var(--text-muted); white-space: nowrap;">الترتيب:</span>
+              <select id="invSortFilter" class="form-control" style="width: auto; min-width: 175px; font-weight: 600;" onchange="handleInventorySortChange(this.value)">
+                <option value="code_asc" selected>🔢 رقم الصنف (تصاعدي)</option>
+                <option value="code_desc">🔢 رقم الصنف (تنازلي)</option>
+                <option value="qty_desc">📈 الكمية الأكثر أولاً</option>
+                <option value="qty_asc">📉 الكمية الأقل أولاً</option>
+                <option value="name_asc">🔤 اسم الصنف (أ - ي)</option>
+              </select>
+            </div>
           </div>
 
           <!-- Inventory Action Toolbar (تقرير PDF، إرسال تيليجرام، حفظ التعديلات) -->
           <div class="inventory-actions-row" style="display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center; justify-content: space-between; padding-top: 0.5rem; border-top: 1px solid var(--border-color);">
             <div style="display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center;">
+              <!-- زر طباعة كشف الجرد للموظفين (تعبئة يدوية بدون أسعار) -->
+              <button type="button" class="btn btn-sm btn-success" id="btnOpenStocktakeSheet" onclick="openStocktakeSheetModal()" style="white-space: nowrap; background: linear-gradient(135deg, #059669 0%, #047857 100%); border-color: #047857; color: white; font-weight: 700; box-shadow: 0 2px 4px rgba(5, 150, 105, 0.2);">
+                <span>📋</span>
+                <span>طباعة كشف الجرد للموظفين (يدوي)</span>
+              </button>
+
               <button type="button" class="btn btn-sm btn-primary" onclick="openInventoryReportModal()">
                 <span>📄</span>
                 <span>تصدير / معاينة تقرير PDF (حسب الفلتر والبحث)</span>
@@ -1988,6 +2006,117 @@
           <span>🖨️</span>
           <span>طباعة عادية</span>
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================= -->
+  <!-- MODAL: استمارة كشف الجرد الفعلي للموظفين (تعبئة يدوية - بدون أسعار) -->
+  <!-- ======================================================= -->
+  <div class="modal-backdrop" id="modalStocktakeSheet">
+    <div class="modal-card" style="max-width: 1100px; width: 96vw;">
+      <div class="modal-header no-print">
+        <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+          <span style="font-size: 1.4rem;">📋</span>
+          <div>
+            <h3 style="font-weight: 800; margin: 0; color: #065f46;">استمارة كشف الجرد الفعلي للموظفين (تعبئة يدوية)</h3>
+            <span style="font-size: 0.82rem; color: var(--text-muted);">
+              مخصصة للطباعة والتسليم للموظفين لعد الأصناف يدوياً - خالية تماماً من الأسعار ورأس المال
+            </span>
+          </div>
+        </div>
+        <button class="close-btn" onclick="closeStocktakeSheetModal()">✕</button>
+      </div>
+
+      <div class="modal-body" style="padding: 1rem;">
+        <!-- شريط تحكم الفلاتر والخيارات (لا يظهر بالطباعة) -->
+        <div class="report-controls-bar no-print" style="background: #f0fdf4; border: 1px solid #bbf7d0; padding: 0.85rem; border-radius: var(--radius-md); margin-bottom: 0.85rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+          <div style="display: flex; gap: 0.85rem; align-items: center; flex-wrap: wrap; flex: 1;">
+            
+            <!-- نطاق الجرد -->
+            <div style="display: flex; align-items: center; gap: 0.4rem;">
+              <label style="font-weight: 700; font-size: 0.88rem; white-space: nowrap;">📦 النطاق:</label>
+              <select id="stocktakeScopeSelect" class="form-control" style="width: auto; min-width: 190px;" onchange="updateStocktakeSheetPreview()">
+                <option value="all">📦 كامل المخزون (جميع الأصناف)</option>
+                <optgroup label="حسب القسم الرئيسي">
+                  <option value="cat:أجهزة كهربائية كبيرة">قسم: أجهزة كهربائية كبيرة</option>
+                  <option value="cat:أدوات مطبخ">قسم: أدوات مطبخ</option>
+                  <option value="cat:أدوات منزل">قسم: أدوات منزل</option>
+                  <option value="cat:أدوات شخصية">قسم: أدوات شخصية</option>
+                  <option value="cat:أخرى">قسم: أخرى / عام</option>
+                </optgroup>
+                <optgroup label="حسب الماركة" id="stocktakeScopeBrandsOptgroup">
+                  <!-- ديناميكي -->
+                </optgroup>
+                <option value="search_results" id="stocktakeScopeOptionSearch" style="display: none;">🔍 نتائج البحث الحالي</option>
+              </select>
+            </div>
+
+            <!-- طريقة الترتيب والتصنيف -->
+            <div style="display: flex; align-items: center; gap: 0.4rem;">
+              <label style="font-weight: 700; font-size: 0.88rem; white-space: nowrap;">🔄 طريقة الترتيب:</label>
+              <select id="stocktakeSortSelect" class="form-control" style="width: auto; min-width: 200px; font-weight: 700;" onchange="updateStocktakeSheetPreview()">
+                <option value="code_asc" selected>🔢 رقم الصنف تصاعدياً (1 - 9)</option>
+                <option value="code_desc">🔢 رقم الصنف تنازلياً (9 - 1)</option>
+                <option value="qty_desc">📈 الكمية الأكثر أولاً (تنازلي)</option>
+                <option value="qty_asc">📉 الكمية الأقل أولاً (تصاعدي)</option>
+                <option value="name_asc">🔤 اسم الصنف أبجدياً (أ - ي)</option>
+                <option value="brand_asc">🏷️ الماركة ثم رقم الصنف</option>
+              </select>
+            </div>
+
+            <!-- خيارات إضافية -->
+            <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+              <label style="font-size: 0.82rem; display: flex; align-items: center; gap: 0.35rem; cursor: pointer; user-select: none;">
+                <input type="checkbox" id="stocktakeHideZeroStock" onchange="updateStocktakeSheetPreview()">
+                <span>استثناء الأصناف النافدة (0)</span>
+              </label>
+              <label style="font-size: 0.82rem; display: flex; align-items: center; gap: 0.35rem; cursor: pointer; user-select: none;">
+                <input type="checkbox" id="stocktakeIncludeNotesCol" checked onchange="updateStocktakeSheetPreview()">
+                <span>عمود ملاحظات الموظف</span>
+              </label>
+            </div>
+
+          </div>
+
+          <!-- أزرار الإجراءات السريعة -->
+          <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="updateStocktakeSheetPreview()">
+              <span>🔄</span>
+              <span>تحديث المعاينة</span>
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-success" onclick="exportStocktakeToExcel()" style="border-color: #059669; color: #059669; background: white;" title="تصدير كشف إكسل جاهز للتعبئة أو الطباعة">
+              <span>📊</span>
+              <span>تصدير Excel</span>
+            </button>
+            <button type="button" class="btn btn-success btn-sm" onclick="printStocktakeSheetDoc()" style="background: #059669; border-color: #047857; color: white; font-weight: 700;">
+              <span>🖨️</span>
+              <span>طباعة الاستمارة / PDF</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- منطقة المعاينة والطباعة لكشف الجرد اليدوي (بدون أي أمور مالية) -->
+        <div id="printableStocktakeSheetArea" class="printable-stocktake-container">
+          <!-- يتم التوليد بالكامل عبر JavaScript بدون أي أسعار أو رأس مال -->
+        </div>
+      </div>
+
+      <div class="modal-footer no-print" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+        <div style="font-size: 0.85rem; color: #4b5563;" id="stocktakeSheetSummaryStats">
+          <!-- إحصائية عدد الأصناف والقطع المعروضة -->
+        </div>
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+          <button type="button" class="btn btn-secondary" onclick="closeStocktakeSheetModal()">إغلاق</button>
+          <button type="button" class="btn btn-outline-success" onclick="exportStocktakeToExcel()" style="border-color: #059669; color: #059669; background: white;">
+            <span>📊</span>
+            <span>تصدير Excel (خانات فارغة)</span>
+          </button>
+          <button type="button" class="btn btn-success btn-lg" onclick="printStocktakeSheetDoc()" style="background: #059669; border-color: #059669; color: white; font-weight: 800;">
+            <span>🖨️</span>
+            <span>طباعة استمارة الجرد (PDF)</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>

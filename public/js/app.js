@@ -989,6 +989,7 @@ const state = {
   inventoryBrandSearchTerm: '',
   inventoryBrandsViewMode: 'ribbon',
   inventoryQuickFilter: 'all', // 'all' | 'modified' | 'zero' | 'low'
+  inventorySort: 'code_asc',   // الترتيب: 'code_asc' | 'code_desc' | 'qty_desc' | 'qty_asc' | 'name_asc'
   inventoryPendingUpdates: new Map(), // productId -> newStock
   inventoryPageSize: 40,
   inventoryCurrentPage: 1,
@@ -4424,6 +4425,12 @@ function setInventoryQuickFilter(type, btn) {
   renderInventoryList();
 }
 
+function handleInventorySortChange(val) {
+  state.inventorySort = val || 'code_asc';
+  state.inventoryCurrentPage = 1;
+  renderInventoryList();
+}
+
 function renderInventoryList() {
   const container = document.getElementById('inventoryItemsContainer');
   if (!container) return;
@@ -4575,7 +4582,8 @@ function renderInventoryList() {
     return true;
   });
 
-  // فرز أصناف الجرد: جعل جميع الأصناف المتوفرة أولاً، وجميع الأصناف التي كميتها = صفر بالأسفل تماماً
+  // فرز وترتيب أصناف الجرد حسب اختيار المستخدم (الافتراضي: رقم الصنف تصاعدياً)
+  const sortMode = state.inventorySort || 'code_asc';
   filtered.sort((a, b) => {
     const stockA = state.inventoryPendingUpdates.has(a.id)
       ? state.inventoryPendingUpdates.get(a.id)
@@ -4584,11 +4592,19 @@ function renderInventoryList() {
       ? state.inventoryPendingUpdates.get(b.id)
       : Math.max(0, parseInt(b.stock) || 0);
 
-    const aAvail = stockA > 0;
-    const bAvail = stockB > 0;
-    if (aAvail && !bAvail) return -1;
-    if (!aAvail && bAvail) return 1;
-    if (aAvail && bAvail) return stockB - stockA; // الأكثر توفراً أولاً
+    if (sortMode === 'code_asc') {
+      return String(a.code || '').localeCompare(String(b.code || ''), undefined, { numeric: true, sensitivity: 'base' });
+    } else if (sortMode === 'code_desc') {
+      return String(b.code || '').localeCompare(String(a.code || ''), undefined, { numeric: true, sensitivity: 'base' });
+    } else if (sortMode === 'qty_desc') {
+      if (stockB !== stockA) return stockB - stockA;
+      return String(a.code || '').localeCompare(String(b.code || ''), undefined, { numeric: true, sensitivity: 'base' });
+    } else if (sortMode === 'qty_asc') {
+      if (stockA !== stockB) return stockA - stockB;
+      return String(a.code || '').localeCompare(String(b.code || ''), undefined, { numeric: true, sensitivity: 'base' });
+    } else if (sortMode === 'name_asc') {
+      return String(a.name || '').localeCompare(String(b.name || ''), 'ar');
+    }
     return 0;
   });
 
@@ -6262,6 +6278,295 @@ function closeInventoryReportModal() {
 
 function printInventoryReport() {
   printSinglePage('printableInventoryReportArea');
+}
+
+// ============================================================
+// استمارة كشف الجرد الفعلي للموظفين (تعبئة يدوية - خالي من أي مبالغ مالية)
+// ============================================================
+function openStocktakeSheetModal() {
+  const modal = document.getElementById('modalStocktakeSheet');
+  if (!modal) return;
+
+  // تحديث قائمة الماركات في خيارات النطاق
+  const brandsGroup = document.getElementById('stocktakeScopeBrandsOptgroup');
+  if (brandsGroup) {
+    const brands = [...new Set(state.products.map(p => p.brand || 'أخرى'))].filter(Boolean).sort();
+    brandsGroup.innerHTML = brands.map(b => `<option value="brand:${escapeHtml(b)}">ماركة: ${escapeHtml(b)}</option>`).join('');
+  }
+
+  // مزامنة النطاق مع حالة البحث أو الماركة النشطة حالياً بالجرد
+  const invSearchInput = document.getElementById('inventorySearchInput');
+  const activeSearch = (state.inventorySearch || (invSearchInput ? invSearchInput.value : '')).trim();
+  const searchOpt = document.getElementById('stocktakeScopeOptionSearch');
+  const scopeSelect = document.getElementById('stocktakeScopeSelect');
+
+  if (activeSearch) {
+    if (searchOpt) {
+      searchOpt.style.display = 'block';
+      searchOpt.textContent = `🔍 نتائج البحث الحالي ("${activeSearch}")`;
+    }
+    if (scopeSelect) scopeSelect.value = 'search_results';
+  } else if (state.inventoryBrand && state.inventoryBrand !== 'all') {
+    if (searchOpt) searchOpt.style.display = 'none';
+    if (scopeSelect) scopeSelect.value = `brand:${state.inventoryBrand}`;
+  } else if (state.inventoryCategory && state.inventoryCategory !== 'all') {
+    if (searchOpt) searchOpt.style.display = 'none';
+    if (scopeSelect) scopeSelect.value = `cat:${state.inventoryCategory}`;
+  } else {
+    if (searchOpt) searchOpt.style.display = 'none';
+    if (scopeSelect) scopeSelect.value = 'all';
+  }
+
+  // مزامنة الترتيب مع خيار الجرد المختار
+  const sortSelect = document.getElementById('stocktakeSortSelect');
+  if (sortSelect && state.inventorySort) {
+    sortSelect.value = state.inventorySort;
+  }
+
+  modal.classList.add('active');
+  updateStocktakeSheetPreview();
+}
+
+function closeStocktakeSheetModal() {
+  const modal = document.getElementById('modalStocktakeSheet');
+  if (modal) modal.classList.remove('active');
+}
+
+let currentStocktakeSheetItems = [];
+
+function updateStocktakeSheetPreview() {
+  const area = document.getElementById('printableStocktakeSheetArea');
+  const scopeSelect = document.getElementById('stocktakeScopeSelect');
+  const sortSelect = document.getElementById('stocktakeSortSelect');
+  const hideZero = document.getElementById('stocktakeHideZeroStock')?.checked;
+  const includeNotes = document.getElementById('stocktakeIncludeNotesCol')?.checked ?? true;
+  const summaryEl = document.getElementById('stocktakeSheetSummaryStats');
+
+  if (!area) return;
+
+  const scope = scopeSelect ? scopeSelect.value : 'all';
+  const sortMode = sortSelect ? sortSelect.value : 'code_asc';
+  const companyName = state.settings.companyName || 'رامز عطاطرة';
+  const now = new Date();
+  const dateStr = `${now.getDate()}-${now.getMonth() + 1}-${now.getFullYear()}`;
+
+  // تصفية المنتجات
+  let products = [...state.products];
+  let scopeLabel = 'كامل المخزون (جميع الأصناف)';
+
+  if (scope === 'search_results') {
+    const q = (state.inventorySearch || (document.getElementById('inventorySearchInput')?.value || '')).trim();
+    if (q) {
+      const qNorm = normalizeArabic(q);
+      const searchWords = qNorm.split(/\s+/).filter(w => w.length > 0);
+      products = products.filter(p => {
+        const pNameNorm = normalizeArabic(p.name);
+        const pCodeNorm = normalizeArabic(p.code);
+        const pCatNorm = normalizeArabic(p.category);
+        const pMainNorm = normalizeArabic(p.mainCategory);
+        const pBrandNorm = normalizeArabic(p.brand);
+        const pBrandArNorm = normalizeArabic(p.brandAr);
+        return searchWords.every(word =>
+          matchArabicTerm(pNameNorm, word) ||
+          matchArabicTerm(pCodeNorm, word) ||
+          matchArabicTerm(pCatNorm, word) ||
+          matchArabicTerm(pMainNorm, word) ||
+          matchArabicTerm(pBrandNorm, word) ||
+          matchArabicTerm(pBrandArNorm, word)
+        );
+      });
+      scopeLabel = `نتائج البحث ("${q}")`;
+    }
+  } else if (scope.startsWith('cat:')) {
+    const cat = scope.slice(4);
+    products = products.filter(p => (p.mainCategory || 'أخرى') === cat);
+    scopeLabel = `قسم: ${cat}`;
+  } else if (scope.startsWith('brand:')) {
+    const brand = scope.slice(6);
+    products = products.filter(p => (p.brand || 'أخرى') === brand);
+    scopeLabel = `ماركة: ${brand}`;
+  }
+
+  // استثناء الأصناف النافدة إن تم اختياره
+  if (hideZero) {
+    products = products.filter(p => {
+      const s = state.inventoryPendingUpdates.has(p.id) ? state.inventoryPendingUpdates.get(p.id) : (p.stock || 0);
+      return s > 0;
+    });
+  }
+
+  // ترتيب الأصناف بدقة تامة
+  products.sort((a, b) => {
+    const stockA = state.inventoryPendingUpdates.has(a.id) ? state.inventoryPendingUpdates.get(a.id) : (a.stock || 0);
+    const stockB = state.inventoryPendingUpdates.has(b.id) ? state.inventoryPendingUpdates.get(b.id) : (b.stock || 0);
+
+    if (sortMode === 'code_asc') {
+      return String(a.code || '').localeCompare(String(b.code || ''), undefined, { numeric: true, sensitivity: 'base' });
+    } else if (sortMode === 'code_desc') {
+      return String(b.code || '').localeCompare(String(a.code || ''), undefined, { numeric: true, sensitivity: 'base' });
+    } else if (sortMode === 'qty_desc') {
+      if (stockB !== stockA) return stockB - stockA;
+      return String(a.code || '').localeCompare(String(b.code || ''), undefined, { numeric: true, sensitivity: 'base' });
+    } else if (sortMode === 'qty_asc') {
+      if (stockA !== stockB) return stockA - stockB;
+      return String(a.code || '').localeCompare(String(b.code || ''), undefined, { numeric: true, sensitivity: 'base' });
+    } else if (sortMode === 'name_asc') {
+      return String(a.name || '').localeCompare(String(b.name || ''), 'ar');
+    } else if (sortMode === 'brand_asc') {
+      const bComp = String(a.brand || '').localeCompare(String(b.brand || ''));
+      if (bComp !== 0) return bComp;
+      return String(a.code || '').localeCompare(String(b.code || ''), undefined, { numeric: true, sensitivity: 'base' });
+    }
+    return 0;
+  });
+
+  currentStocktakeSheetItems = products;
+
+  const totalUnits = products.reduce((acc, p) => acc + (state.inventoryPendingUpdates.has(p.id) ? state.inventoryPendingUpdates.get(p.id) : (p.stock || 0)), 0);
+
+  if (summaryEl) {
+    summaryEl.innerHTML = `عدد الأصناف: <strong>${products.length.toLocaleString('en-US')} صنف</strong> | إجمالي الكميات المسجلة: <strong>${totalUnits.toLocaleString('en-US')} قطعة</strong>`;
+  }
+
+  const sortLabelMap = {
+    code_asc: 'رقم الصنف (تصاعدياً 1 - 9)',
+    code_desc: 'رقم الصنف (تنازلياً 9 - 1)',
+    qty_desc: 'الكمية الأكثر أولاً (تنازلي)',
+    qty_asc: 'الكمية الأقل أولاً (تصاعدي)',
+    name_asc: 'اسم الصنف (أبجدياً)',
+    brand_asc: 'الماركة ثم رقم الصنف'
+  };
+  const sortLabel = sortLabelMap[sortMode] || 'رقم الصنف تصاعدياً';
+
+  const rowsHtml = products.map((p, idx) => {
+    const stock = state.inventoryPendingUpdates.has(p.id) ? state.inventoryPendingUpdates.get(p.id) : (p.stock || 0);
+    const isZero = stock === 0;
+
+    return `
+      <tr style="${isZero ? 'background-color: #f8fafc;' : ''}">
+        <td style="text-align: center; font-weight: 700; width: 38px; border: 1px solid #cbd5e1; padding: 6px 4px;">${idx + 1}</td>
+        <td style="text-align: center; font-weight: 800; font-family: monospace, sans-serif; font-size: 0.88rem; width: 95px; border: 1px solid #cbd5e1; padding: 6px 4px;">${escapeHtml(p.code || '-')}</td>
+        <td style="font-weight: 700; border: 1px solid #cbd5e1; padding: 6px 8px; line-height: 1.35;">${escapeHtml(p.name)}</td>
+        <td style="text-align: center; border: 1px solid #cbd5e1; padding: 6px 4px; width: 85px;">${escapeHtml(p.brand || '-')}</td>
+        <td style="text-align: center; border: 1px solid #cbd5e1; padding: 6px 4px; width: 100px; font-size: 0.78rem; color: #475569;">${escapeHtml(p.mainCategory || p.category || '-')}</td>
+        <td style="text-align: center; font-weight: 800; font-size: 0.95rem; width: 85px; border: 1px solid #cbd5e1; padding: 6px 4px; color: ${isZero ? '#b91c1c' : '#0f172a'};">
+          ${isZero ? '<span style="color:#dc2626;">0 (نافد)</span>' : stock}
+        </td>
+        <td style="text-align: center; width: 105px; border: 1.5px solid #0f172a; padding: 4px; background: #ffffff;">
+          <div class="stocktake-write-box" title="خانة فارغة لكتابة الكمية الجديدة بالقلم"></div>
+        </td>
+        ${includeNotes ? '<td style="border: 1px solid #cbd5e1; padding: 4px 6px; width: 130px;"><div class="stocktake-notes-line"></div></td>' : ''}
+      </tr>
+    `;
+  }).join('');
+
+  area.innerHTML = `
+    <div style="padding: 0.5rem 0.75rem; font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif; direction: rtl; color: #0f172a;">
+      <!-- ترويسة الاستمارة -->
+      <div class="stocktake-doc-header">
+        <div>
+          <div style="font-size: 1.4rem; font-weight: 900; color: #0f172a;">${escapeHtml(companyName)}</div>
+          <div style="font-size: 0.8rem; color: #64748b; margin-top: 2px;">نظام إدارة المستودعات والمخزون</div>
+        </div>
+        <div style="text-align: center;">
+          <div style="font-size: 1.25rem; font-weight: 900; color: #065f46; letter-spacing: -0.2px;">استمارة كشف جرد المخزون الفعلي (تعبئة يدوية)</div>
+          <div style="font-size: 0.78rem; color: #4b5563; margin-top: 2px;">مخصصة لعد الأصناف وتدوين الكمية الجديدة باليد - خالية تماماً من الأسعار ورأس المال</div>
+        </div>
+        <div style="text-align: left; font-size: 0.82rem; color: #475569;">
+          <div>📅 تاريخ الكشف: <strong>${dateStr}</strong></div>
+          <div>🔢 إجمالي الأصناف: <strong>${products.length.toLocaleString('en-US')}</strong></div>
+        </div>
+      </div>
+
+      <!-- شريط معلومات الجرد -->
+      <div class="stocktake-info-badges">
+        <div>📦 نطاق الكشف: <strong style="color: #065f46;">${escapeHtml(scopeLabel)}</strong></div>
+        <div>🔄 الترتيب: <strong>${escapeHtml(sortLabel)}</strong></div>
+        <div>📊 الرصيد المسجل بالنظام: <strong>${totalUnits.toLocaleString('en-US')} قطعة</strong></div>
+        <div style="margin-right: auto;">👤 القائم بالعد: ____________________</div>
+        <div>🕵️ المشرف: ____________________</div>
+      </div>
+
+      <!-- جدول الأصناف -->
+      <table class="stocktake-table">
+        <thead>
+          <tr>
+            <th style="width: 38px;">#</th>
+            <th style="width: 95px;">رقم الصنف</th>
+            <th>اسم الصنف والمواصفات</th>
+            <th style="width: 85px;">الماركة</th>
+            <th style="width: 100px;">القسم</th>
+            <th style="width: 85px;">الكمية بالنظام</th>
+            <th style="width: 105px; background: #065f46 !important; color: white;">الكمية الفعلية (الجديدة) ✍️</th>
+            ${includeNotes ? '<th style="width: 130px;">ملاحظات / فروقات</th>' : ''}
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml.length > 0 ? rowsHtml : '<tr><td colspan="8" style="text-align: center; padding: 2rem; color: #64748b;">لا توجد أي أصناف مطابقة لهذا النطاق أو الفلتر</td></tr>'}
+        </tbody>
+      </table>
+
+      <!-- صندوق التوقيعات والتعليمات -->
+      <div class="stocktake-signatures">
+        <div>توقيع الموظف الفاحص: ______________________</div>
+        <div>توقيع المشرف / المدقق: ______________________</div>
+        <div>تاريخ الاعتماد: _____ / _____ / 2026 م</div>
+      </div>
+
+      <div style="margin-top: 0.75rem; text-align: center; font-size: 0.75rem; color: #64748b; border-top: 1px dotted #cbd5e1; padding-top: 0.4rem;">
+        📝 تعليمات: يقوم الموظف بعدّ القطع المتوفرة فعلياً وتدوين الرقم في خانة "الكمية الفعلية (الجديدة)" بالقلم، وتسليم الكشف للإدارة لإدخال الكميات الجديدة وتحديث أرصدة النظام يدوياً.
+      </div>
+    </div>
+  `;
+}
+
+function printStocktakeSheetDoc() {
+  updateStocktakeSheetPreview();
+  document.body.classList.add('printing-stocktake-active');
+
+  setTimeout(() => {
+    window.print();
+    setTimeout(() => {
+      document.body.classList.remove('printing-stocktake-active');
+    }, 600);
+  }, 200);
+}
+
+function exportStocktakeToExcel() {
+  const items = currentStocktakeSheetItems.length > 0 ? currentStocktakeSheetItems : state.products;
+  if (!items || items.length === 0) {
+    showToast('لا توجد أصناف لتصديرها', 'warning');
+    return;
+  }
+
+  // بناء ملف CSV متوافق مع Excel باللغة العربية بترميز UTF-8 مع BOM
+  const headers = ['#', 'رقم الصنف (الكود)', 'اسم الصنف', 'الماركة', 'القسم', 'الكمية الحالية بالنظام', 'الكمية الفعلية الجديدة (للتعبئة اليدوية)', 'ملاحظات'];
+  const rows = items.map((p, idx) => {
+    const stock = state.inventoryPendingUpdates.has(p.id) ? state.inventoryPendingUpdates.get(p.id) : (p.stock || 0);
+    return [
+      idx + 1,
+      `"${String(p.code || '').replace(/"/g, '""')}"`,
+      `"${String(p.name || '').replace(/"/g, '""')}"`,
+      `"${String(p.brand || '').replace(/"/g, '""')}"`,
+      `"${String(p.mainCategory || p.category || '').replace(/"/g, '""')}"`,
+      stock,
+      '', // عمود فارغ للكمية الجديدة
+      ''  // عمود فارغ للملاحظات
+    ].join(',');
+  });
+
+  const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\r\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const now = new Date();
+  a.href = url;
+  a.download = `كشف_جرد_المخزون_الفعلي_${now.getDate()}-${now.getMonth()+1}-${now.getFullYear()}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('تم تصدير كشف الجرد للإكسل بنجاح', 'success');
 }
 
 async function sendCurrentInventoryReportTelegram() {

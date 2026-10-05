@@ -2133,7 +2133,7 @@ textarea.form-control {
   }
 
   /* إخفاء كل شيء بحيث تظهر فقط منطقة الطباعة */
-  body * {
+  body:not(.printing-stocktake-active) * {
     visibility: hidden;
   }
 
@@ -2158,6 +2158,48 @@ textarea.form-control {
     box-shadow: none !important;
     border: none !important;
     background: #fff !important;
+  }
+
+  /* طباعة كشف الجرد الفعلي للموظفين (متعدد الصفحات - خالي تماماً من أي أسعار) */
+  body.printing-stocktake-active * {
+    visibility: hidden !important;
+  }
+  body.printing-stocktake-active #printableStocktakeSheetArea,
+  body.printing-stocktake-active #printableStocktakeSheetArea * {
+    visibility: visible !important;
+  }
+  body.printing-stocktake-active #printableStocktakeSheetArea {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 4mm !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  body.printing-stocktake-active .stocktake-table thead {
+    display: table-header-group !important;
+  }
+  body.printing-stocktake-active .stocktake-table tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+  body.printing-stocktake-active .stocktake-table th {
+    background: #0f172a !important;
+    color: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  body.printing-stocktake-active .stocktake-write-box {
+    border: 1.5px dashed #000000 !important;
+    background-color: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
   /* ======================================================
@@ -5013,6 +5055,105 @@ textarea.form-control {
 .pwa-toast-update {
   background: #1e40af;
   pointer-events: auto;
+}
+
+/* =============================================================
+   تنسيقات استمارة كشف الجرد الفعلي للموظفين (تعبئة يدوية بدون أسعار)
+   ============================================================= */
+.printable-stocktake-container {
+  background: white;
+  border-radius: var(--radius-md);
+  max-height: 65vh;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  padding: 1.25rem;
+  font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif;
+  direction: rtl;
+}
+
+.stocktake-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  color: #0f172a;
+}
+
+.stocktake-table th {
+  background: #0f172a;
+  color: #ffffff;
+  padding: 8px 6px;
+  font-weight: 700;
+  border: 1px solid #334155;
+  text-align: center;
+  font-size: 0.82rem;
+}
+
+.stocktake-table td {
+  padding: 6px 6px;
+  border: 1px solid #cbd5e1;
+  vertical-align: middle;
+}
+
+.stocktake-table tbody tr:nth-child(even) {
+  background-color: #f8fafc;
+}
+
+.stocktake-table tbody tr:hover {
+  background-color: #f1f5f9;
+}
+
+.stocktake-write-box {
+  display: block;
+  width: 68px;
+  height: 28px;
+  border: 1.5px dashed #475569;
+  background-color: #ffffff;
+  border-radius: 4px;
+  margin: 0 auto;
+}
+
+.stocktake-notes-line {
+  display: block;
+  min-width: 90px;
+  height: 22px;
+  border-bottom: 1px dotted #94a3b8;
+}
+
+.stocktake-doc-header {
+  border-bottom: 2px solid #0f172a;
+  padding-bottom: 0.85rem;
+  margin-bottom: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.stocktake-info-badges {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+  background: #f8fafc;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 0.86rem;
+  border: 1px solid #e2e8f0;
+}
+
+.stocktake-signatures {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1.5px solid #cbd5e1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #334155;
 }
 
 
