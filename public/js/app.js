@@ -14,6 +14,57 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;');
 }
 
+// ============================================================
+// طباعة مضمونة على صفحة واحدة — Auto-Scale Single Page Print
+// تحسب ارتفاع المحتوى تلقائياً وتطبق zoom مناسب قبل الطباعة
+// ============================================================
+function printSinglePage(preferredAreaId) {
+  // تحديد منطقة الطباعة النشطة
+  var areaIds = preferredAreaId
+    ? [preferredAreaId]
+    : ['printableArea', 'printableReceiptArea', 'printableInventoryReportArea', 'printableCustomerStatementArea'];
+
+  var printEl = null;
+  for (var i = 0; i < areaIds.length; i++) {
+    var el = document.getElementById(areaIds[i]);
+    if (el && el.innerHTML.trim().length > 20) { printEl = el; break; }
+  }
+
+  // A4 portrait: 297mm × 96dpi/25.4 ≈ 1123px | هوامش 8mm × 2 = 61px | صافي ≈ 1060px
+  var A4_H = 1060;
+  var scaleStyleEl = null;
+
+  if (printEl) {
+    var contentH = printEl.scrollHeight;
+    if (contentH > A4_H) {
+      var scale = A4_H / contentH;
+      scale = Math.max(0.38, Math.min(1, scale)); // بين 38% و 100%
+      scaleStyleEl = document.createElement('style');
+      scaleStyleEl.id = '_singlepage_zoom';
+      // zoom: يعمل بشكل مثالي في Chrome/Edge
+      // transform: scale() احتياطي للمتصفحات الأخرى
+      scaleStyleEl.textContent = [
+        '@media print {',
+        '  #' + printEl.id + ' {',
+        '    zoom: ' + scale.toFixed(4) + ' !important;',
+        '    -webkit-print-color-adjust: exact !important;',
+        '    print-color-adjust: exact !important;',
+        '  }',
+        '}'
+      ].join('\n');
+      document.head.appendChild(scaleStyleEl);
+    }
+  }
+
+  window.print();
+
+  // تنظيف style المؤقت بعد إتمام الطباعة
+  setTimeout(function() {
+    var old = document.getElementById('_singlepage_zoom');
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+  }, 2500);
+}
+
 // تنسيق التواريخ بالصيغة المطلوبة تماماً بأرقام إنجليزية: 21-9-2026 الساعة 7:10 مسائاً
 function formatAppDateTime(dateInput) {
   if (!dateInput) return '';
@@ -1102,6 +1153,7 @@ function actuallySwitchTab(tabId) {
     });
   } else if (tabId === 'create-invoice') {
     updateInvoiceDropdown();
+    setInvoiceType(state.invoiceType || 'sales');
   } else if (tabId === 'receipts') {
     loadReceipts();
     const lastEmp = localStorage.getItem('last_employee_name');
@@ -4288,7 +4340,7 @@ function closeReceiptModal() {
 }
 
 function printReceiptVoucher() {
-  window.print();
+  printSinglePage('printableReceiptArea');
 }
 
 async function deleteReceipt(id) {
@@ -5044,6 +5096,8 @@ function setInvoiceType(type) {
     if (btnSubmitText) btnSubmitText.textContent = 'إنشاء فاتورة مشتريات وتوريد البضاعة للمخزن';
     if (btnSubmitHint) btnSubmitHint.textContent = '✈️ سيتم زيادة كميات المخزون فوراً بالبضاعة المشتراة وإرسال إشعار التوريد لتيليجرام.';
     if (paySelector) paySelector.style.display = 'none';
+    const quickSec = document.getElementById('quickNewProductSection');
+    if (quickSec) quickSec.style.display = 'block';
     const qnpTitle = document.getElementById('quickNewProductTitle');
     if (qnpTitle) qnpTitle.textContent = '📥 إدخال صنف وماركة جديدة لفاتورة المشتريات والمخزن';
   } else {
@@ -5067,6 +5121,8 @@ function setInvoiceType(type) {
     if (btnSubmitText) btnSubmitText.textContent = 'إنشاء الفاتورة وإرسال لتيليجرام';
     if (btnSubmitHint) btnSubmitHint.textContent = '✈️ سيتم إرسال كافة تفاصيل الفاتورة، المنتجات، الموظف، وتفاصيل الحساب إلى حساب تيليجرام فوراً.';
     if (paySelector) paySelector.style.display = 'block';
+    const quickSec = document.getElementById('quickNewProductSection');
+    if (quickSec) quickSec.style.display = 'none';
     const qnpTitle = document.getElementById('quickNewProductTitle');
     if (qnpTitle) qnpTitle.textContent = '⚡ إدخال صنف وماركة جديدة مباشرة للفاتورة والمخزن معاً';
   }
@@ -6006,7 +6062,7 @@ function splitCsvLine(line) {
 }
 
 function printCustomerDebtsReport() {
-  window.print();
+  printSinglePage('printableInventoryReportArea');
 }
 
 // ============================================================
@@ -6205,7 +6261,7 @@ function closeInventoryReportModal() {
 }
 
 function printInventoryReport() {
-  window.print();
+  printSinglePage('printableInventoryReportArea');
 }
 
 async function sendCurrentInventoryReportTelegram() {
@@ -6823,7 +6879,7 @@ function renderCustomerStatementHtml(st) {
 }
 
 function printCustomerStatement() {
-  window.print();
+  printSinglePage('printableCustomerStatementArea');
 }
 
 async function downloadCustomerStatementPdf() {

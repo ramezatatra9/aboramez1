@@ -378,7 +378,7 @@
             <datalist id="systemBrandsList"></datalist>
 
             <!-- Quick Inline Product & Brand Adder (مخصص لفواتير التوريد +20 صنف وتغذية المخزن والماركات فوراً) -->
-            <div class="quick-new-item-box" id="quickNewProductSection" style="margin-bottom: 1.25rem; background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%); border: 2px dashed #059669; border-radius: 12px; padding: 1rem; box-shadow: 0 4px 12px rgba(5, 150, 105, 0.08);">
+            <div class="quick-new-item-box" id="quickNewProductSection" style="display: none; margin-bottom: 1.25rem; background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%); border: 2px dashed #059669; border-radius: 12px; padding: 1rem; box-shadow: 0 4px 12px rgba(5, 150, 105, 0.08);">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 8px;">
                 <div style="font-weight: 800; color: #065f46; font-size: 0.95rem; display: flex; align-items: center; gap: 8px;">
                   <span style="font-size: 1.2rem; background: #059669; color: #fff; width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;">⚡</span>
@@ -1858,7 +1858,7 @@
           <span>تحميل الفاتورة PDF</span>
         </button>
         <button class="btn btn-secondary" onclick="closeInvoiceModal()">إغلاق</button>
-        <button class="btn btn-primary" onclick="window.print()">
+        <button class="btn btn-primary" onclick="printSinglePage('printableArea')">
           <span>🖨️</span>
           <span>طباعة الفاتورة</span>
         </button>

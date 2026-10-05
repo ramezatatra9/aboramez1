@@ -1,5 +1,97 @@
 [
   {
+    "id": "INV-1004",
+    "invoiceNumber": 1004,
+    "invoiceType": "sales",
+    "isQuotation": false,
+    "createdAt": "2026-10-04T18:58:56.815Z",
+    "employeeName": "رامز",
+    "customerName": "زبون تجربة عرض سعر",
+    "customerPhone": "0591234567",
+    "customerAddress": "",
+    "customerId": "cust-1791140336866-575",
+    "customerSystemNumber": "",
+    "notes": "",
+    "items": [
+      {
+        "productId": "prod-1791140260129",
+        "code": "PRD-9902",
+        "brand": "هايسنس",
+        "productName": "شاشة هايسنس",
+        "productImage": "",
+        "quantity": 2,
+        "costPrice": 1500,
+        "sellPrice": 1900,
+        "unitProfit": 400,
+        "totalCost": 3000,
+        "totalSell": 3800,
+        "totalProfit": 800
+      }
+    ],
+    "summary": {
+      "totalQuantity": 2,
+      "totalCost": 3000,
+      "totalAmount": 3800,
+      "totalProfit": 800,
+      "profitMarginPercentage": 21.1,
+      "customPriceApplied": false
+    },
+    "paymentMethod": "cash",
+    "installmentDetails": null,
+    "warrantyMonths": 12,
+    "warrantyId": "WAR-1004",
+    "warrantyNumber": 1004,
+    "telegramStatus": {
+      "sent": true,
+      "sentAt": "2026-10-04T18:58:57.184Z",
+      "error": null
+    },
+    "convertedAt": "2026-10-04T18:58:56.846Z",
+    "convertedBy": "رامز عطاطرة",
+    "previousCustomerBalance": 0,
+    "currentCustomerBalance": 0
+  },
+  {
+    "id": "INV-1003",
+    "invoiceNumber": 1003,
+    "createdAt": "2026-10-04T18:57:58.404+00:00",
+    "employeeName": "رامز",
+    "customerName": "زبون عرض سعر",
+    "customerPhone": "0590000000",
+    "notes": "",
+    "items": [
+      {
+        "code": "PRD-9902",
+        "brand": "هايسنس",
+        "quantity": 1,
+        "costPrice": 1500,
+        "productId": "prod-1791140260129",
+        "sellPrice": 1900,
+        "totalCost": 1500,
+        "totalSell": 1900,
+        "unitProfit": 400,
+        "productName": "شاشة هايسنس",
+        "totalProfit": 400,
+        "productImage": ""
+      }
+    ],
+    "summary": {
+      "totalCost": 1500,
+      "totalAmount": 1900,
+      "totalProfit": 400,
+      "totalQuantity": 1,
+      "customPriceApplied": false,
+      "profitMarginPercentage": 21.1
+    },
+    "paymentMethod": "cash",
+    "installmentDetails": null,
+    "telegramStatus": {
+      "sent": true,
+      "error": null,
+      "sentAt": "2026-10-04T18:57:58.904Z"
+    }
+  },
+  {
     "id": "INV-1002",
     "invoiceNumber": 1002,
     "createdAt": "2026-09-27T18:34:37.418+00:00",

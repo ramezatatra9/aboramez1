@@ -1,5 +1,37 @@
 [
   {
+    "id": "prod-1791140260129",
+    "code": "PRD-9902",
+    "name": "شاشة هايسنس 65 بوصة 4K سمارت",
+    "brand": "Hisense",
+    "brandAr": "هايسنس",
+    "mainCategory": "أجهزة كهربائية كبيرة",
+    "category": "شاشات",
+    "costPrice": 1500,
+    "sellPrice": 1900,
+    "stock": 2,
+    "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
+    "description": "",
+    "createdAt": "2026-10-04T18:57:40.129Z",
+    "lastStockUpdate": "2026-10-04T18:58:56.854Z",
+    "lastStockEditor": "فاتورة (رامز عطاطرة)"
+  },
+  {
+    "id": "prod-1791140214934",
+    "code": "PRD-9901",
+    "name": "شاشة هايسنس 65 بوصة 4K",
+    "brand": "أخرى",
+    "brandAr": "أخرى / عام",
+    "mainCategory": "أجهزة كهربائية كبيرة",
+    "category": "شاشات وتلفزيونات",
+    "costPrice": 1500,
+    "sellPrice": 1900,
+    "stock": 5,
+    "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
+    "description": "",
+    "createdAt": "2026-10-04T18:56:54.934Z"
+  },
+  {
     "id": "prod-i00000001",
     "code": "I00000001",
     "name": "غسالة ال جي 10.5 كيلو سلفر LG V3",
