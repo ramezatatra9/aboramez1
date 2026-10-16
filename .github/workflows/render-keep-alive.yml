@@ -1,0 +1,23 @@
+name: Keep Render Alive
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render to prevent sleeping
+        run: |
+          echo "Pinging Render..."
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X GET "https://aboramez1.onrender.com/" \
+            --max-time 30)
+          echo "Response Code: $RESPONSE"
+          if [ "$RESPONSE" = "200" ] || [ "$RESPONSE" = "301" ] || [ "$RESPONSE" = "302" ]; then
+            echo "Render is alive and running!"
+          else
+            echo "Unexpected response: $RESPONSE"
+          fi
