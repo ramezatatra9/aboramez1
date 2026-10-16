@@ -1,4 +1,4 @@
-/* =========================================================
+﻿/* =========================================================
    نظام المبيعات وإصدار الفواتير - Stylesheet
    Modern, Sleek, Arabic RTL Design System
    ========================================================= */
@@ -5162,3 +5162,175 @@ textarea.form-control {
 
 
 
+
+
+
+/* =========================================================
+   إصلاحات الجوال الشاملة - Mobile Comprehensive Fixes
+   ========================================================= */
+
+/* إخفاء شريط التمرير مع الاحتفاظ بوظيفة التمرير */
+.nav-tabs::-webkit-scrollbar,
+.brand-tabs::-webkit-scrollbar,
+.period-chips-group::-webkit-scrollbar {
+  display: none;
+}
+.nav-tabs,
+.brand-tabs,
+.period-chips-group {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+@media (max-width: 430px) {
+
+  /* --- Header --- */
+  .app-header {
+    padding: 0.75rem 0.85rem 0.3rem 0.85rem;
+  }
+  .header-top {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+  .brand-section {
+    justify-content: center;
+  }
+  .brand-title {
+    font-size: 1.15rem;
+  }
+  .brand-subtitle {
+    font-size: 0.72rem;
+  }
+  .header-actions {
+    justify-content: center;
+    gap: 0.45rem;
+  }
+  .header-info-badge {
+    font-size: 0.75rem;
+    padding: 0.35rem 0.65rem;
+  }
+
+  /* --- Navigation --- */
+  .nav-tabs {
+    gap: 0.25rem;
+    padding-top: 0.4rem;
+    padding-bottom: 0.4rem;
+  }
+  .nav-tab-btn {
+    padding: 0.45rem 0.7rem;
+    font-size: 0.78rem;
+    gap: 0.3rem;
+  }
+  .nav-tab-btn span:first-child {
+    font-size: 0.9rem;
+  }
+
+  /* --- App Container --- */
+  .app-container {
+    padding: 0 0.65rem 4rem 0.65rem;
+  }
+
+  /* --- Products Grid: 1 column on very small screens --- */
+  .products-grid {
+    grid-template-columns: 1fr !important;
+    gap: 0.65rem;
+  }
+  .product-img-wrapper {
+    height: 180px;
+  }
+
+  /* --- Invoice Form --- */
+  .invoice-create-container {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  /* --- Tables: Horizontal scroll --- */
+  .table-wrapper,
+  .inv-table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: var(--radius-md);
+  }
+  .table-wrapper::-webkit-scrollbar,
+  .inv-table-wrapper::-webkit-scrollbar {
+    height: 3px;
+  }
+
+  /* --- Cards --- */
+  .card {
+    padding: 0.85rem;
+  }
+  .card-header {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  /* --- Grids --- */
+  .grid-2, .grid-3, .grid-4 {
+    grid-template-columns: 1fr;
+  }
+
+  /* --- Modals --- */
+  .modal-content {
+    margin: 0.5rem;
+    width: calc(100% - 1rem);
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  .modal-body {
+    padding: 1rem;
+  }
+
+  /* --- Buttons --- */
+  .btn {
+    padding: 0.5rem 0.85rem;
+    font-size: 0.82rem;
+  }
+  .btn-lg {
+    padding: 0.65rem 1rem;
+    font-size: 0.88rem;
+  }
+
+  /* --- Typography --- */
+  .section-title {
+    font-size: 1.05rem;
+  }
+  .page-title {
+    font-size: 1.1rem;
+  }
+
+  /* --- Receipts --- */
+  .receipts-layout {
+    grid-template-columns: 1fr;
+  }
+
+  /* --- Stats Cards --- */
+  .capital-stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* --- Floating Cart --- */
+  .floating-cart-bar {
+    width: calc(100% - 1rem);
+    bottom: 8px;
+    padding: 0.6rem 0.85rem;
+    border-radius: var(--radius-lg);
+  }
+}
+
+/* شاشات متوسطة الصغر */
+@media (max-width: 360px) {
+  .brand-title {
+    font-size: 1rem;
+  }
+  .nav-tab-btn {
+    padding: 0.4rem 0.55rem;
+    font-size: 0.74rem;
+  }
+  .app-container {
+    padding: 0 0.5rem 4rem 0.5rem;
+  }
+}
