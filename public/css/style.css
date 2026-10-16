@@ -1,4 +1,4 @@
-﻿/* =========================================================
+/* =========================================================
    نظام المبيعات وإصدار الفواتير - Stylesheet
    Modern, Sleek, Arabic RTL Design System
    ========================================================= */
@@ -3048,8 +3048,14 @@ textarea.form-control {
     overflow-x: auto;
     flex-wrap: nowrap;
     -webkit-overflow-scrolling: touch;
-    padding-bottom: 0.5rem;
-    scrollbar-width: thin;
+    padding-bottom: 0.35rem;
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+  .nav-tabs::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
   }
   .nav-tab-btn {
     flex-shrink: 0;
@@ -5166,171 +5172,343 @@ textarea.form-control {
 
 
 /* =========================================================
-   إصلاحات الجوال الشاملة - Mobile Comprehensive Fixes
+   نظام استجابة الجوال الشامل والفاخر - Comprehensive Mobile System
    ========================================================= */
 
-/* إخفاء شريط التمرير مع الاحتفاظ بوظيفة التمرير */
-.nav-tabs::-webkit-scrollbar,
-.brand-tabs::-webkit-scrollbar,
-.period-chips-group::-webkit-scrollbar {
-  display: none;
+/* 1. إخفاء أسهم وأزرار شريط التمرير القبيحة في المتصفحات نهائياً */
+::-webkit-scrollbar-button {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
+
+/* 2. إخفاء شريط التمرير في كل القوائم الأفقية القابلة للسحب باللمس */
 .nav-tabs,
-.brand-tabs,
-.period-chips-group {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+.category-chips,
+.popular-chips-wrap,
+.brand-tabs-strip,
+.period-chips-group,
+.brands-small-grid,
+.brands-cards-scroll,
+.sub-chips-list,
+.no-scrollbar {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+  -webkit-overflow-scrolling: touch;
 }
 
-@media (max-width: 430px) {
+.nav-tabs::-webkit-scrollbar,
+.category-chips::-webkit-scrollbar,
+.popular-chips-wrap::-webkit-scrollbar,
+.brand-tabs-strip::-webkit-scrollbar,
+.period-chips-group::-webkit-scrollbar,
+.brands-small-grid::-webkit-scrollbar,
+.brands-cards-scroll::-webkit-scrollbar,
+.sub-chips-list::-webkit-scrollbar,
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
 
-  /* --- Header --- */
-  .app-header {
-    padding: 0.75rem 0.85rem 0.3rem 0.85rem;
+/* 3. شريط تمرير ناعم ومختصر لعناصر التمرير الرأسي (الجداول والنوافذ المنبثقة) */
+.table-wrapper::-webkit-scrollbar,
+.inv-table-wrapper::-webkit-scrollbar,
+div[style*="overflow-x: auto"]::-webkit-scrollbar,
+.modal-content::-webkit-scrollbar {
+  height: 4px;
+  width: 4px;
+}
+.table-wrapper::-webkit-scrollbar-thumb,
+.inv-table-wrapper::-webkit-scrollbar-thumb,
+div[style*="overflow-x: auto"]::-webkit-scrollbar-thumb,
+.modal-content::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.5);
+  border-radius: 999px;
+}
+.table-wrapper::-webkit-scrollbar-track,
+.inv-table-wrapper::-webkit-scrollbar-track,
+div[style*="overflow-x: auto"]::-webkit-scrollbar-track,
+.modal-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 4. استجابة شاشات التابلت والجوال (أقل من 768px) */
+@media (max-width: 768px) {
+  .app-container {
+    padding: 0 0.75rem 4.5rem 0.75rem !important;
   }
+  
+  .app-header {
+    padding: 0.75rem 0.85rem 0.35rem 0.85rem;
+    margin-bottom: 0.9rem;
+  }
+  
   .header-top {
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    padding-bottom: 0.45rem;
+  }
+  
+  .brand-section {
+    justify-content: center;
+    text-align: center;
+  }
+  
+  .header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 0.4rem;
+    width: 100%;
+  }
+  
+  .header-info-badge,
+  .telegram-status-badge,
+  .btn-install-app {
+    font-size: 0.75rem;
+    padding: 0.3rem 0.65rem;
+  }
+
+  .nav-tabs {
+    padding: 0.35rem 0.15rem;
+    gap: 0.35rem;
+  }
+
+  .nav-tab-btn {
+    padding: 0.45rem 0.8rem;
+    font-size: 0.8rem;
+    white-space: nowrap;
+    border-radius: 10px;
+  }
+
+  /* Catalog Toolbar */
+  .catalog-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.6rem;
+  }
+  
+  .catalog-toolbar .search-box {
+    width: 100% !important;
+    min-width: unset !important;
+  }
+
+  .catalog-toolbar > div:last-child {
+    width: 100%;
+  }
+
+  .catalog-toolbar > div:last-child button {
+    width: 100%;
+    justify-content: center;
+    padding: 0.65rem 1rem;
+    font-size: 0.9rem;
+    font-weight: 700;
+  }
+
+  /* Brands Hub */
+  .brand-compact-hub {
+    padding: 0.75rem 0.85rem;
+    margin-bottom: 0.85rem;
+  }
+  
+  .brand-compact-header {
     flex-direction: column;
     align-items: stretch;
     gap: 0.5rem;
-    padding-bottom: 0.5rem;
   }
-  .brand-section {
-    justify-content: center;
-  }
-  .brand-title {
-    font-size: 1.15rem;
-  }
-  .brand-subtitle {
-    font-size: 0.72rem;
-  }
-  .header-actions {
-    justify-content: center;
-    gap: 0.45rem;
-  }
-  .header-info-badge {
-    font-size: 0.75rem;
-    padding: 0.35rem 0.65rem;
+  
+  .brand-compact-actions {
+    display: flex;
+    gap: 0.4rem;
+    width: 100%;
+    flex-wrap: wrap;
   }
 
-  /* --- Navigation --- */
-  .nav-tabs {
-    gap: 0.25rem;
-    padding-top: 0.4rem;
-    padding-bottom: 0.4rem;
-  }
-  .nav-tab-btn {
-    padding: 0.45rem 0.7rem;
-    font-size: 0.78rem;
+  .brands-small-grid {
+    max-height: 120px;
     gap: 0.3rem;
   }
-  .nav-tab-btn span:first-child {
-    font-size: 0.9rem;
+
+  .brand-mini-chip {
+    padding: 0.22rem 0.55rem;
+    font-size: 0.78rem;
   }
 
-  /* --- App Container --- */
-  .app-container {
-    padding: 0 0.65rem 4rem 0.65rem;
-  }
-
-  /* --- Products Grid: 1 column on very small screens --- */
-  .products-grid {
-    grid-template-columns: 1fr !important;
-    gap: 0.65rem;
-  }
-  .product-img-wrapper {
-    height: 180px;
-  }
-
-  /* --- Invoice Form --- */
+  /* Invoice Form Layout */
   .invoice-create-container {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
     gap: 1rem;
   }
 
-  /* --- Tables: Horizontal scroll --- */
-  .table-wrapper,
-  .inv-table-wrapper {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    border-radius: var(--radius-md);
-  }
-  .table-wrapper::-webkit-scrollbar,
-  .inv-table-wrapper::-webkit-scrollbar {
-    height: 3px;
+  .items-table {
+    min-width: 580px;
   }
 
-  /* --- Cards --- */
-  .card {
-    padding: 0.85rem;
+  .items-table th, .items-table td {
+    padding: 0.55rem 0.45rem;
+    font-size: 0.8rem;
   }
-  .card-header {
+
+  /* Modals */
+  .modal-content {
+    margin: 0.5rem auto;
+    width: calc(100% - 1rem) !important;
+    max-width: 100% !important;
+    max-height: 94vh;
+    border-radius: 16px;
+  }
+
+  .modal-body {
+    padding: 0.9rem;
+  }
+
+  .modal-footer {
+    padding: 0.75rem 0.9rem;
     flex-wrap: wrap;
     gap: 0.5rem;
   }
 
-  /* --- Grids --- */
-  .grid-2, .grid-3, .grid-4 {
-    grid-template-columns: 1fr;
+  .modal-footer .btn {
+    flex: 1;
+    min-width: 120px;
   }
 
-  /* --- Modals --- */
-  .modal-content {
-    margin: 0.5rem;
-    width: calc(100% - 1rem);
-    max-height: 90vh;
-    overflow-y: auto;
+  /* Prevent auto zoom on iOS Safari */
+  input[type="text"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="search"],
+  select,
+  textarea {
+    font-size: 16px !important;
   }
-  .modal-body {
-    padding: 1rem;
+}
+
+/* 5. استجابة شاشات الهواتف المحمولة (أقل من 520px) */
+@media (max-width: 520px) {
+  .brand-title {
+    font-size: 1.15rem;
+  }
+  
+  .brand-subtitle {
+    font-size: 0.72rem;
   }
 
-  /* --- Buttons --- */
-  .btn {
-    padding: 0.5rem 0.85rem;
-    font-size: 0.82rem;
-  }
-  .btn-lg {
-    padding: 0.65rem 1rem;
-    font-size: 0.88rem;
+  /* كروت المنتجات عمود واحد مريح وواضح */
+  .products-grid {
+    grid-template-columns: 1fr !important;
+    gap: 0.85rem;
   }
 
-  /* --- Typography --- */
-  .section-title {
+  .product-card {
+    border-radius: var(--radius-lg);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  }
+
+  .product-img-wrapper {
+    height: 195px;
+  }
+
+  .product-content {
+    padding: 0.85rem 1rem;
+  }
+
+  .product-title {
+    font-size: 0.95rem;
+    height: auto;
+    margin-bottom: 0.6rem;
+    -webkit-line-clamp: 2;
+  }
+
+  .employee-pricing-box {
+    padding: 0.65rem 0.85rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .price-row {
+    font-size: 0.84rem;
+  }
+
+  .sell-val {
     font-size: 1.05rem;
   }
-  .page-title {
-    font-size: 1.1rem;
+
+  .product-actions {
+    display: flex;
+    flex-direction: row !important;
+    gap: 0.5rem;
   }
 
-  /* --- Receipts --- */
-  .receipts-layout {
-    grid-template-columns: 1fr;
+  .product-actions .btn {
+    flex: 1;
+    padding: 0.65rem 0.8rem;
+    font-size: 0.86rem;
   }
 
-  /* --- Stats Cards --- */
-  .capital-stats-grid {
-    grid-template-columns: 1fr;
+  /* البطاقات والإحصائيات */
+  .capital-stats-grid,
+  .grid-2,
+  .grid-3,
+  .grid-4 {
+    grid-template-columns: 1fr !important;
+    gap: 0.75rem;
   }
 
-  /* --- Floating Cart --- */
+  .card {
+    padding: 0.85rem;
+  }
+
+  /* الفلاتر السريعة */
+  .category-chips {
+    padding-bottom: 0.4rem;
+    gap: 0.35rem;
+  }
+
+  .chip {
+    padding: 0.35rem 0.7rem;
+    font-size: 0.78rem;
+  }
+
+  /* الشريط العائم للسلة */
   .floating-cart-bar {
     width: calc(100% - 1rem);
     bottom: 8px;
-    padding: 0.6rem 0.85rem;
-    border-radius: var(--radius-lg);
+    right: 0.5rem;
+    left: 0.5rem;
+    padding: 0.65rem 0.9rem;
+    border-radius: 14px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+  }
+
+  .floating-cart-details .floating-cart-title {
+    font-size: 0.82rem;
+  }
+
+  .floating-cart-total {
+    font-size: 0.98rem;
   }
 }
 
-/* شاشات متوسطة الصغر */
-@media (max-width: 360px) {
+/* 6. شاشات الهواتف شديدة الصغر (أقل من 375px مثل iPhone SE القديم) */
+@media (max-width: 375px) {
+  .app-container {
+    padding: 0 0.5rem 4rem 0.5rem !important;
+  }
+
   .brand-title {
     font-size: 1rem;
   }
+
   .nav-tab-btn {
-    padding: 0.4rem 0.55rem;
+    padding: 0.4rem 0.6rem;
     font-size: 0.74rem;
   }
-  .app-container {
-    padding: 0 0.5rem 4rem 0.5rem;
+
+  .product-img-wrapper {
+    height: 175px;
   }
 }
+
