@@ -137,6 +137,101 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
 });
 
 // -------------------------------------------------------------
+// APIs: مزامنة برنامج الشامل لايت (Al-Shamel Lite Sync API)
+// -------------------------------------------------------------
+
+// وسيط التحقق من مفتاح الأمان (API Key Middleware)
+const SYNC_API_KEY = process.env.SYNC_API_KEY || 'shamel_sync_secret_key_2026';
+
+function requireSyncAuth(req, res, next) {
+  const providedKey = req.headers['x-api-key'] || 
+                     (req.headers.authorization && req.headers.authorization.replace(/^Bearer\s+/i, '')) ||
+                     req.query.apiKey;
+
+  if (!providedKey || providedKey !== SYNC_API_KEY) {
+    return res.status(401).json({
+      success: false,
+      error: 'غير مصرح: مفتاح المزامنة (API Key) غير صالح أو مفقود'
+    });
+  }
+  next();
+}
+
+// 1. فحص صحة الاتصال وحالة المزامنة
+app.get('/api/sync/status', requireSyncAuth, (req, res) => {
+  try {
+    const meta = dataStore.getLastSyncMeta();
+    const products = dataStore.getProducts();
+    const availableCount = products.filter(p => !p.isSuspended).length;
+    const suspendedCount = products.filter(p => p.isSuspended).length;
+
+    res.json({
+      success: true,
+      status: 'online',
+      message: 'خادم موقع أبو رامز متصل وجاهز للمزامنة',
+      storeName: 'Aboramez Store',
+      serverTime: new Date().toISOString(),
+      catalog: {
+        totalProducts: products.length,
+        available: availableCount,
+        suspended: suspendedCount
+      },
+      lastSync: meta
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 2. إرسال دفعة أصناف للمزامنة (Upsert)
+app.post('/api/sync/batch', requireSyncAuth, async (req, res) => {
+  try {
+    const { items, mode = 'full', dryRun = false } = req.body;
+    
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'يجب إرسال مصفوفة أصناف صالحة في الحقل items'
+      });
+    }
+
+    if (items.length > 500) {
+      return res.status(400).json({
+        success: false,
+        error: 'الحد الأقصى للدفعة الواحدة هو 500 صنف لضمان سرعة واستقرار المزامنة'
+      });
+    }
+
+    const result = await dataStore.syncBatchProducts(items, {
+      mode,
+      dryRun: Boolean(dryRun),
+      editorName: 'برنامج مزامنة الشامل'
+    });
+
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 3. الاستعلام عن حالة صنف معين في الموقع بالكود
+app.get('/api/sync/product/:code', requireSyncAuth, (req, res) => {
+  try {
+    const code = String(req.params.code).trim().toUpperCase();
+    const products = dataStore.getProducts();
+    const product = products.find(p => p.code && String(p.code).trim().toUpperCase() === code);
+
+    if (!product) {
+      return res.status(404).json({ success: false, error: 'الصنف غير موجود في الموقع' });
+    }
+
+    res.json({ success: true, product });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// -------------------------------------------------------------
 // APIs: الفواتير (Invoices)
 // -------------------------------------------------------------
 

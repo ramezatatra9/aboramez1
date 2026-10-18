@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { supabase } = require('./supabaseClient');
+const { categorizeProduct, getDefaultImageForCategory } = require('./categoryHelper');
 
 const DATA_DIR = path.join(__dirname, 'data');
 const PRODUCTS_FILE = path.join(DATA_DIR, 'products.json');
@@ -1318,6 +1319,233 @@ const dataStore = {
         customers: Array.isArray(customers) ? customers.length : 0,
         receipts: Array.isArray(receipts) ? receipts.length : 0
       }
+    };
+  },
+
+  // جلب معلومات آخر مزامنة
+  getLastSyncMeta() {
+    const syncMetaFile = path.join(DATA_DIR, 'sync_meta.json');
+    return readJson(syncMetaFile, { lastSyncAt: null, itemsCount: 0 });
+  },
+
+  // مزامنة دفعة أصناف من برنامج الشامل لايت
+  async syncBatchProducts(items, options = {}) {
+    const {
+      mode = 'full',        // 'full', 'prices_only', 'stock_only'
+      dryRun = false,       // وضع التجربة (بدون حفظ فعلي)
+      editorName = 'مزامنة الشامل لايت'
+    } = options;
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return {
+        success: false,
+        error: 'دفعة الأصناف فارغة أو غير صالحة',
+        summary: { totalReceived: 0, created: 0, updated: 0, unchanged: 0, suspended: 0, errors: [] }
+      };
+    }
+
+    const products = this.getProducts();
+    const now = new Date().toISOString();
+
+    // إنشاء خريطة سريعة للأصناف الحالية بالكود (Case-insensitive)
+    const codeMap = new Map();
+    products.forEach((p, index) => {
+      if (p.code) {
+        codeMap.set(String(p.code).trim().toUpperCase(), index);
+      }
+    });
+
+    const summary = {
+      totalReceived: items.length,
+      created: 0,
+      updated: 0,
+      unchanged: 0,
+      suspended: 0,
+      errors: [],
+      details: []
+    };
+
+    const updatedOrNewProducts = [];
+
+    for (const item of items) {
+      try {
+        if (!item || !item.code || !item.name) {
+          summary.errors.push(`صنف غير مكتمل: ${JSON.stringify(item)}`);
+          continue;
+        }
+
+        const cleanCode = String(item.code).trim();
+        const codeKey = cleanCode.toUpperCase();
+        const existingIndex = codeMap.get(codeKey);
+
+        const newSellPrice = item.sellPrice !== undefined ? Math.max(0, parseFloat(item.sellPrice) || 0) : null;
+        const newCostPrice = item.costPrice !== undefined ? Math.max(0, parseFloat(item.costPrice) || 0) : null;
+        const newStock = item.stock !== undefined ? Math.max(0, parseInt(item.stock) || 0) : null;
+        const isSuspended = Boolean(item.isSuspended);
+
+        if (existingIndex !== undefined) {
+          // --- الصنف موجود مسبقاً: تحديث آمن دون لمس الصور أو الأقسام أو المعرفات ---
+          const current = products[existingIndex];
+          let changed = false;
+          const changes = [];
+
+          const updatedProduct = { ...current };
+
+          // 1. تحديث السعر
+          if (mode !== 'stock_only' && newSellPrice !== null) {
+            if (current.sellPrice !== newSellPrice) {
+              changes.push(`السعر: من ${current.sellPrice} إلى ${newSellPrice}`);
+              updatedProduct.sellPrice = newSellPrice;
+              changed = true;
+            }
+          }
+
+          // 2. تحديث التكلفة داخلياً (إذا توفرت)
+          if (newCostPrice !== null && current.costPrice !== newCostPrice) {
+            updatedProduct.costPrice = newCostPrice;
+            changed = true;
+          }
+
+          // 3. تحديث المخزون
+          if (mode !== 'prices_only' && newStock !== null) {
+            if (current.stock !== newStock) {
+              changes.push(`المخزون: من ${current.stock} إلى ${newStock}`);
+              updatedProduct.stock = newStock;
+              updatedProduct.lastStockUpdate = now;
+              updatedProduct.lastStockEditor = editorName;
+              changed = true;
+            }
+          }
+
+          // 4. حالة الإيقاف
+          if (current.isSuspended !== isSuspended) {
+            updatedProduct.isSuspended = isSuspended;
+            changes.push(`حالة التوفر: ${isSuspended ? 'متوقف' : 'متاح'}`);
+            changed = true;
+          }
+
+          // 5. الباركود إذا لم يكن مسجلاً
+          if (item.barcode && !current.barcode) {
+            updatedProduct.barcode = String(item.barcode).trim();
+            changed = true;
+          }
+
+          if (changed) {
+            updatedProduct.updatedAt = now;
+            updatedProduct.lastSyncAt = now;
+            if (!dryRun) {
+              products[existingIndex] = updatedProduct;
+              updatedOrNewProducts.push(updatedProduct);
+            }
+            summary.updated++;
+            summary.details.push({ code: cleanCode, name: current.name, action: 'updated', changes });
+          } else {
+            summary.unchanged++;
+          }
+
+          if (isSuspended) {
+            summary.suspended++;
+          }
+
+        } else {
+          // --- صنف جديد قادم من الشامل: إضافة مع تصنيف تلقائي وصورة افتراضية ---
+          const categoryResult = categorizeProduct(item.name);
+          const defaultImage = getDefaultImageForCategory(categoryResult.sub);
+          const safeId = 'prod-' + cleanCode.toLowerCase().replace(/[^a-z0-9]/g, '') + '-' + Math.floor(100 + Math.random() * 900);
+
+          const newProduct = {
+            id: safeId,
+            code: cleanCode,
+            name: String(item.name).trim(),
+            brand: item.brand || 'أخرى',
+            brandAr: item.brandAr || 'أخرى / عام',
+            mainCategory: categoryResult.main,
+            category: categoryResult.sub,
+            costPrice: newCostPrice || 0,
+            sellPrice: newSellPrice || 0,
+            stock: (mode === 'prices_only') ? 0 : (newStock || 0),
+            barcode: item.barcode ? String(item.barcode).trim() : '',
+            unit: item.unit || 'قطعة',
+            image: item.image || defaultImage,
+            description: item.description || `${item.name} (كود: ${cleanCode})`,
+            isSuspended: isSuspended,
+            createdAt: now,
+            updatedAt: now,
+            lastSyncAt: now,
+            lastStockUpdate: now,
+            lastStockEditor: editorName
+          };
+
+          if (!dryRun) {
+            products.unshift(newProduct);
+            codeMap.set(codeKey, 0);
+            updatedOrNewProducts.push(newProduct);
+          }
+          summary.created++;
+          if (isSuspended) summary.suspended++;
+          summary.details.push({ code: cleanCode, name: newProduct.name, action: 'created', price: newSellPrice, stock: newStock });
+        }
+      } catch (err) {
+        summary.errors.push(`خطأ في معالجة الصنف ${item?.code}: ${err.message}`);
+      }
+    }
+
+    // إذا لم يكن الوضع تجريبياً، نقوم بالحفظ النهائي دفعة واحدة
+    if (!dryRun && updatedOrNewProducts.length > 0) {
+      // 1. إنشاء نسخة احتياطية سريعة قبل الكتابة
+      this.createBackup('pre_sync_batch');
+
+      // 2. كتابة ملف JSON محلياً
+      writeJson(PRODUCTS_FILE, products);
+
+      // 3. مزامنة سحابية متوازية مع Supabase إذا كان متصلاً
+      if (supabase) {
+        try {
+          const supabaseBatch = updatedOrNewProducts.map(p => ({
+            id: String(p.id),
+            code: String(p.code || ''),
+            name: String(p.name || ''),
+            category: String(p.mainCategory || p.category || 'عام'),
+            subcategory: String(p.category || ''),
+            costPrice: Number(p.costPrice) || 0,
+            sellPrice: Number(p.sellPrice) || 0,
+            stock: parseInt(p.stock) || 0,
+            unit: String(p.unit || 'قطعة'),
+            image: String(p.image || ''),
+            description: String(p.description || ''),
+            lastStockUpdate: p.lastStockUpdate || null,
+            lastStockEditor: p.lastStockEditor || null,
+            createdAt: p.createdAt || now
+          }));
+
+          const { error: sbErr } = await supabase.from('products').upsert(supabaseBatch);
+          if (sbErr) {
+            console.error('Supabase batch upsert error:', sbErr.message);
+            summary.errors.push(`Supabase sync warning: ${sbErr.message}`);
+          }
+        } catch (sbEx) {
+          console.error('Supabase batch exception:', sbEx.message);
+        }
+      }
+
+      // 4. حفظ بيانات المزامنة الأخيرة
+      const syncMetaFile = path.join(DATA_DIR, 'sync_meta.json');
+      writeJson(syncMetaFile, {
+        lastSyncAt: now,
+        mode,
+        itemsReceived: items.length,
+        created: summary.created,
+        updated: summary.updated,
+        unchanged: summary.unchanged
+      });
+    }
+
+    return {
+      success: summary.errors.length === 0,
+      dryRun,
+      summary,
+      totalCatalogProducts: products.length,
+      timestamp: now
     };
   }
 };
