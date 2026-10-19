@@ -273,10 +273,29 @@ const defaultProducts = [
   }
 ];
 
+// ذاكرة تخزين مؤقت للمنتجات (تُحدَّث عند كل عملية تعديل)
+let _productsCache = null;
+let _productsCacheTime = 0;
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 دقائق
+
 const dataStore = {
-  // المنتجات
+  // المنتجات - يقرأ من الذاكرة المؤقتة أولاً ثم الملف المحلي
   getProducts() {
-    return readJson(PRODUCTS_FILE, defaultProducts);
+    // إن كانت الذاكرة المؤقتة حديثة استخدمها فوراً
+    if (_productsCache && (Date.now() - _productsCacheTime) < CACHE_TTL_MS) {
+      return _productsCache;
+    }
+    // قراءة من الملف المحلي
+    const data = readJson(PRODUCTS_FILE, defaultProducts);
+    _productsCache = data;
+    _productsCacheTime = Date.now();
+    return data;
+  },
+
+  // تحديث الذاكرة المؤقتة
+  _invalidateCache() {
+    _productsCache = null;
+    _productsCacheTime = 0;
   },
 
   getProductById(id) {
@@ -1506,6 +1525,9 @@ const dataStore = {
       // 2. كتابة ملف JSON محلياً
       writeJson(PRODUCTS_FILE, products);
 
+      // 3. إبطال الذاكرة المؤقتة
+      this._invalidateCache();
+
       // 3. مزامنة سحابية متوازية مع Supabase إذا كان متصلاً
       if (supabase) {
         try {
@@ -1971,6 +1993,113 @@ const dataStore = {
       totalSuppliers: updatedSuppliers.length,
       timestamp: now
     };
+  },
+
+  // ---------------------------------------------------------------
+  // استعادة البيانات من Supabase عند بدء تشغيل الخادم
+  // هذا يحل مشكلة: Render يمسح products.json عند كل إعادة تشغيل
+  // ---------------------------------------------------------------
+  async initFromSupabase() {
+    if (!supabase) {
+      console.log('⚠️  Supabase غير متصل - سيتم استخدام البيانات المحلية فقط');
+      return;
+    }
+
+    console.log('🔄 جاري استعادة بيانات المنتجات من Supabase...');
+
+    try {
+      // جلب جميع المنتجات من Supabase (مع pagination لتجنب حد 1000 سجل)
+      let allProducts = [];
+      let page = 0;
+      const pageSize = 500;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('products')
+          .select('*')
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+
+        if (error) {
+          console.error('❌ خطأ في جلب المنتجات من Supabase:', error.message);
+          return;
+        }
+
+        if (data && data.length > 0) {
+          // تحويل بنية Supabase إلى بنية products.json
+          const mapped = data.map(p => ({
+            id: p.id,
+            code: p.code || '',
+            name: p.name || '',
+            mainCategory: p.category || 'أجهزة كهربائية كبيرة',
+            category: p.subcategory || p.category || 'عام',
+            costPrice: Number(p.costPrice) || 0,
+            sellPrice: Number(p.sellPrice) || 0,
+            stock: parseInt(p.stock) || 0,
+            unit: p.unit || 'قطعة',
+            image: p.image || 'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80',
+            description: p.description || '',
+            barcode: p.barcode || '',
+            isSuspended: Boolean(p.isSuspended),
+            brand: p.brand || 'أخرى',
+            brandAr: p.brandAr || 'أخرى / عام',
+            lastStockUpdate: p.lastStockUpdate || null,
+            lastStockEditor: p.lastStockEditor || null,
+            createdAt: p.createdAt || new Date().toISOString(),
+            updatedAt: p.updatedAt || null,
+            lastSyncAt: p.lastSyncAt || null
+          }));
+          allProducts = allProducts.concat(mapped);
+          page++;
+          hasMore = data.length === pageSize;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      if (allProducts.length > 0) {
+        // حفظ البيانات المستعادة في ملف JSON المحلي
+        writeJson(PRODUCTS_FILE, allProducts);
+        // تحديث الذاكرة المؤقتة
+        _productsCache = allProducts;
+        _productsCacheTime = Date.now();
+        console.log(`✅ تم استعادة ${allProducts.length} صنف من Supabase إلى الملف المحلي`);
+      } else {
+        console.log('ℹ️  Supabase فارغ - سيتم استخدام البيانات المحلية الموجودة');
+      }
+    } catch (err) {
+      console.error('❌ خطأ في initFromSupabase:', err.message);
+      // لا نوقف الخادم - نستمر بالملف المحلي
+    }
+
+    // استعادة الزبائن من Supabase أيضاً
+    try {
+      const { data: custsData, error: custsErr } = await supabase
+        .from('customers')
+        .select('*')
+        .limit(2000);
+
+      if (!custsErr && custsData && custsData.length > 0) {
+        const mapped = custsData.map(c => ({
+          id: c.id,
+          systemNumber: c.systemNumber || c.shamelCode || '',
+          shamelCode: c.systemNumber || c.shamelCode || '',
+          name: c.name || '',
+          phone: c.phone || '',
+          mobile: c.mobile || c.phone || '',
+          email: c.email || '',
+          address: c.address || '',
+          notes: c.notes || '',
+          isStopped: Boolean(c.isStopped),
+          balance: Number(c.balance) || 0,
+          createdAt: c.createdAt || new Date().toISOString()
+        }));
+        writeJson(CUSTOMERS_FILE, mapped);
+        console.log(`✅ تم استعادة ${mapped.length} زبون من Supabase`);
+      }
+    } catch (e) {
+      console.error('خطأ في استعادة الزبائن من Supabase:', e.message);
+    }
   }
 };
 
