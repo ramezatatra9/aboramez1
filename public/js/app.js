@@ -2324,8 +2324,9 @@ function renderCatalog() {
     return `
       ${dividerHtml}
       <div class="product-card ${isZeroStock ? 'is-out-of-stock' : ''}">
-        <div class="product-img-wrapper" onclick="openProductCustomerPreview('${prod.id}')" style="cursor: pointer;" title="انقر لتكبير ومعاينة صورة الصنف وعرضها للعميل">
+        <div class="product-img-wrapper" onclick="openProductCustomerPreview('${prod.id}')" style="cursor: pointer;" title="انقر لتكبير ومعاينة صورة الصنف وعرضها">
           <img src="${imageUrl}" alt="${prod.name}" loading="lazy" onerror="this.src='https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80'">
+          ${(Array.isArray(prod.images) && prod.images.length > 1) ? `<span class="badge" style="position: absolute; top: 8px; left: 8px; background: rgba(15, 23, 42, 0.85); color: #fff; font-size: 0.72rem; padding: 2px 7px; border-radius: 6px; backdrop-filter: blur(4px); font-weight: 700; border: 1px solid rgba(255,255,255,0.2);">📷 ${prod.images.length} صور</span>` : ''}
           <span class="product-category-tag">${prod.category || 'عام'}</span>
           ${prod.brand && prod.brand !== 'أخرى' ? `<span class="product-brand-tag">🏷️ ${escapeHtml(prod.brand)}</span>` : ''}
           <span class="product-stock-tag ${isZeroStock ? 'zero-stock-badge' : ''}">${isZeroStock ? '⚠️ غير متوفر (0)' : `المتوفر: ${currentStock}`}</span>
@@ -2517,11 +2518,12 @@ function openAddProductModal() {
   document.getElementById('prodSellPrice').value = '';
   document.getElementById('prodCalculatedProfit').value = '';
   document.getElementById('prodStock').value = '10';
-  document.getElementById('prodImageUrl').value = '';
   document.getElementById('prodDescription').value = '';
-  // إعادة تعيين الماركة المكتشفة والصورة
+  
+  // إعادة تعيين الماركة المكتشفة ومصفوفة الصور
   clearDetectedBrand();
-  clearProductImage();
+  state.editingProductImages = [];
+  renderProductModalImagesGrid();
 
   document.getElementById('productModal').classList.add('active');
 }
@@ -2540,11 +2542,17 @@ function openEditProductModal(id) {
   document.getElementById('prodCostPrice').value = prod.costPrice || '';
   document.getElementById('prodSellPrice').value = prod.sellPrice || '';
   document.getElementById('prodStock').value = prod.stock ?? 10;
-  document.getElementById('prodImageUrl').value = prod.image || '';
   document.getElementById('prodDescription').value = prod.description || '';
 
-  // تحديث المعاينة المصغرة للصورة
-  updateImageThumbFromUrl(prod.image);
+  // تجهيز مصفوفة الصور للصنف
+  let imgs = [];
+  if (Array.isArray(prod.images) && prod.images.length > 0) {
+    imgs = prod.images.filter(img => typeof img === 'string' && img.trim());
+  } else if (prod.image && typeof prod.image === 'string' && prod.image.trim()) {
+    imgs = [prod.image.trim()];
+  }
+  state.editingProductImages = [...imgs];
+  renderProductModalImagesGrid();
 
   // عرض الماركة المحفوظة مسبقاً أو إعادة الكشف
   clearDetectedBrand();
@@ -2641,156 +2649,406 @@ function compressImageForUpload(file, maxWidth = 1600, maxHeight = 1600, quality
   });
 }
 
-function updateImageThumbFromUrl(url) {
-  const box = document.getElementById('prodImagePreviewBox');
-  const thumb = document.getElementById('prodImagePreviewThumb');
-  if (!box || !thumb) return;
-  const clean = (url || '').trim();
-  if (clean) {
-    thumb.src = clean;
-    box.style.display = 'flex';
-  } else {
-    box.style.display = 'none';
-  }
-}
+// رفع ومعالجة صور متعددة للصنف
+async function handleMultipleImagesUpload(input) {
+  if (!input.files || input.files.length === 0) return;
+  const files = Array.from(input.files);
+  showToast(`جاري معالجة وضغط (${files.length}) صورة للأجهزة الذكية والأندرويد...`, 'info');
 
-function clearProductImage() {
-  const urlInput = document.getElementById('prodImageUrl');
-  if (urlInput) urlInput.value = '';
-  const fileGallery = document.getElementById('prodImageFileGallery');
-  if (fileGallery) fileGallery.value = '';
-  const fileCamera = document.getElementById('prodImageFileCamera');
-  if (fileCamera) fileCamera.value = '';
-  const box = document.getElementById('prodImagePreviewBox');
-  if (box) box.style.display = 'none';
-}
-
-async function handleImageUpload(input) {
-  if (!input.files || !input.files[0]) return;
-  const rawFile = input.files[0];
-
-  showToast('جاري معالجة وضغط الصورة للأجهزة الذكية والأندرويد...', 'info');
-
-  try {
-    const file = await compressImageForUpload(rawFile);
-    const formData = new FormData();
-    formData.append('image', file);
-
-    showToast('جاري الرفع للتخزين السحابي الدائم...', 'info');
-
-    const res = await fetch('/api/upload', {
-      method: 'POST',
-      body: formData
-    });
-    const data = await res.json();
-    if (data.success && data.imageUrl) {
-      document.getElementById('prodImageUrl').value = data.imageUrl;
-      updateImageThumbFromUrl(data.imageUrl);
-      showToast('✅ تم رفع وتثبيت صورة المنتج بنجاح!', 'success');
-    } else {
-      showToast(data.error || 'فشل رفع الصورة', 'error');
+  let uploadedCount = 0;
+  for (const rawFile of files) {
+    try {
+      const file = await compressImageForUpload(rawFile);
+      const formData = new FormData();
+      formData.append('image', file);
+      const res = await fetch('/api/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.success && data.imageUrl) {
+        if (!Array.isArray(state.editingProductImages)) state.editingProductImages = [];
+        state.editingProductImages.push(data.imageUrl);
+        uploadedCount++;
+      }
+    } catch (err) {
+      console.error('فشل رفع إحدى الصور:', err);
     }
-  } catch (err) {
-    console.error('Image upload error:', err);
-    showToast('تعذر رفع الصورة: ' + err.message, 'error');
-  } finally {
-    input.value = '';
+  }
+  input.value = '';
+  renderProductModalImagesGrid();
+  if (uploadedCount > 0) {
+    showToast(`✅ تم رفع وإضافة (${uploadedCount}) صورة بنجاح!`, 'success');
+  } else {
+    showToast('فشل رفع الصور المحددة', 'error');
   }
 }
 
+// إضافة رابط صورة URL يدوي
+function addImageUrlToProductList() {
+  const input = document.getElementById('prodAddImageUrlInput');
+  if (!input) return;
+  const url = input.value.trim();
+  if (!url) {
+    showToast('يرجى إدخال رابط صورة صالح', 'warning');
+    return;
+  }
+  if (!Array.isArray(state.editingProductImages)) state.editingProductImages = [];
+  state.editingProductImages.push(url);
+  input.value = '';
+  renderProductModalImagesGrid();
+  showToast('تمت إضافة رابط الصورة بنجاح', 'success');
+}
+
+// حذف صورة محددة من قائمة صور الصنف
+function removeProductImage(index) {
+  if (!Array.isArray(state.editingProductImages)) return;
+  state.editingProductImages.splice(index, 1);
+  renderProductModalImagesGrid();
+}
+
+// تعيين الصورة كغلاف رئيسي
+function setProductPrimaryImage(index) {
+  if (!Array.isArray(state.editingProductImages) || index <= 0) return;
+  const [chosen] = state.editingProductImages.splice(index, 1);
+  state.editingProductImages.unshift(chosen);
+  renderProductModalImagesGrid();
+  showToast('تم تعيين الصورة كغلاف رئيسي للصنف ⭐', 'info');
+}
+
+// رسم وإدارة مصغرات الصور في نافذة تعديل المنتج
+function renderProductModalImagesGrid() {
+  const container = document.getElementById('prodImagesGridContainer');
+  const countBadge = document.getElementById('prodImagesCountBadge');
+  const hiddenUrl = document.getElementById('prodImageUrl');
+  const imgs = state.editingProductImages || [];
+
+  if (countBadge) countBadge.textContent = `${imgs.length} صورة مضافة`;
+  if (hiddenUrl) hiddenUrl.value = imgs[0] || '';
+
+  if (!container) return;
+
+  if (imgs.length === 0) {
+    container.innerHTML = `
+      <div id="prodImagesEmptyHint" style="font-size: 0.82rem; color: #94a3b8; text-align: center; width: 100%; padding: 0.5rem;">
+        📷 لم يتم إضافة صور بعد. اضغط "الاستوديو / الصور" لاختيار صورة أو أكثر، أو التقط صورة بالكاميرا.
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = imgs.map((url, idx) => {
+    const isPrimary = (idx === 0);
+    return `
+      <div class="prod-modal-thumb-item ${isPrimary ? 'is-primary' : ''}">
+        <img src="${escapeHtml(url)}" alt="صورة ${idx + 1}" onerror="this.src='https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80'">
+        <button type="button" class="prod-modal-thumb-del" onclick="removeProductImage(${idx})" title="حذف هذه الصورة">✕</button>
+        <button type="button" class="prod-modal-thumb-star ${isPrimary ? 'active' : ''}" onclick="setProductPrimaryImage(${idx})" title="${isPrimary ? 'الصورة الرئيسية الحالية' : 'تعيين كصورة رئيسية'}">
+          ${isPrimary ? '⭐ رئيسية' : '☆ رئيسية'}
+        </button>
+      </div>
+    `;
+  }).join('');
+}
+
 // =============================================================
-// نافذة معاينة وعرض المنتج للعميل (Customer Product Showroom)
+// نافذة معاينة وعرض صور المنتج النقية بالكامل مع التكبير المباشر (Pure Lightbox & Zoom)
 // =============================================================
-function openProductCustomerPreview(productId) {
+let previewGallery = {
+  images: [],
+  currentIndex: 0,
+  zoom: 1,
+  panX: 0,
+  panY: 0,
+  isDragging: false,
+  hasDragged: false,
+  startX: 0,
+  startY: 0
+};
+
+function openProductCustomerPreview(productId, initialIndex = 0) {
   const prod = state.products.find(p => String(p.id) === String(productId));
   if (!prod) {
     showToast('الصنف غير موجود', 'warning');
     return;
   }
 
-  const currency = state.settings.currency || 'شيكل';
+  let imgs = [];
+  if (Array.isArray(prod.images) && prod.images.length > 0) {
+    imgs = prod.images.filter(img => typeof img === 'string' && img.trim());
+  } else if (prod.image && typeof prod.image === 'string' && prod.image.trim()) {
+    imgs = [prod.image.trim()];
+  }
+
+  if (imgs.length === 0) {
+    imgs = ['https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80'];
+  }
+
+  previewGallery = {
+    images: imgs,
+    currentIndex: Math.max(0, Math.min(initialIndex, imgs.length - 1)),
+    zoom: 1,
+    panX: 0,
+    panY: 0,
+    isDragging: false,
+    hasDragged: false,
+    startX: 0,
+    startY: 0
+  };
+
+  updateCustomerPreviewUi();
+
   const modal = document.getElementById('customerProductPreviewModal');
-  if (!modal) return;
-
-  const currentStock = Math.max(0, parseInt(prod.stock) || 0);
-  const isZeroStock = currentStock === 0;
-  const imageUrl = prod.image || 'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80';
-  const sellPrice = parseFloat(prod.sellPrice) || 0;
-
-  // العنوان
-  const titleEl = document.getElementById('custPrevModalTitle');
-  if (titleEl) titleEl.textContent = `معاينة: ${prod.name}`;
-
-  // الشارات
-  const brandEl = document.getElementById('custPrevBrandBadge');
-  if (brandEl) {
-    const brandName = prod.brandAr && prod.brandAr !== prod.brand ? `${prod.brand} (${prod.brandAr})` : (prod.brand || 'معرض أبو رامز');
-    brandEl.textContent = `🏷️ ${brandName}`;
+  if (modal) {
+    modal.style.display = 'flex';
+    modal.classList.add('active');
   }
 
-  const catEl = document.getElementById('custPrevCategoryBadge');
-  if (catEl) catEl.textContent = `📁 ${prod.mainCategory || prod.category || 'عام'}`;
+  // تسجيل مستمعات لوحة المفاتيح
+  document.addEventListener('keydown', handlePreviewKeyDown);
+  initPreviewInteraction();
+}
 
-  const codeEl = document.getElementById('custPrevCodeBadge');
-  if (codeEl) codeEl.textContent = `🔢 كود: ${prod.code || 'بدون كود'}`;
-
-  const stockEl = document.getElementById('custPrevStockBadge');
-  if (stockEl) {
-    if (isZeroStock) {
-      stockEl.textContent = '⚠️ متوفر بالطلب المباشر';
-      stockEl.style.background = '#fef2f2';
-      stockEl.style.color = '#dc2626';
-      stockEl.style.border = '1px solid #fecaca';
-    } else {
-      stockEl.textContent = `✅ متوفر فوراً (${currentStock} قطعة)`;
-      stockEl.style.background = '#f0fdf4';
-      stockEl.style.color = '#16a34a';
-      stockEl.style.border = '1px solid #bbf7d0';
-    }
-  }
-
-  // الصورة
+function updateCustomerPreviewUi() {
   const imgEl = document.getElementById('custPrevImage');
+  const counterEl = document.getElementById('custPrevGalleryCounter');
+  const btnPrev = document.getElementById('custPrevBtnPrev');
+  const btnNext = document.getElementById('custPrevBtnNext');
+  const thumbStrip = document.getElementById('custPrevThumbStrip');
+
+  const total = previewGallery.images.length;
+  const current = previewGallery.currentIndex;
+  const currentUrl = previewGallery.images[current];
+
   if (imgEl) {
-    imgEl.src = imageUrl;
-    imgEl.alt = prod.name;
+    imgEl.src = currentUrl;
   }
 
-  // الاسم والسعر
-  const nameEl = document.getElementById('custPrevName');
-  if (nameEl) nameEl.textContent = prod.name;
+  // إعادة ضبط التكبير عند تبديل الصورة
+  previewGallery.zoom = 1;
+  previewGallery.panX = 0;
+  previewGallery.panY = 0;
+  applyCustomerPreviewTransform();
 
-  const priceEl = document.getElementById('custPrevPrice');
-  if (priceEl) priceEl.textContent = `${sellPrice.toLocaleString('en-US')} ${currency}`;
-
-  // الوصف
-  const descBox = document.getElementById('custPrevDescBox');
-  const descEl = document.getElementById('custPrevDescription');
-  if (descBox && descEl) {
-    if (prod.description && prod.description.trim()) {
-      descEl.textContent = prod.description.trim();
-      descBox.style.display = 'block';
-    } else {
-      descBox.style.display = 'none';
+  // عناصر التعدد (تظهر فقط إذا كان هناك أكثر من صورة)
+  if (total > 1) {
+    if (counterEl) {
+      counterEl.style.display = 'block';
+      counterEl.textContent = `${current + 1} / ${total}`;
     }
+    if (btnPrev) btnPrev.style.display = 'flex';
+    if (btnNext) btnNext.style.display = 'flex';
+    if (thumbStrip) {
+      thumbStrip.style.display = 'flex';
+      thumbStrip.innerHTML = previewGallery.images.map((url, i) => `
+        <div class="cust-prev-mini-thumb ${i === current ? 'active' : ''}" onclick="selectCustomerPreviewImage(${i})" title="صورة ${i + 1}">
+          <img src="${escapeHtml(url)}" alt="صورة ${i + 1}">
+        </div>
+      `).join('');
+    }
+  } else {
+    if (counterEl) counterEl.style.display = 'none';
+    if (btnPrev) btnPrev.style.display = 'none';
+    if (btnNext) btnNext.style.display = 'none';
+    if (thumbStrip) thumbStrip.style.display = 'none';
   }
+}
 
-  // زر الإضافة للفاتورة
-  const addBtn = document.getElementById('custPrevAddToCartBtn');
-  if (addBtn) {
-    addBtn.onclick = () => {
-      addToCart(prod.id);
-      closeCustomerProductPreview();
-      showToast(`تمت إضافة [${prod.name}] إلى الفاتورة!`, 'success');
-    };
-  }
+function selectCustomerPreviewImage(index) {
+  if (index < 0 || index >= previewGallery.images.length) return;
+  previewGallery.currentIndex = index;
+  updateCustomerPreviewUi();
+}
 
-  modal.classList.add('active');
+function nextCustomerPreviewImage(e) {
+  if (e) e.stopPropagation();
+  if (previewGallery.images.length <= 1) return;
+  previewGallery.currentIndex = (previewGallery.currentIndex + 1) % previewGallery.images.length;
+  updateCustomerPreviewUi();
+}
+
+function prevCustomerPreviewImage(e) {
+  if (e) e.stopPropagation();
+  if (previewGallery.images.length <= 1) return;
+  previewGallery.currentIndex = (previewGallery.currentIndex - 1 + previewGallery.images.length) % previewGallery.images.length;
+  updateCustomerPreviewUi();
 }
 
 function closeCustomerProductPreview() {
   const modal = document.getElementById('customerProductPreviewModal');
-  if (modal) modal.classList.remove('active');
+  if (modal) {
+    modal.style.display = 'none';
+    modal.classList.remove('active');
+  }
+  document.removeEventListener('keydown', handlePreviewKeyDown);
+}
+
+function handlePreviewKeyDown(e) {
+  if (e.key === 'Escape') {
+    closeCustomerProductPreview();
+  } else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+    prevCustomerPreviewImage();
+  } else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+    nextCustomerPreviewImage();
+  } else if (e.key === '+' || e.key === '=') {
+    zoomInCustomerPreview();
+  } else if (e.key === '-') {
+    zoomOutCustomerPreview();
+  } else if (e.key === '0') {
+    resetCustomerPreviewZoom();
+  }
+}
+
+function zoomInCustomerPreview(e) {
+  if (e) e.stopPropagation();
+  previewGallery.zoom = Math.min(6, Math.round((previewGallery.zoom + 0.35) * 100) / 100);
+  applyCustomerPreviewTransform();
+}
+
+function zoomOutCustomerPreview(e) {
+  if (e) e.stopPropagation();
+  previewGallery.zoom = Math.max(0.7, Math.round((previewGallery.zoom - 0.35) * 100) / 100);
+  if (previewGallery.zoom <= 1) {
+    previewGallery.panX = 0;
+    previewGallery.panY = 0;
+  }
+  applyCustomerPreviewTransform();
+}
+
+function resetCustomerPreviewZoom(e) {
+  if (e) e.stopPropagation();
+  previewGallery.zoom = 1;
+  previewGallery.panX = 0;
+  previewGallery.panY = 0;
+  applyCustomerPreviewTransform();
+}
+
+function toggleFullscreenPreview(e) {
+  if (e) e.stopPropagation();
+  const modal = document.getElementById('customerProductPreviewModal');
+  if (!modal) return;
+  if (!document.fullscreenElement) {
+    modal.requestFullscreen?.() || modal.webkitRequestFullscreen?.();
+  } else {
+    document.exitFullscreen?.() || document.webkitExitFullscreen?.();
+  }
+}
+
+function applyCustomerPreviewTransform() {
+  const img = document.getElementById('custPrevImage');
+  const label = document.getElementById('custPrevZoomLabel');
+  const wrapper = document.getElementById('custPrevImageWrapper');
+  if (!img) return;
+
+  img.style.transform = `translate(${previewGallery.panX}px, ${previewGallery.panY}px) scale(${previewGallery.zoom})`;
+
+  if (label) {
+    label.textContent = `${Math.round(previewGallery.zoom * 100)}%`;
+  }
+
+  if (wrapper) {
+    wrapper.style.cursor = previewGallery.zoom > 1 ? (previewGallery.isDragging ? 'grabbing' : 'grab') : 'zoom-in';
+  }
+}
+
+function handleImageWrapperClick(e) {
+  if (e.target.id === 'custPrevImageWrapper' && !previewGallery.hasDragged) {
+    closeCustomerProductPreview();
+  }
+}
+
+let previewInteractionInitialized = false;
+function initPreviewInteraction() {
+  if (previewInteractionInitialized) return;
+  previewInteractionInitialized = true;
+
+  const wrapper = document.getElementById('custPrevImageWrapper');
+  const img = document.getElementById('custPrevImage');
+  if (!wrapper || !img) return;
+
+  // تكبير بالنقر المزدوج على الصورة
+  img.addEventListener('dblclick', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (previewGallery.zoom > 1) {
+      resetCustomerPreviewZoom();
+    } else {
+      previewGallery.zoom = 2.5;
+      applyCustomerPreviewTransform();
+    }
+  });
+
+  // تكبير/تصغير بعجلة الماوس في موضع المؤشر
+  wrapper.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    if (e.deltaY < 0) {
+      zoomInCustomerPreview();
+    } else {
+      zoomOutCustomerPreview();
+    }
+  }, { passive: false });
+
+  // السحب بالماوس للتنقل داخل تفاصيل الصورة عند التكبير
+  wrapper.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    previewGallery.isDragging = true;
+    previewGallery.hasDragged = false;
+    previewGallery.startX = e.clientX - previewGallery.panX;
+    previewGallery.startY = e.clientY - previewGallery.panY;
+    applyCustomerPreviewTransform();
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!previewGallery.isDragging) return;
+    if (previewGallery.zoom <= 1) return;
+    previewGallery.hasDragged = true;
+    previewGallery.panX = e.clientX - previewGallery.startX;
+    previewGallery.panY = e.clientY - previewGallery.startY;
+    applyCustomerPreviewTransform();
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (previewGallery.isDragging) {
+      previewGallery.isDragging = false;
+      applyCustomerPreviewTransform();
+    }
+  });
+
+  // السحب والتكبير باللمس لشاشات الهواتف والأجهزة الذكية
+  let touchStartDist = 0;
+  wrapper.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1) {
+      previewGallery.isDragging = true;
+      previewGallery.hasDragged = false;
+      previewGallery.startX = e.touches[0].clientX - previewGallery.panX;
+      previewGallery.startY = e.touches[0].clientY - previewGallery.panY;
+    } else if (e.touches.length === 2) {
+      touchStartDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+    }
+  }, { passive: true });
+
+  wrapper.addEventListener('touchmove', (e) => {
+    if (e.touches.length === 1 && previewGallery.isDragging && previewGallery.zoom > 1) {
+      previewGallery.hasDragged = true;
+      previewGallery.panX = e.touches[0].clientX - previewGallery.startX;
+      previewGallery.panY = e.touches[0].clientY - previewGallery.startY;
+      applyCustomerPreviewTransform();
+    } else if (e.touches.length === 2 && touchStartDist > 0) {
+      const currentDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      const diff = (currentDist - touchStartDist) / 150;
+      previewGallery.zoom = Math.max(0.7, Math.min(6, previewGallery.zoom + diff));
+      touchStartDist = currentDist;
+      applyCustomerPreviewTransform();
+    }
+  }, { passive: true });
+
+  wrapper.addEventListener('touchend', () => {
+    previewGallery.isDragging = false;
+    touchStartDist = 0;
+  });
 }
 
 function openImageFullscreen(src) {
@@ -2806,8 +3064,11 @@ async function saveProductFromModal() {
   const costPrice = parseFloat(document.getElementById('prodCostPrice').value);
   const sellPrice = parseFloat(document.getElementById('prodSellPrice').value);
   const stock = parseInt(document.getElementById('prodStock').value) || 0;
-  const image = document.getElementById('prodImageUrl').value.trim();
   const description = document.getElementById('prodDescription').value.trim();
+
+  // تجميع مصفوفة الصور
+  const images = state.editingProductImages || [];
+  const image = images.length > 0 ? images[0] : (document.getElementById('prodImageUrl')?.value?.trim() || '');
 
   if (!name) {
     showToast('يرجى إدخال اسم المنتج', 'error');
@@ -2841,6 +3102,7 @@ async function saveProductFromModal() {
         sellPrice,
         stock,
         image,
+        images,
         description
       })
     });
@@ -5370,24 +5632,62 @@ function openAddProductModalForInvoice() {
 }
 
 // ============================================================
-// إدارة ديون وأرصدة الزبائن (Dedicated Customers & Debts System)
+// إدارة ديون وأرصدة الزبائن والموردين (Dedicated Customers & Suppliers System)
 // ============================================================
 async function loadCustomers() {
   try {
-    const res = await fetch('/api/customers');
-    const data = await res.json();
-    if (data.success) {
-      state.customers = data.customers || [];
-      updateCustomerDebtsBadge();
-      renderCustomerTab();
-    }
+    const [resCust, resSupp] = await Promise.all([
+      fetch('/api/customers'),
+      fetch('/api/suppliers')
+    ]);
+    const dataCust = await resCust.json();
+    const dataSupp = await resSupp.json();
+
+    const customersList = (dataCust.customers || []).map(c => ({
+      ...c,
+      accountType: 'customer',
+      isSupplier: false,
+      systemNumber: c.systemNumber || c.shamelCode || ''
+    }));
+
+    const suppliersList = (dataSupp.suppliers || []).map(s => {
+      const rawBal = parseFloat(s.balance) || 0;
+      return {
+        id: s.id,
+        systemNumber: s.shamelCode || s.systemNumber || '',
+        shamelCode: s.shamelCode,
+        name: s.name,
+        phone: s.phone || s.mobile || '',
+        balance: rawBal,
+        notes: s.notes || (rawBal !== 0 ? `مستحق دائن للمورد بذمة المعرض: ${rawBal.toLocaleString('en-US')} شيكل` : 'حساب خالص'),
+        accountType: 'supplier',
+        isSupplier: true,
+        isStopped: Boolean(s.isStopped),
+        createdAt: s.createdAt,
+        updatedAt: s.updatedAt,
+        syncedAt: s.syncedAt
+      };
+    });
+
+    state.rawCustomers = customersList;
+    state.rawSuppliers = suppliersList;
+    // دمج الزبائن والموردين معاً في سجل الحسابات الموحد
+    state.customers = [...customersList, ...suppliersList];
+
+    updateCustomerDebtsBadge();
+    renderCustomerTab();
   } catch (err) {
-    console.error('فشل جلب الزبائن:', err);
+    console.error('فشل جلب الزبائن والموردين:', err);
   }
 }
 
 function updateCustomerDebtsBadge() {
-  const indebtedCount = state.customers.filter(c => (parseFloat(c.balance) || 0) > 0).length;
+  // حساب كافة الحسابات التي عليها ذمم مدينة
+  const indebtedCount = state.customers.filter(c => {
+    const b = parseFloat(c.balance) || 0;
+    return c.isSupplier ? (b < 0) : (b > 0);
+  }).length;
+
   const badge = document.getElementById('customerDebtsBadgeNav');
   if (badge) {
     if (indebtedCount > 0) {
@@ -5421,10 +5721,11 @@ function clearCustomerTabSearch() {
 
 function getCustomerReceiptTimerData(c) {
   const bal = parseFloat(c.balance) || 0;
-  const hasDebt = bal > 0;
-  const isCredit = bal < 0;
+  const isSupp = Boolean(c.isSupplier);
+  const hasDebt = isSupp ? (bal < 0) : (bal > 0);
+  const isCredit = isSupp ? (bal > 0) : (bal < 0);
 
-  // فحص كافة سندات القبض الخاصة بالزبون
+  // فحص كافة سندات القبض الخاصة بالحساب
   const custReceipts = state.receipts.filter(r =>
     (c.id && r.customerId === c.id) ||
     (c.systemNumber && String(r.customerSystemNumber) === String(c.systemNumber)) ||
@@ -5443,7 +5744,7 @@ function getCustomerReceiptTimerData(c) {
   } else {
     const custCreatedMs = c.createdAt ? new Date(c.createdAt).getTime() : (c.updatedAt ? new Date(c.updatedAt).getTime() : Date.now());
     daysSince = Math.max(0, Math.floor((Date.now() - custCreatedMs) / (1000 * 60 * 60 * 24)));
-    dateFormatted = c.createdAt ? new Date(c.createdAt).toISOString().split('T')[0] : 'لا يوجد سداد';
+    dateFormatted = c.createdAt ? new Date(c.createdAt).toISOString().split('T')[0] : 'مسجل بالنظام';
   }
 
   // اقترب من 30 يوماً (من 25 يوماً فأكثر) أو تجاوزها ولديه دين مستحق بذمته
@@ -5470,23 +5771,43 @@ function renderCustomerTab() {
 
   if (!tbody) return;
 
-  // الحساب المالي الدقيق والمطور للأرصدة (عليهم vs لهم والصافي الكلي)
-  let totalDebit = 0;   // ديون عليهم (balance > 0)
-  let totalCredit = 0;  // ديون لهم (balance < 0)
+  // الحساب المالي الدقيق للأرصدة (زبائن وموردين)
+  let totalDebit = 0;   // ديون عليهم لصالح المعرض
+  let totalCredit = 0;  // أرصدة لهم والتزامات على المعرض (تشمل مستحقات الموردين)
   let countDebtors = 0;
   let countCreditors = 0;
   let countSettled = 0;
+  let countCustomers = 0;
+  let countSuppliers = 0;
 
   state.customers.forEach(c => {
     const b = parseFloat(c.balance) || 0;
-    if (b > 0) {
-      totalDebit += b;
-      countDebtors++;
-    } else if (b < 0) {
-      totalCredit += Math.abs(b);
-      countCreditors++;
+    if (c.isSupplier) {
+      countSuppliers++;
+      if (b > 0) {
+        // مستحق للمورد (له رصيد دائن على المعرض)
+        totalCredit += b;
+        countCreditors++;
+      } else if (b < 0) {
+        // رصيد على المورد لصالح المعرض
+        totalDebit += Math.abs(b);
+        countDebtors++;
+      } else {
+        countSettled++;
+      }
     } else {
-      countSettled++;
+      countCustomers++;
+      if (b > 0) {
+        // دين على الزبون
+        totalDebit += b;
+        countDebtors++;
+      } else if (b < 0) {
+        // رصيد دائن للزبون
+        totalCredit += Math.abs(b);
+        countCreditors++;
+      } else {
+        countSettled++;
+      }
     }
   });
 
@@ -5507,16 +5828,16 @@ function renderCustomerTab() {
   const elBadgeCount = document.getElementById('custTableCountBadge');
 
   if (elTotalDebts) elTotalDebts.textContent = `${totalDebit.toLocaleString('en-US')} ${cur}`;
-  if (elDebtorsSub) elDebtorsSub.textContent = `${countDebtors} زبون مدين بذمته مبالغ`;
+  if (elDebtorsSub) elDebtorsSub.textContent = `${countDebtors} حساب مدين (عليهم مبالغ)`;
 
   if (elCreditTotal) elCreditTotal.textContent = `${totalCredit.toLocaleString('en-US')} ${cur}`;
-  if (elCreditorsSub) elCreditorsSub.textContent = `${countCreditors} زبون له رصيد دائن أو فائض`;
+  if (elCreditorsSub) elCreditorsSub.textContent = `${countCreditors} حساب دائن (لهم مستحقات وأرصدة)`;
 
   if (elNetBalance) {
     elNetBalance.textContent = `${Math.abs(netBalance).toLocaleString('en-US')} ${cur}`;
   }
   if (elNetLabel) {
-    elNetLabel.textContent = netBalance > 0 ? 'صافي مطلوب لصالح المعرض (+)' : (netBalance < 0 ? 'صافي التزام للزبائن (-)' : 'الرصيد الصافي متوازن');
+    elNetLabel.textContent = netBalance > 0 ? 'صافي مطلوب لصالح المعرض (+)' : (netBalance < 0 ? 'صافي التزام دائن على المعرض (-)' : 'الرصيد الصافي متوازن');
   }
   if (elNetIcon) {
     elNetIcon.textContent = netBalance > 0 ? '📈' : (netBalance < 0 ? '📉' : '⚖️');
@@ -5525,7 +5846,7 @@ function renderCustomerTab() {
     if (netBalance > 0) {
       elNetSub.textContent = `فائض ذمم مدينة لصالح المعرض بمقدار +${netBalance.toLocaleString('en-US')} ${cur}`;
     } else if (netBalance < 0) {
-      elNetSub.textContent = `مستحقات للزبائن على المعرض بمقدار -${Math.abs(netBalance).toLocaleString('en-US')} ${cur}`;
+      elNetSub.textContent = `مستحقات للزبائن والموردين على المعرض بمقدار -${Math.abs(netBalance).toLocaleString('en-US')} ${cur}`;
     } else {
       elNetSub.textContent = 'إجمالي ما عليهم مساوٍ تماماً لما لهم';
     }
@@ -5534,15 +5855,22 @@ function renderCustomerTab() {
     elNetCard.className = netBalance >= 0 ? 'card cust-kpi-card net-positive' : 'card cust-kpi-card net-negative';
   }
 
-  if (elTotalCount) elTotalCount.textContent = `${totalCount} زبون`;
+  if (elTotalCount) elTotalCount.textContent = `${totalCount} حساب (${countCustomers} زبون، ${countSuppliers} مورد)`;
   if (elStatsSummary) elStatsSummary.textContent = `${countDebtors} مدين | ${countCreditors} دائن | ${countSettled} خالص`;
 
   // تطبيق الفلاتر بدقة
   let filtered = state.customers.filter(c => {
     const bal = parseFloat(c.balance) || 0;
-    if (state.customerDebtFilter === 'with_debt' && bal <= 0) return false;
-    if (state.customerDebtFilter === 'with_credit' && bal >= 0) return false;
-    if (state.customerDebtFilter === 'settled' && bal !== 0) return false;
+    const isSupp = Boolean(c.isSupplier);
+    const hasDebt = isSupp ? (bal < 0) : (bal > 0);
+    const hasCredit = isSupp ? (bal > 0) : (bal < 0);
+    const isSettled = (bal === 0);
+
+    if (state.customerDebtFilter === 'customers_only' && isSupp) return false;
+    if (state.customerDebtFilter === 'suppliers_only' && !isSupp) return false;
+    if (state.customerDebtFilter === 'with_debt' && !hasDebt) return false;
+    if (state.customerDebtFilter === 'with_credit' && !hasCredit) return false;
+    if (state.customerDebtFilter === 'settled' && !isSettled) return false;
 
     if (state.customerTabSearch) {
       const q = state.customerTabSearch;
@@ -5550,12 +5878,13 @@ function renderCustomerTab() {
       const matchSys = c.systemNumber && String(c.systemNumber).toLowerCase().includes(q);
       const matchPhone = c.phone && c.phone.includes(q);
       const matchNotes = c.notes && c.notes.toLowerCase().includes(q);
-      return matchName || matchSys || matchPhone || matchNotes;
+      const matchType = (isSupp && (q.includes('مورد') || q.includes('supplier'))) || (!isSupp && (q.includes('زبون') || q.includes('عميل')));
+      return matchName || matchSys || matchPhone || matchNotes || matchType;
     }
     return true;
   });
 
-  if (elBadgeCount) elBadgeCount.textContent = `${filtered.length} زبون`;
+  if (elBadgeCount) elBadgeCount.textContent = `${filtered.length} حساب`;
 
   if (filtered.length === 0) {
     tbody.innerHTML = '';
@@ -5565,7 +5894,7 @@ function renderCustomerTab() {
 
   if (emptyMsg) emptyMsg.style.display = 'none';
 
-  // فرز الزبائن:
+  // فرز الحسابات:
   // 1. العملاء المقتربين من 30 يوماً أو المتجاوزين 30 يوماً (اللون الأحمر) في القمة أولاً دائماً!
   // 2. باقي المدينين (عليهم ديون)
   // 3. الدائنين (لهم أرصدة)
@@ -5574,53 +5903,61 @@ function renderCustomerTab() {
     const timerA = getCustomerReceiptTimerData(a);
     const timerB = getCustomerReceiptTimerData(b);
 
-    // الأولوية القصوى: العملاء ذوي اللون الأحمر (اقترب أو تجاوز 30 يوماً بدون سداد ولديه دين)
     if (timerA.isUrgentRed && !timerB.isUrgentRed) return -1;
     if (!timerA.isUrgentRed && timerB.isUrgentRed) return 1;
     if (timerA.isUrgentRed && timerB.isUrgentRed) {
-      // الأطول مدة والأكثر تأخراً بدون سداد أولاً
       if (timerB.daysSince !== timerA.daysSince) {
         return timerB.daysSince - timerA.daysSince;
       }
       return (parseFloat(b.balance) || 0) - (parseFloat(a.balance) || 0);
     }
 
-    // باقي المدينين
     const balA = parseFloat(a.balance) || 0;
     const balB = parseFloat(b.balance) || 0;
-    if (balA > 0 && balB <= 0) return -1;
-    if (balA <= 0 && balB > 0) return 1;
-    if (balA > 0 && balB > 0) return balB - balA; // الأكبر ديناً أولاً
+    const isDebtA = a.isSupplier ? (balA < 0) : (balA > 0);
+    const isDebtB = b.isSupplier ? (balB < 0) : (balB > 0);
 
-    // الدائنين
-    if (balA < 0 && balB >= 0) return -1;
-    if (balA >= 0 && balB < 0) return 1;
-    if (balA < 0 && balB < 0) return balA - balB; // الأكبر رصيداً له أولاً
+    if (isDebtA && !isDebtB) return -1;
+    if (!isDebtA && isDebtB) return 1;
 
-    return 0;
+    // الموردين ذوو المبالغ الدائنة الكبيرة
+    const effBalA = a.isSupplier ? balA : -balA;
+    const effBalB = b.isSupplier ? balB : -balB;
+    return effBalB - effBalA;
   });
 
   tbody.innerHTML = filtered.map(c => {
     const bal = parseFloat(c.balance) || 0;
-    const hasDebt = bal > 0;
-    const isCredit = bal < 0;
+    const isSupp = Boolean(c.isSupplier);
+    const hasDebt = isSupp ? (bal < 0) : (bal > 0);
+    const isCredit = isSupp ? (bal > 0) : (bal < 0);
 
     let debtBadgeHtml = '';
-    if (hasDebt) {
-      debtBadgeHtml = `<span class="bal-tag debit">🔴 عليه: ${bal.toLocaleString('en-US')} ${cur}</span>`;
-    } else if (isCredit) {
-      debtBadgeHtml = `<span class="bal-tag credit">🔵 له: ${Math.abs(bal).toLocaleString('en-US')} ${cur}</span>`;
+    if (isSupp) {
+      if (bal > 0) {
+        debtBadgeHtml = `<span class="bal-tag credit" style="background:#fef3c7; border-color:#fcd34d; color:#92400e; font-weight:800;">🔵 له رصيد (مورد): ${bal.toLocaleString('en-US')} ${cur}</span>`;
+      } else if (bal < 0) {
+        debtBadgeHtml = `<span class="bal-tag debit">🔴 عليه رصيد للمعرض: ${Math.abs(bal).toLocaleString('en-US')} ${cur}</span>`;
+      } else {
+        debtBadgeHtml = `<span class="bal-tag settled">🟢 خالص (0 ${cur})</span>`;
+      }
     } else {
-      debtBadgeHtml = `<span class="bal-tag settled">🟢 خالص (0 ${cur})</span>`;
+      if (hasDebt) {
+        debtBadgeHtml = `<span class="bal-tag debit">🔴 عليه دين: ${bal.toLocaleString('en-US')} ${cur}</span>`;
+      } else if (isCredit) {
+        debtBadgeHtml = `<span class="bal-tag credit">🔵 له رصيد دائن: ${Math.abs(bal).toLocaleString('en-US')} ${cur}</span>`;
+      } else {
+        debtBadgeHtml = `<span class="bal-tag settled">🟢 خالص (0 ${cur})</span>`;
+      }
     }
 
-    // حساب مؤقت وتاريخ آخر سند قبض للزبون
+    // حساب مؤقت وتاريخ آخر حركة
     const timer = getCustomerReceiptTimerData(c);
     let timerHtml = '';
 
     if (timer.lastReceipt) {
       let statusText = '';
-      if (timer.daysSince === 0) statusText = 'سدد اليوم';
+      if (timer.daysSince === 0) statusText = 'حركة اليوم';
       else if (timer.daysSince === 1) statusText = 'مضى يوم واحد (أمس)';
       else if (timer.daysSince === 2) statusText = 'مضى يومان';
       else if (timer.daysSince <= 10) statusText = `مضى ${timer.daysSince} أيام`;
@@ -5668,13 +6005,13 @@ function renderCustomerTab() {
         <div class="cust-timer-badge ${badgeClass}" style="${timer.isUrgentRed ? 'border: 2px solid #ef4444; background: #fee2e2; color: #991b1b;' : ''}">
           <div style="font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 0.25rem;">
             <span>${timer.isUrgentRed ? '🚨' : '⚠️'}</span>
-            <span>لا يوجد سداد سابق</span>
+            <span>${isSupp ? 'حساب مورد مسجل' : 'لا يوجد سداد سابق'}</span>
           </div>
           <div style="font-size: 0.76rem; font-family: monospace; direction: ltr; text-align: center; color: #64748b; margin-top: 0.15rem; font-weight: 700;">
-            📅 مسجل: ${timer.dateFormatted}
+            📅 ${timer.dateFormatted}
           </div>
           <div style="font-size: 0.72rem; opacity: 0.9; text-align: center; margin-top: 0.1rem;">
-            مضى ${timer.daysSince} يوماً بدون سداد
+            ${isSupp ? 'رصيد دائن للشامل' : `مضى ${timer.daysSince} يوماً بدون سداد`}
           </div>
           ${urgencyBadge}
         </div>
@@ -5687,9 +6024,13 @@ function renderCustomerTab() {
       <tr class="${rowClass}">
         <td style="font-family: monospace; font-weight: 700; color: #475569; text-align: center;">#${escapeHtml(c.systemNumber || '--')}</td>
         <td>
-          <div style="display: flex; align-items: center; gap: 0.35rem;">
+          <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
             ${timer.isUrgentRed ? '<span title="يقترب من أو تجاوز 30 يوماً بدون سداد">🚨</span>' : ''}
             <strong style="font-size: 0.95rem; color: #0f172a;">${escapeHtml(c.name)}</strong>
+            ${isSupp 
+              ? '<span class="badge" style="background:#fef3c7; color:#b45309; border:1px solid #fde68a; font-size:0.75rem; padding:2px 7px; font-weight:800;">🏢 مورد</span>'
+              : '<span class="badge" style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; font-size:0.75rem; padding:2px 7px; font-weight:700;">👤 زبون</span>'
+            }
           </div>
         </td>
         <td>
@@ -5700,31 +6041,59 @@ function renderCustomerTab() {
         <td style="font-size: 0.85rem; color: #64748b;">${escapeHtml(c.notes || '--')}</td>
         <td>
           <div style="display: flex; gap: 0.35rem; justify-content: center; flex-wrap: wrap;">
-            <button class="btn btn-xs btn-success" onclick="quickIssueReceiptForCustomer('${c.id}')" title="إصدار سند قبض مباشر لخصم دينه">
-              <span>💰 سند قبض</span>
-            </button>
-            <button class="btn btn-xs btn-primary" onclick="quickCreateInvoiceForCustomer('${c.id}')" title="إنشاء فاتورة جديدة باسمه">
-              <span>🧾 فاتورة</span>
-            </button>
+            ${isSupp ? `
+              <button class="btn btn-xs btn-success" onclick="quickIssueReceiptForCustomer('${c.id}')" title="إصدار سند صرف / دفع للمورد">
+                <span>💰 سند صرف / قبض</span>
+              </button>
+              <button class="btn btn-xs btn-primary" onclick="quickCreatePurchaseInvoiceForSupplier('${c.id}')" title="إنشاء فاتورة توريد ومشتريات باسم المورد">
+                <span>🧾 فاتورة توريد</span>
+              </button>
+            ` : `
+              <button class="btn btn-xs btn-success" onclick="quickIssueReceiptForCustomer('${c.id}')" title="إصدار سند قبض مباشر لخصم دينه">
+                <span>💰 سند قبض</span>
+              </button>
+              <button class="btn btn-xs btn-primary" onclick="quickCreateInvoiceForCustomer('${c.id}')" title="إنشاء فاتورة جديدة باسمه">
+                <span>🧾 فاتورة</span>
+              </button>
+            `}
             <button class="btn-statement" onclick="openCustomerStatementModal('${c.id}')" title="عرض وطباعة كشف الحساب التفصيلي">
               <span>📑 كشف حساب</span>
             </button>
-            ${hasDebt ? `
+            ${!isSupp && hasDebt ? `
               <button class="btn btn-xs btn-warning btn-cust-reminder" onclick="sendCustomerDebtReminder('${c.id}')" title="إرسال تذكير استحقاق دفعة مالية لتيليجرام">
                 <span>🔔 تذكير دفعة</span>
               </button>
             ` : ''}
-            <button class="btn btn-xs btn-secondary" onclick="openAddCustomerModal('${c.id}')" title="تعديل">
-              <span>✏️</span>
-            </button>
-            <button class="btn btn-xs btn-danger" onclick="confirmDeleteCustomer('${c.id}')" title="حذف الزبون">
-              <span>🗑️</span>
-            </button>
+            ${!isSupp ? `
+              <button class="btn btn-xs btn-secondary" onclick="openAddCustomerModal('${c.id}')" title="تعديل">
+                <span>✏️</span>
+              </button>
+              <button class="btn btn-xs btn-danger" onclick="confirmDeleteCustomer('${c.id}')" title="حذف الزبون">
+                <span>🗑️</span>
+              </button>
+            ` : `
+              <button class="btn btn-xs btn-secondary" onclick="showToast('تمت مزامنة المورد من الشامل لايت', 'info')" title="المورد متزامن من الشامل">
+                <span>🔒 مزامن</span>
+              </button>
+            `}
           </div>
         </td>
       </tr>
     `;
   }).join('');
+}
+
+function quickCreatePurchaseInvoiceForSupplier(supplierId) {
+  const s = state.customers.find(item => item.id === supplierId);
+  if (!s) return;
+  setInvoiceType('purchase');
+  const custInput = document.getElementById('invCustomerName');
+  if (custInput) {
+    custInput.value = s.name;
+    handleInvoiceCustomerInput(s.name);
+  }
+  switchTab('create-invoice');
+  showToast(`تم فتح فاتورة توريد ومشتريات جديدة للمورد [${s.name}]`, 'info');
 }
 
 

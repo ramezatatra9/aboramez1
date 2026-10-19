@@ -88,7 +88,7 @@ app.get('/api/products', (req, res) => {
 // إضافة أو تعديل منتج
 app.post('/api/products', (req, res) => {
   try {
-    const { id, code, name, brand, brandAr, mainCategory, category, costPrice, sellPrice, stock, image, description } = req.body;
+    const { id, code, name, brand, brandAr, mainCategory, category, costPrice, sellPrice, stock, image, images, description } = req.body;
     if (!name || name.trim() === '') {
       return res.status(400).json({ success: false, error: 'اسم المنتج مطلوب' });
     }
@@ -105,6 +105,7 @@ app.post('/api/products', (req, res) => {
       sellPrice: parseFloat(sellPrice) || 0,
       stock: parseInt(stock) || 0,
       image,
+      images,
       description
     });
 
@@ -1125,10 +1126,45 @@ app.post('/api/receipts', async (req, res) => {
 // APIs: دليل ديون وأرصدة الزبائن (Customers & Debts)
 // -------------------------------------------------------------
 
-// جلب جميع الزبائن والأرصدة
+// جلب جميع الزبائن والأرصدة (مع إمكانية تضمين الموردين كحسابات)
 app.get('/api/customers', (req, res) => {
   try {
-    const customers = dataStore.getCustomers();
+    const customers = dataStore.getCustomers().map(c => ({
+      ...c,
+      accountType: 'customer',
+      isSupplier: false,
+      systemNumber: c.systemNumber || c.shamelCode || ''
+    }));
+
+    if (req.query.includeSuppliers === 'true' || req.query.allAccounts === 'true') {
+      const suppliers = dataStore.getSuppliers().map(s => {
+        const rawBal = parseFloat(s.balance) || 0;
+        return {
+          id: s.id,
+          systemNumber: s.shamelCode || s.systemNumber || '',
+          shamelCode: s.shamelCode,
+          name: s.name,
+          phone: s.phone || s.mobile || '',
+          balance: rawBal,
+          notes: s.notes || (rawBal !== 0 ? `مستحق دائن للمورد: ${rawBal.toLocaleString('en-US')} شيكل` : ''),
+          accountType: 'supplier',
+          isSupplier: true,
+          isStopped: Boolean(s.isStopped),
+          createdAt: s.createdAt,
+          updatedAt: s.updatedAt,
+          syncedAt: s.syncedAt,
+          syncedBy: s.syncedBy,
+          source: s.source
+        };
+      });
+      return res.json({
+        success: true,
+        customers: [...customers, ...suppliers],
+        totalCustomers: customers.length,
+        totalSuppliers: suppliers.length
+      });
+    }
+
     res.json({ success: true, customers });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

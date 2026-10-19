@@ -307,6 +307,25 @@ const dataStore = {
     const products = this.getProducts();
     let product;
 
+    // معالجة مصفوفة الصور ودعم إضافة أكثر من صورة للصنف
+    let images = [];
+    if (Array.isArray(productData.images)) {
+      images = productData.images.filter(img => typeof img === 'string' && img.trim() !== '');
+    } else if (typeof productData.images === 'string' && productData.images.trim()) {
+      try {
+        const parsed = JSON.parse(productData.images);
+        if (Array.isArray(parsed)) images = parsed.filter(img => typeof img === 'string' && img.trim() !== '');
+        else images = [productData.images.trim()];
+      } catch (e) {
+        images = [productData.images.trim()];
+      }
+    }
+    if (images.length === 0 && productData.image && typeof productData.image === 'string' && productData.image.trim()) {
+      images = [productData.image.trim()];
+    }
+    const defaultPlaceholder = "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80";
+    const primaryImage = images.length > 0 ? images[0] : (productData.image || defaultPlaceholder);
+
     if (productData.id) {
       // تعديل
       const index = products.findIndex(p => p.id === productData.id);
@@ -319,6 +338,8 @@ const dataStore = {
           costPrice: parseFloat(productData.costPrice) || 0,
           sellPrice: parseFloat(productData.sellPrice) || 0,
           stock: parseInt(productData.stock) || 0,
+          image: primaryImage,
+          images: images.length > 0 ? images : [primaryImage],
           updatedAt: new Date().toISOString()
         };
         products[index] = product;
@@ -338,7 +359,8 @@ const dataStore = {
         costPrice: parseFloat(productData.costPrice) || 0,
         sellPrice: parseFloat(productData.sellPrice) || 0,
         stock: parseInt(productData.stock) || 0,
-        image: productData.image || "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
+        image: primaryImage,
+        images: images.length > 0 ? images : [primaryImage],
         description: productData.description || "",
         createdAt: new Date().toISOString()
       };
@@ -1070,15 +1092,32 @@ const dataStore = {
     return { imported, updated, total: customers.length };
   },
 
-  // كشف حساب تفصيلي للزبون يجمع الفواتير وسندات القبض وحركة الرصيد
+  // كشف حساب تفصيلي للزبون أو المورد يجمع الفواتير وسندات القبض وحركة الرصيد
   getCustomerStatement(id) {
     const customers = this.getCustomers();
     const strId = String(id || '').trim();
-    const customer = customers.find(c =>
+    let customer = customers.find(c =>
       String(c.id).trim() === strId ||
       String(c.systemNumber || '').trim() === strId ||
       c.name.trim().toLowerCase() === strId.toLowerCase()
     );
+
+    if (!customer) {
+      const suppliers = this.getSuppliers();
+      const supp = suppliers.find(s =>
+        String(s.id).trim() === strId ||
+        String(s.shamelCode || '').trim() === strId ||
+        s.name.trim().toLowerCase() === strId.toLowerCase()
+      );
+      if (supp) {
+        customer = {
+          ...supp,
+          systemNumber: supp.shamelCode || supp.id,
+          isSupplier: true,
+          accountType: 'supplier'
+        };
+      }
+    }
 
     if (!customer) return null;
 
