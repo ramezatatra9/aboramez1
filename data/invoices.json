@@ -2,54 +2,42 @@
   {
     "id": "INV-1004",
     "invoiceNumber": 1004,
-    "invoiceType": "sales",
-    "isQuotation": false,
-    "createdAt": "2026-10-04T18:58:56.815Z",
+    "createdAt": "2026-10-04T18:58:56.815+00:00",
     "employeeName": "رامز",
     "customerName": "زبون تجربة عرض سعر",
     "customerPhone": "0591234567",
-    "customerAddress": "",
-    "customerId": "cust-1791140336866-575",
-    "customerSystemNumber": "",
     "notes": "",
     "items": [
       {
-        "productId": "prod-1791140260129",
         "code": "PRD-9902",
         "brand": "هايسنس",
-        "productName": "شاشة هايسنس",
-        "productImage": "",
         "quantity": 2,
         "costPrice": 1500,
+        "productId": "prod-1791140260129",
         "sellPrice": 1900,
-        "unitProfit": 400,
         "totalCost": 3000,
         "totalSell": 3800,
-        "totalProfit": 800
+        "unitProfit": 400,
+        "productName": "شاشة هايسنس",
+        "totalProfit": 800,
+        "productImage": ""
       }
     ],
     "summary": {
-      "totalQuantity": 2,
       "totalCost": 3000,
       "totalAmount": 3800,
       "totalProfit": 800,
-      "profitMarginPercentage": 21.1,
-      "customPriceApplied": false
+      "totalQuantity": 2,
+      "customPriceApplied": false,
+      "profitMarginPercentage": 21.1
     },
     "paymentMethod": "cash",
     "installmentDetails": null,
-    "warrantyMonths": 12,
-    "warrantyId": "WAR-1004",
-    "warrantyNumber": 1004,
     "telegramStatus": {
       "sent": true,
-      "sentAt": "2026-10-04T18:58:57.184Z",
-      "error": null
-    },
-    "convertedAt": "2026-10-04T18:58:56.846Z",
-    "convertedBy": "رامز عطاطرة",
-    "previousCustomerBalance": 0,
-    "currentCustomerBalance": 0
+      "error": null,
+      "sentAt": "2026-10-04T18:58:57.184Z"
+    }
   },
   {
     "id": "INV-1003",

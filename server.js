@@ -214,6 +214,23 @@ app.post('/api/sync/batch', requireSyncAuth, async (req, res) => {
   }
 });
 
+// إعادة ضبط واستبدال جميع الأصناف بالكامل بنظافة تامة من الشامل
+app.post('/api/sync/reset-products', requireSyncAuth, async (req, res) => {
+  try {
+    const { items, dryRun = false } = req.body;
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ success: false, error: 'قائمة الأصناف فارغة' });
+    }
+    const result = await dataStore.resetAllProducts(items, {
+      dryRun: Boolean(dryRun),
+      editorName: 'إعادة بناء نظيفة من الشامل'
+    });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // 3. الاستعلام عن حالة صنف معين في الموقع بالكود
 app.get('/api/sync/product/:code', requireSyncAuth, (req, res) => {
   try {

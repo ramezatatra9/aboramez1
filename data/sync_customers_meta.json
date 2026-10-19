@@ -1,9 +1,9 @@
 {
-  "lastSyncAt": "2026-10-19T15:49:00.318Z",
-  "mode": "upsert",
-  "itemsReceived": 1,
-  "created": 0,
-  "updated": 1,
+  "lastSyncAt": "2026-10-19T16:23:21.984Z",
+  "mode": "full_clean_rebuild",
+  "itemsReceived": 483,
+  "created": 483,
+  "updated": 0,
   "unchanged": 0,
   "failed": 0
 }

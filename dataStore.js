@@ -1385,9 +1385,19 @@ const dataStore = {
         const isSuspended = Boolean(item.isSuspended);
 
         if (existing) {
-          // --- الصنف موجود مسبقاً: تحديث آمن للأسعار والمخزون مع الحفاظ الصارم على الاسم والصور والأقسام ---
+          // --- الصنف موجود مسبقاً: تحديث آمن ودقيق للأسعار ورأس المال والكميات والاسم مع الحفاظ على الصور ---
           let changed = false;
           const changes = [];
+
+          // 0. تحديث اسم الصنف إن تغير في الشامل
+          if (item.name && String(item.name).trim()) {
+            const cleanName = String(item.name).trim();
+            if (existing.name !== cleanName) {
+              changes.push(`اسم الصنف: من "${existing.name}" إلى "${cleanName}"`);
+              existing.name = cleanName;
+              changed = true;
+            }
+          }
 
           // 1. تحديث سعر البيع
           if (mode !== 'stock_only' && newSellPrice !== null) {
@@ -1423,8 +1433,8 @@ const dataStore = {
             changed = true;
           }
 
-          // 5. الباركود إذا لم يكن مسجلاً
-          if (item.barcode && !existing.barcode) {
+          // 5. الباركود
+          if (item.barcode && existing.barcode !== String(item.barcode).trim()) {
             existing.barcode = String(item.barcode).trim();
             changed = true;
           }
@@ -1543,6 +1553,87 @@ const dataStore = {
       dryRun,
       summary,
       totalCatalogProducts: products.length,
+      timestamp: now
+    };
+  },
+
+  // إعادة ضبط واستبدال جميع الأصناف بالكامل بنظافة تامة من الشامل
+  async resetAllProducts(items, options = {}) {
+    const { dryRun = false, editorName = 'إعادة بناء نظيفة من الشامل' } = options;
+    if (!Array.isArray(items) || items.length === 0) {
+      return { success: false, error: 'قائمة الأصناف فارغة' };
+    }
+    const current = this.getProducts();
+    const curMap = new Map();
+    current.forEach(p => { if (p.code) curMap.set(p.code.toUpperCase(), p); });
+
+    this.createBackup('pre_reset_products');
+    const now = new Date().toISOString();
+    const rebuilt = [];
+
+    for (const item of items) {
+      if (!item || !item.code || !item.name) continue;
+      const cleanCode = String(item.code).trim();
+      const codeKey = cleanCode.toUpperCase();
+      const existing = curMap.get(codeKey);
+
+      const sellPrice = item.sellPrice !== undefined ? Math.max(0, parseFloat(item.sellPrice) || 0) : 0;
+      const costPrice = item.costPrice !== undefined ? Math.max(0, parseFloat(item.costPrice) || 0) : 0;
+      const stock = item.stock !== undefined ? Math.max(0, parseInt(item.stock) || 0) : 0;
+      const isSuspended = Boolean(item.isSuspended);
+      const barcode = item.barcode ? String(item.barcode).trim() : '';
+
+      let mainCategory, category, image;
+      if (existing && existing.category && existing.category !== 'عام') {
+        mainCategory = existing.mainCategory || 'أجهزة كهربائية كبيرة';
+        category = existing.category;
+        image = existing.image;
+      } else {
+        const catRes = categorizeProduct(item.name);
+        mainCategory = catRes.main;
+        category = catRes.sub;
+        image = (existing && existing.image) ? existing.image : getDefaultImageForCategory(catRes.sub);
+      }
+
+      rebuilt.push({
+        id: existing ? existing.id : 'prod-' + cleanCode.toLowerCase().replace(/[^a-z0-9]/g, ''),
+        code: cleanCode,
+        name: String(item.name).trim(),
+        brand: (existing && existing.brand && existing.brand !== 'أخرى') ? existing.brand : 'أخرى',
+        brandAr: (existing && existing.brandAr && existing.brandAr !== 'أخرى / عام') ? existing.brandAr : 'أخرى / عام',
+        mainCategory,
+        category,
+        costPrice,
+        sellPrice,
+        stock,
+        barcode,
+        unit: item.unit || 'قطعة',
+        image: image || 'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80',
+        description: (existing && existing.description) ? existing.description : `${item.name} (كود: ${cleanCode})`,
+        isSuspended,
+        createdAt: existing && existing.createdAt ? existing.createdAt : now,
+        updatedAt: now,
+        lastSyncAt: now,
+        lastStockUpdate: now,
+        lastStockEditor: editorName
+      });
+    }
+
+    if (!dryRun) {
+      writeJson(PRODUCTS_FILE, rebuilt);
+      const syncMetaFile = path.join(DATA_DIR, 'sync_meta.json');
+      writeJson(syncMetaFile, {
+        lastSyncAt: now,
+        mode: 'reset_all',
+        itemsReceived: items.length,
+        totalCatalogProducts: rebuilt.length
+      });
+    }
+
+    return {
+      success: true,
+      dryRun,
+      totalCatalogProducts: rebuilt.length,
       timestamp: now
     };
   },
