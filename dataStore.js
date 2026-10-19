@@ -1723,13 +1723,17 @@ const dataStore = {
         const notes = String(item.notes || '').trim();
         const isStopped = Boolean(item.isStopped);
 
+        const itemBal = (item.balance !== undefined && item.balance !== null) ? parseFloat(item.balance) : undefined;
+
         if (exists) {
           const cur = updatedCustomers[existingIdx];
           const changed =
             cur.name !== name ||
             (phone && cur.phone !== phone) ||
             (email && cur.email !== email) ||
-            (address && cur.address !== address);
+            (address && cur.address !== address) ||
+            (itemBal !== undefined && Math.abs((parseFloat(cur.balance) || 0) - itemBal) > 0.01) ||
+            Boolean(cur.isStopped) !== isStopped;
 
           if (!changed) { summary.unchanged++; continue; }
 
@@ -1743,6 +1747,7 @@ const dataStore = {
               address: address || cur.address || '',
               notes: notes || cur.notes || '',
               isStopped,
+              balance: itemBal !== undefined ? itemBal : (parseFloat(cur.balance) || 0),
               shamelCode,
               syncedAt: now,
               syncedBy: editorName
@@ -1762,7 +1767,7 @@ const dataStore = {
               address,
               notes,
               isStopped,
-              balance: 0,
+              balance: itemBal !== undefined ? itemBal : 0,
               createdAt: now,
               updatedAt: now,
               syncedAt: now,
@@ -1897,13 +1902,17 @@ const dataStore = {
         const address = String(item.address || '').trim();
         const notes = String(item.notes || '').trim();
         const isStopped = Boolean(item.isStopped);
+        const itemBal = (item.balance !== undefined && item.balance !== null) ? parseFloat(item.balance) : undefined;
 
         if (exists) {
           const cur = updatedSuppliers[existingIdx];
           const changed =
             cur.name !== name ||
             (phone && cur.phone !== phone) ||
-            (email && cur.email !== email);
+            (email && cur.email !== email) ||
+            (address && cur.address !== address) ||
+            (itemBal !== undefined && Math.abs((parseFloat(cur.balance) || 0) - itemBal) > 0.01) ||
+            Boolean(cur.isStopped) !== isStopped;
 
           if (!changed) { summary.unchanged++; continue; }
 
@@ -1917,6 +1926,7 @@ const dataStore = {
               address: address || cur.address || '',
               notes: notes || cur.notes || '',
               isStopped,
+              balance: itemBal !== undefined ? itemBal : (parseFloat(cur.balance) || 0),
               updatedAt: now,
               syncedAt: now,
               syncedBy: editorName
@@ -1935,6 +1945,7 @@ const dataStore = {
               address,
               notes,
               isStopped,
+              balance: itemBal !== undefined ? itemBal : 0,
               createdAt: now,
               updatedAt: now,
               syncedAt: now,
@@ -1967,6 +1978,7 @@ const dataStore = {
             address: String(s.address || ''),
             notes: String(s.notes || ''),
             isStopped: Boolean(s.isStopped),
+            balance: parseFloat(s.balance) || 0,
             createdAt: s.createdAt || now
           }));
           if (sb.length > 0) await supabase.from('suppliers').upsert(sb);
@@ -2099,6 +2111,34 @@ const dataStore = {
       }
     } catch (e) {
       console.error('خطأ في استعادة الزبائن من Supabase:', e.message);
+    }
+
+    // استعادة الموردين من Supabase أيضاً
+    try {
+      const { data: suppsData, error: suppsErr } = await supabase
+        .from('suppliers')
+        .select('*')
+        .limit(1000);
+
+      if (!suppsErr && suppsData && suppsData.length > 0) {
+        const mapped = suppsData.map(s => ({
+          id: s.id,
+          shamelCode: s.shamelCode || '',
+          name: s.name || '',
+          phone: s.phone || '',
+          mobile: s.mobile || s.phone || '',
+          email: s.email || '',
+          address: s.address || '',
+          notes: s.notes || '',
+          isStopped: Boolean(s.isStopped),
+          balance: Number(s.balance) || 0,
+          createdAt: s.createdAt || new Date().toISOString()
+        }));
+        writeJson(SUPPLIERS_FILE, mapped);
+        console.log(`✅ تم استعادة ${mapped.length} مورد من Supabase`);
+      }
+    } catch (e) {
+      console.error('خطأ في استعادة الموردين من Supabase:', e.message);
     }
   }
 };

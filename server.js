@@ -7,6 +7,7 @@ const multer = require('multer');
 const dataStore = require('./dataStore');
 const telegramService = require('./telegramService');
 const excelParser = require('./excelParser');
+const { supabase } = require('./supabaseClient');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -43,12 +44,12 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage: storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  limits: { fileSize: 25 * 1024 * 1024 }, // 25MB لأجهزة الأندرويد والكاميرات عالية الدقة
   fileFilter: (req, file, cb) => {
-    const allowed = /jpeg|jpg|png|webp|gif|svg/;
+    const allowed = /jpeg|jpg|png|webp|gif|svg|bmp/;
     const ext = allowed.test(path.extname(file.originalname).toLowerCase());
-    const mime = allowed.test(file.mimetype);
-    if (ext && mime) {
+    const mime = allowed.test(file.mimetype) || file.mimetype.startsWith('image/');
+    if (ext || mime) {
       return cb(null, true);
     }
     cb(new Error('الملف المرفوع يجب أن يكون صورة'));
@@ -123,14 +124,39 @@ app.delete('/api/products/:id', (req, res) => {
   }
 });
 
-// رفع صورة للمنتج
-app.post('/api/upload', upload.single('image'), (req, res) => {
+// رفع صورة للمنتج (مع دعم التخزين السحابي الدائم في Supabase والأندرويد)
+app.post('/api/upload', upload.single('image'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, error: 'لم يتم اختيار أي صورة' });
     }
-    const imageUrl = `/uploads/${req.file.filename}`;
-    res.json({ success: true, imageUrl });
+    const localUrl = `/uploads/${req.file.filename}`;
+    let finalUrl = localUrl;
+
+    // رفع دائم إلى Supabase Storage حتى لا تضيع الصور عند نوم أو إعادة نشر خادم Render
+    if (supabase) {
+      try {
+        const fileContent = fs.readFileSync(req.file.path);
+        const remoteName = `prod-${Date.now()}-${Math.round(Math.random() * 1e5)}${path.extname(req.file.originalname).toLowerCase() || '.jpg'}`;
+        const { data: upData, error: upError } = await supabase.storage
+          .from('product-images')
+          .upload(remoteName, fileContent, {
+            contentType: req.file.mimetype || 'image/jpeg',
+            upsert: true
+          });
+
+        if (!upError && upData) {
+          const { data: pUrl } = supabase.storage.from('product-images').getPublicUrl(remoteName);
+          if (pUrl && pUrl.publicUrl) {
+            finalUrl = pUrl.publicUrl;
+          }
+        }
+      } catch (sbErr) {
+        console.warn('⚠️ Supabase image upload fallback to local:', sbErr.message);
+      }
+    }
+
+    res.json({ success: true, imageUrl: finalUrl, localUrl });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -344,9 +370,7 @@ app.get('/api/sync/customer/:code', requireSyncAuth, (req, res) => {
       (c.systemNumber && String(c.systemNumber).toUpperCase() === code)
     );
     if (!customer) return res.status(404).json({ success: false, error: 'الزبون غير موجود' });
-    // لا نعرض الرصيد أو البيانات المالية في هذا المسار
-    const { balance, ...safeCustomer } = customer;
-    res.json({ success: true, customer: safeCustomer });
+    res.json({ success: true, customer });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

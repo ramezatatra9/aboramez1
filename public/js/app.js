@@ -2324,17 +2324,21 @@ function renderCatalog() {
     return `
       ${dividerHtml}
       <div class="product-card ${isZeroStock ? 'is-out-of-stock' : ''}">
-        <div class="product-img-wrapper">
+        <div class="product-img-wrapper" onclick="openProductCustomerPreview('${prod.id}')" style="cursor: pointer;" title="انقر لتكبير ومعاينة صورة الصنف وعرضها للعميل">
           <img src="${imageUrl}" alt="${prod.name}" loading="lazy" onerror="this.src='https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80'">
           <span class="product-category-tag">${prod.category || 'عام'}</span>
           ${prod.brand && prod.brand !== 'أخرى' ? `<span class="product-brand-tag">🏷️ ${escapeHtml(prod.brand)}</span>` : ''}
           <span class="product-stock-tag ${isZeroStock ? 'zero-stock-badge' : ''}">${isZeroStock ? '⚠️ غير متوفر (0)' : `المتوفر: ${currentStock}`}</span>
           ${isZeroStock ? `<div class="zero-stock-overlay-badge"><span>نفد من المخزون</span></div>` : ''}
+          <div class="product-img-preview-overlay" style="position: absolute; bottom: 8px; right: 8px; background: rgba(15, 23, 42, 0.75); color: #fff; padding: 0.25rem 0.55rem; border-radius: 6px; font-size: 0.75rem; font-weight: 700; backdrop-filter: blur(4px); display: inline-flex; align-items: center; gap: 0.3rem;">
+            <span>👁️</span>
+            <span>معاينة</span>
+          </div>
         </div>
 
         <div class="product-content">
           <div class="product-code">${prod.code || 'بدون كود'}</div>
-          <h3 class="product-title" title="${prod.name}">${prod.name}</h3>
+          <h3 class="product-title" title="${prod.name}" onclick="openProductCustomerPreview('${prod.id}')" style="cursor: pointer;">${prod.name}</h3>
 
           <!-- مصفوفة الأسعار الشفافة للموظفين -->
           <div class="employee-pricing-box">
@@ -2352,19 +2356,23 @@ function renderCatalog() {
             </div>
           </div>
 
-          <div class="product-actions">
+          <div class="product-actions" style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
             ${inCartQty > 0 ? `
-              <div class="quantity-control" style="flex: 1; justify-content: space-between;">
+              <div class="quantity-control" style="flex: 1; min-width: 130px; justify-content: space-between;">
                 <button class="quantity-btn" onclick="updateCartQuantity('${prod.id}', ${inCartQty - 1})">-</button>
                 <span class="quantity-input" style="line-height: 32px;">${inCartQty} بالفاتورة</span>
                 <button class="quantity-btn" onclick="updateCartQuantity('${prod.id}', ${inCartQty + 1})">+</button>
               </div>
             ` : `
-              <button class="btn ${isZeroStock ? 'btn-outline-danger' : 'btn-primary'} btn-block" onclick="addToCart('${prod.id}')">
+              <button class="btn ${isZeroStock ? 'btn-outline-danger' : 'btn-primary'}" style="flex: 1; min-width: 130px;" onclick="addToCart('${prod.id}')">
                 <span>➕</span>
-                <span>${isZeroStock ? 'إضافة رغم نفاد المخزون' : 'إضافة للفاتورة'}</span>
+                <span>${isZeroStock ? 'إضافة رغم النفاد' : 'إضافة للفاتورة'}</span>
               </button>
             `}
+            <button class="btn btn-outline-primary btn-sm" onclick="openProductCustomerPreview('${prod.id}')" title="معاينة وعرض صورة الصنف للعميل بدون أرباح أو تكلفة" style="font-weight: 700; display: inline-flex; align-items: center; gap: 0.25rem;">
+              <span>👁️</span>
+              <span>عرض للعميل</span>
+            </button>
             <button class="btn btn-secondary btn-sm" onclick="openEditProductModal('${prod.id}')" title="تعديل المنتج">✏️</button>
             <button class="btn btn-danger btn-sm" onclick="confirmDeleteProduct('${prod.id}')" title="حذف المنتج">🗑️</button>
           </div>
@@ -2511,8 +2519,9 @@ function openAddProductModal() {
   document.getElementById('prodStock').value = '10';
   document.getElementById('prodImageUrl').value = '';
   document.getElementById('prodDescription').value = '';
-  // إعادة تعيين الماركة المكتشفة
+  // إعادة تعيين الماركة المكتشفة والصورة
   clearDetectedBrand();
+  clearProductImage();
 
   document.getElementById('productModal').classList.add('active');
 }
@@ -2533,6 +2542,9 @@ function openEditProductModal(id) {
   document.getElementById('prodStock').value = prod.stock ?? 10;
   document.getElementById('prodImageUrl').value = prod.image || '';
   document.getElementById('prodDescription').value = prod.description || '';
+
+  // تحديث المعاينة المصغرة للصورة
+  updateImageThumbFromUrl(prod.image);
 
   // عرض الماركة المحفوظة مسبقاً أو إعادة الكشف
   clearDetectedBrand();
@@ -2571,15 +2583,101 @@ function calcProductModalProfit() {
   }
 }
 
+// ضغط وتصغير الصور ذات الدقة العالية (أجهزة الأندرويد والكاميرات) قبل الرفع
+function compressImageForUpload(file, maxWidth = 1600, maxHeight = 1600, quality = 0.85) {
+  return new Promise((resolve) => {
+    if (!file || !file.type || !file.type.startsWith('image/') || file.type === 'image/svg+xml') {
+      return resolve(file);
+    }
+
+    const reader = new FileReader();
+    reader.onerror = () => resolve(file);
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onerror = () => resolve(file);
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        if (width <= maxWidth && height <= maxHeight && file.size < 700 * 1024) {
+          return resolve(file);
+        }
+
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) return resolve(file);
+            const ext = file.type === 'image/png' ? '.png' : '.jpg';
+            const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, '') + ext, {
+              type: blob.type || 'image/jpeg',
+              lastModified: Date.now()
+            });
+            resolve(compressedFile);
+          },
+          'image/jpeg',
+          quality
+        );
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function updateImageThumbFromUrl(url) {
+  const box = document.getElementById('prodImagePreviewBox');
+  const thumb = document.getElementById('prodImagePreviewThumb');
+  if (!box || !thumb) return;
+  const clean = (url || '').trim();
+  if (clean) {
+    thumb.src = clean;
+    box.style.display = 'flex';
+  } else {
+    box.style.display = 'none';
+  }
+}
+
+function clearProductImage() {
+  const urlInput = document.getElementById('prodImageUrl');
+  if (urlInput) urlInput.value = '';
+  const fileGallery = document.getElementById('prodImageFileGallery');
+  if (fileGallery) fileGallery.value = '';
+  const fileCamera = document.getElementById('prodImageFileCamera');
+  if (fileCamera) fileCamera.value = '';
+  const box = document.getElementById('prodImagePreviewBox');
+  if (box) box.style.display = 'none';
+}
+
 async function handleImageUpload(input) {
   if (!input.files || !input.files[0]) return;
-  const file = input.files[0];
-  const formData = new FormData();
-  formData.append('image', file);
+  const rawFile = input.files[0];
 
-  showToast('جاري رفع صورة المنتج...', 'info');
+  showToast('جاري معالجة وضغط الصورة للأجهزة الذكية والأندرويد...', 'info');
 
   try {
+    const file = await compressImageForUpload(rawFile);
+    const formData = new FormData();
+    formData.append('image', file);
+
+    showToast('جاري الرفع للتخزين السحابي الدائم...', 'info');
+
     const res = await fetch('/api/upload', {
       method: 'POST',
       body: formData
@@ -2587,13 +2685,117 @@ async function handleImageUpload(input) {
     const data = await res.json();
     if (data.success && data.imageUrl) {
       document.getElementById('prodImageUrl').value = data.imageUrl;
-      showToast('تم رفع الصورة بنجاح!', 'success');
+      updateImageThumbFromUrl(data.imageUrl);
+      showToast('✅ تم رفع وتثبيت صورة المنتج بنجاح!', 'success');
     } else {
       showToast(data.error || 'فشل رفع الصورة', 'error');
     }
   } catch (err) {
-    showToast('تعذر رفع الصورة', 'error');
+    console.error('Image upload error:', err);
+    showToast('تعذر رفع الصورة: ' + err.message, 'error');
+  } finally {
+    input.value = '';
   }
+}
+
+// =============================================================
+// نافذة معاينة وعرض المنتج للعميل (Customer Product Showroom)
+// =============================================================
+function openProductCustomerPreview(productId) {
+  const prod = state.products.find(p => String(p.id) === String(productId));
+  if (!prod) {
+    showToast('الصنف غير موجود', 'warning');
+    return;
+  }
+
+  const currency = state.settings.currency || 'شيكل';
+  const modal = document.getElementById('customerProductPreviewModal');
+  if (!modal) return;
+
+  const currentStock = Math.max(0, parseInt(prod.stock) || 0);
+  const isZeroStock = currentStock === 0;
+  const imageUrl = prod.image || 'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80';
+  const sellPrice = parseFloat(prod.sellPrice) || 0;
+
+  // العنوان
+  const titleEl = document.getElementById('custPrevModalTitle');
+  if (titleEl) titleEl.textContent = `معاينة: ${prod.name}`;
+
+  // الشارات
+  const brandEl = document.getElementById('custPrevBrandBadge');
+  if (brandEl) {
+    const brandName = prod.brandAr && prod.brandAr !== prod.brand ? `${prod.brand} (${prod.brandAr})` : (prod.brand || 'معرض أبو رامز');
+    brandEl.textContent = `🏷️ ${brandName}`;
+  }
+
+  const catEl = document.getElementById('custPrevCategoryBadge');
+  if (catEl) catEl.textContent = `📁 ${prod.mainCategory || prod.category || 'عام'}`;
+
+  const codeEl = document.getElementById('custPrevCodeBadge');
+  if (codeEl) codeEl.textContent = `🔢 كود: ${prod.code || 'بدون كود'}`;
+
+  const stockEl = document.getElementById('custPrevStockBadge');
+  if (stockEl) {
+    if (isZeroStock) {
+      stockEl.textContent = '⚠️ متوفر بالطلب المباشر';
+      stockEl.style.background = '#fef2f2';
+      stockEl.style.color = '#dc2626';
+      stockEl.style.border = '1px solid #fecaca';
+    } else {
+      stockEl.textContent = `✅ متوفر فوراً (${currentStock} قطعة)`;
+      stockEl.style.background = '#f0fdf4';
+      stockEl.style.color = '#16a34a';
+      stockEl.style.border = '1px solid #bbf7d0';
+    }
+  }
+
+  // الصورة
+  const imgEl = document.getElementById('custPrevImage');
+  if (imgEl) {
+    imgEl.src = imageUrl;
+    imgEl.alt = prod.name;
+  }
+
+  // الاسم والسعر
+  const nameEl = document.getElementById('custPrevName');
+  if (nameEl) nameEl.textContent = prod.name;
+
+  const priceEl = document.getElementById('custPrevPrice');
+  if (priceEl) priceEl.textContent = `${sellPrice.toLocaleString('en-US')} ${currency}`;
+
+  // الوصف
+  const descBox = document.getElementById('custPrevDescBox');
+  const descEl = document.getElementById('custPrevDescription');
+  if (descBox && descEl) {
+    if (prod.description && prod.description.trim()) {
+      descEl.textContent = prod.description.trim();
+      descBox.style.display = 'block';
+    } else {
+      descBox.style.display = 'none';
+    }
+  }
+
+  // زر الإضافة للفاتورة
+  const addBtn = document.getElementById('custPrevAddToCartBtn');
+  if (addBtn) {
+    addBtn.onclick = () => {
+      addToCart(prod.id);
+      closeCustomerProductPreview();
+      showToast(`تمت إضافة [${prod.name}] إلى الفاتورة!`, 'success');
+    };
+  }
+
+  modal.classList.add('active');
+}
+
+function closeCustomerProductPreview() {
+  const modal = document.getElementById('customerProductPreviewModal');
+  if (modal) modal.classList.remove('active');
+}
+
+function openImageFullscreen(src) {
+  if (!src) return;
+  window.open(src, '_blank');
 }
 
 async function saveProductFromModal() {
@@ -2848,10 +3050,15 @@ function renderLiveSearchResults(query) {
           <div class="live-item-price">${sell.toLocaleString('en-US')} <small>${currency}</small></div>
           <div class="live-item-profit">ربح: +${profit.toLocaleString('en-US')} ${currency}</div>
         </div>
-        <button type="button" class="btn btn-sm btn-primary btn-live-add" onclick="event.stopPropagation(); selectLiveSearchResult('${prod.id}')">
-          <span>➕</span>
-          <span>إضافة</span>
-        </button>
+        <div style="display: flex; gap: 0.35rem; align-items: center;">
+          <button type="button" class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); openProductCustomerPreview('${prod.id}')" title="معاينة وعرض صورة الصنف للعميل">
+            <span>👁️</span>
+          </button>
+          <button type="button" class="btn btn-sm btn-primary btn-live-add" onclick="event.stopPropagation(); selectLiveSearchResult('${prod.id}')" title="إضافة للفاتورة">
+            <span>➕</span>
+            <span>إضافة</span>
+          </button>
+        </div>
       </div>
     `;
   }).join('');
@@ -4690,6 +4897,12 @@ function renderInventoryList() {
           <div class="inv-prod-prices">
             <span>سعر البيع: <strong>${(p.sellPrice || 0).toLocaleString('en-US')} ${cur}</strong></span>
             <span>سعر التكلفة: <strong>${(p.costPrice || 0).toLocaleString('en-US')} ${cur}</strong></span>
+          </div>
+          <div class="inv-prod-actions" style="margin-top: 0.45rem; display: flex; gap: 0.4rem; align-items: center;">
+            <button type="button" class="btn btn-xs btn-outline-primary" onclick="openProductCustomerPreview('${p.id}')" style="font-weight: 700; display: inline-flex; align-items: center; gap: 0.25rem;">
+              <span>👁️</span>
+              <span>معاينة الصورة وعرضها للعميل</span>
+            </button>
           </div>
         </div>
 

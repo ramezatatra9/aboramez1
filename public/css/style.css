@@ -5512,3 +5512,44 @@ div[style*="overflow-x: auto"]::-webkit-scrollbar-track,
   }
 }
 
+/* ========================================================
+   Customer Product Showroom Modal & Android Media Styling
+======================================================== */
+.customer-preview-card {
+  animation: modalZoomIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalZoomIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(15px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.customer-preview-image-container img:hover {
+  transform: scale(1.05);
+}
+
+.product-img-wrapper:hover .product-img-preview-overlay {
+  background: rgba(37, 99, 235, 0.9) !important;
+}
+
+@media (max-width: 640px) {
+  .customer-preview-card {
+    width: 95% !important;
+    margin: 10px auto !important;
+  }
+
+  .customer-preview-image-container {
+    height: 240px !important;
+  }
+
+  #custPrevPrice {
+    font-size: 1.45rem !important;
+  }
+}
+
