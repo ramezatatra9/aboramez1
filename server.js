@@ -1135,6 +1135,16 @@ app.get('/api/customers', (req, res) => {
   }
 });
 
+// جلب جميع الموردين والأرصدة
+app.get('/api/suppliers', (req, res) => {
+  try {
+    const suppliers = dataStore.getSuppliers();
+    res.json({ success: true, suppliers });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // إضافة أو تعديل زبون
 app.post('/api/customers', (req, res) => {
   try {
