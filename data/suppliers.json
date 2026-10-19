@@ -1,0 +1,18 @@
+[
+  {
+    "id": "supp-shamel-S00000001-1792424940625",
+    "shamelCode": "S00000001",
+    "name": "شركة المنار - سائد",
+    "phone": "0599000000",
+    "mobile": "0599000000",
+    "email": "",
+    "address": "",
+    "notes": "مورد معتمد",
+    "isStopped": false,
+    "createdAt": "2026-10-19T15:49:00.625Z",
+    "updatedAt": "2026-10-19T15:49:00.625Z",
+    "syncedAt": "2026-10-19T15:49:00.625Z",
+    "syncedBy": "مزامنة الشامل لايت",
+    "source": "shamel_sync"
+  }
+]

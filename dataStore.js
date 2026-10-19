@@ -9,6 +9,7 @@ const INVOICES_FILE = path.join(DATA_DIR, 'invoices.json');
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
 const RECEIPTS_FILE = path.join(DATA_DIR, 'receipts.json');
 const CUSTOMERS_FILE = path.join(DATA_DIR, 'customers.json');
+const SUPPLIERS_FILE = path.join(DATA_DIR, 'suppliers.json');
 const WARRANTIES_FILE = path.join(DATA_DIR, 'warranties.json');
 const BACKUPS_DIR = path.join(__dirname, 'backups');
 if (!fs.existsSync(BACKUPS_DIR)) {
@@ -1347,11 +1348,11 @@ const dataStore = {
     const products = this.getProducts();
     const now = new Date().toISOString();
 
-    // إنشاء خريطة سريعة للأصناف الحالية بالكود (Case-insensitive)
-    const codeMap = new Map();
-    products.forEach((p, index) => {
+    // إنشاء خريطة سريعة للأصناف الحالية بالكود (Case-insensitive) بربط مرجعي مباشر للكائن (تمنع أي خطأ إزاحة بالمصفوفة)
+    const productMap = new Map();
+    products.forEach((p) => {
       if (p.code) {
-        codeMap.set(String(p.code).trim().toUpperCase(), index);
+        productMap.set(String(p.code).trim().toUpperCase(), p);
       }
     });
 
@@ -1376,69 +1377,66 @@ const dataStore = {
 
         const cleanCode = String(item.code).trim();
         const codeKey = cleanCode.toUpperCase();
-        const existingIndex = codeMap.get(codeKey);
+        const existing = productMap.get(codeKey);
 
         const newSellPrice = item.sellPrice !== undefined ? Math.max(0, parseFloat(item.sellPrice) || 0) : null;
         const newCostPrice = item.costPrice !== undefined ? Math.max(0, parseFloat(item.costPrice) || 0) : null;
         const newStock = item.stock !== undefined ? Math.max(0, parseInt(item.stock) || 0) : null;
         const isSuspended = Boolean(item.isSuspended);
 
-        if (existingIndex !== undefined) {
-          // --- الصنف موجود مسبقاً: تحديث آمن دون لمس الصور أو الأقسام أو المعرفات ---
-          const current = products[existingIndex];
+        if (existing) {
+          // --- الصنف موجود مسبقاً: تحديث آمن للأسعار والمخزون مع الحفاظ الصارم على الاسم والصور والأقسام ---
           let changed = false;
           const changes = [];
 
-          const updatedProduct = { ...current };
-
-          // 1. تحديث السعر
+          // 1. تحديث سعر البيع
           if (mode !== 'stock_only' && newSellPrice !== null) {
-            if (current.sellPrice !== newSellPrice) {
-              changes.push(`السعر: من ${current.sellPrice} إلى ${newSellPrice}`);
-              updatedProduct.sellPrice = newSellPrice;
+            if (existing.sellPrice !== newSellPrice) {
+              changes.push(`سعر البيع: من ${existing.sellPrice} إلى ${newSellPrice}`);
+              existing.sellPrice = newSellPrice;
               changed = true;
             }
           }
 
-          // 2. تحديث التكلفة داخلياً (إذا توفرت)
-          if (newCostPrice !== null && current.costPrice !== newCostPrice) {
-            updatedProduct.costPrice = newCostPrice;
+          // 2. تحديث رأس المال (التكلفة) داخلياً
+          if (newCostPrice !== null && existing.costPrice !== newCostPrice) {
+            changes.push(`رأس المال: من ${existing.costPrice} إلى ${newCostPrice}`);
+            existing.costPrice = newCostPrice;
             changed = true;
           }
 
-          // 3. تحديث المخزون
+          // 3. تحديث كمية المخزون
           if (mode !== 'prices_only' && newStock !== null) {
-            if (current.stock !== newStock) {
-              changes.push(`المخزون: من ${current.stock} إلى ${newStock}`);
-              updatedProduct.stock = newStock;
-              updatedProduct.lastStockUpdate = now;
-              updatedProduct.lastStockEditor = editorName;
+            if (existing.stock !== newStock) {
+              changes.push(`المخزون: من ${existing.stock} إلى ${newStock}`);
+              existing.stock = newStock;
+              existing.lastStockUpdate = now;
+              existing.lastStockEditor = editorName;
               changed = true;
             }
           }
 
           // 4. حالة الإيقاف
-          if (current.isSuspended !== isSuspended) {
-            updatedProduct.isSuspended = isSuspended;
+          if (existing.isSuspended !== isSuspended) {
+            existing.isSuspended = isSuspended;
             changes.push(`حالة التوفر: ${isSuspended ? 'متوقف' : 'متاح'}`);
             changed = true;
           }
 
           // 5. الباركود إذا لم يكن مسجلاً
-          if (item.barcode && !current.barcode) {
-            updatedProduct.barcode = String(item.barcode).trim();
+          if (item.barcode && !existing.barcode) {
+            existing.barcode = String(item.barcode).trim();
             changed = true;
           }
 
           if (changed) {
-            updatedProduct.updatedAt = now;
-            updatedProduct.lastSyncAt = now;
+            existing.updatedAt = now;
+            existing.lastSyncAt = now;
             if (!dryRun) {
-              products[existingIndex] = updatedProduct;
-              updatedOrNewProducts.push(updatedProduct);
+              updatedOrNewProducts.push(existing);
             }
             summary.updated++;
-            summary.details.push({ code: cleanCode, name: current.name, action: 'updated', changes });
+            summary.details.push({ code: cleanCode, name: existing.name, action: 'updated', changes });
           } else {
             summary.unchanged++;
           }
@@ -1448,7 +1446,7 @@ const dataStore = {
           }
 
         } else {
-          // --- صنف جديد قادم من الشامل: إضافة مع تصنيف تلقائي وصورة افتراضية ---
+          // --- صنف جديد قادم من الشامل: إضافة في نهاية المصفوفة مع تصنيف تلقائي وصورة افتراضية ---
           const categoryResult = categorizeProduct(item.name);
           const defaultImage = getDefaultImageForCategory(categoryResult.sub);
           const safeId = 'prod-' + cleanCode.toLowerCase().replace(/[^a-z0-9]/g, '') + '-' + Math.floor(100 + Math.random() * 900);
@@ -1477,8 +1475,8 @@ const dataStore = {
           };
 
           if (!dryRun) {
-            products.unshift(newProduct);
-            codeMap.set(codeKey, 0);
+            products.push(newProduct);
+            productMap.set(codeKey, newProduct);
             updatedOrNewProducts.push(newProduct);
           }
           summary.created++;
@@ -1545,6 +1543,341 @@ const dataStore = {
       dryRun,
       summary,
       totalCatalogProducts: products.length,
+      timestamp: now
+    };
+  },
+
+  // -------------------------------------------------------------
+  // مزامنة دفعة زبائن من برنامج الشامل لايت (syncBatchCustomers)
+  // -------------------------------------------------------------
+  async syncBatchCustomers(items, options = {}) {
+    const {
+      dryRun = false,
+      syncMode = 'upsert',  // 'new_only' | 'update_only' | 'upsert'
+      editorName = 'مزامنة الشامل لايت'
+    } = options;
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return {
+        success: false,
+        error: 'قائمة الزبائن فارغة أو غير صالحة',
+        summary: { totalReceived: 0, created: 0, updated: 0, unchanged: 0, failed: 0, errors: [] }
+      };
+    }
+
+    if (items.length > 1000) {
+      return {
+        success: false,
+        error: 'الحد الأقصى لدفعة الزبائن هو 1000 سجل',
+        summary: { totalReceived: items.length, created: 0, updated: 0, unchanged: 0, failed: 0, errors: [] }
+      };
+    }
+
+    const customers = this.getCustomers();
+    const now = new Date().toISOString();
+
+    // خريطة سريعة بكود الزبون من الشامل (systemNumber)
+    const sysNumMap = new Map();
+    customers.forEach((c, idx) => {
+      if (c.systemNumber) sysNumMap.set(String(c.systemNumber).trim().toUpperCase(), idx);
+    });
+
+    const summary = { totalReceived: items.length, created: 0, updated: 0, unchanged: 0, failed: 0, errors: [] };
+    const updatedCustomers = [...customers];
+
+    for (const item of items) {
+      try {
+        const shamelCode = String(item.shamelCode || item.code || '').trim();
+        const name = String(item.name || '').trim();
+        if (!shamelCode || !name) {
+          summary.failed++;
+          summary.errors.push(`سجل ناقص: كود=${shamelCode} اسم=${name}`);
+          continue;
+        }
+
+        const key = shamelCode.toUpperCase();
+        const existingIdx = sysNumMap.get(key);
+        const exists = existingIdx !== undefined;
+
+        if (exists && syncMode === 'new_only') { summary.unchanged++; continue; }
+        if (!exists && syncMode === 'update_only') { summary.unchanged++; continue; }
+
+        // حقول مسموح بمزامنتها فقط - لا كلمات مرور ولا أرصدة تعتمد على المتجر
+        const phone = String(item.phone || item.mobile || '').trim();
+        const mobile = String(item.mobile || item.phone || '').trim();
+        const email = String(item.email || '').trim();
+        const address = String(item.address || '').trim();
+        const notes = String(item.notes || '').trim();
+        const isStopped = Boolean(item.isStopped);
+
+        if (exists) {
+          const cur = updatedCustomers[existingIdx];
+          const changed =
+            cur.name !== name ||
+            (phone && cur.phone !== phone) ||
+            (email && cur.email !== email) ||
+            (address && cur.address !== address);
+
+          if (!changed) { summary.unchanged++; continue; }
+
+          if (!dryRun) {
+            updatedCustomers[existingIdx] = {
+              ...cur,
+              name,
+              phone: phone || cur.phone || '',
+              mobile: mobile || cur.mobile || '',
+              email: email || cur.email || '',
+              address: address || cur.address || '',
+              notes: notes || cur.notes || '',
+              isStopped,
+              shamelCode,
+              syncedAt: now,
+              syncedBy: editorName
+            };
+          }
+          summary.updated++;
+        } else {
+          if (!dryRun) {
+            const newCustomer = {
+              id: 'cust-shamel-' + shamelCode + '-' + Date.now(),
+              systemNumber: shamelCode,
+              shamelCode,
+              name,
+              phone,
+              mobile,
+              email,
+              address,
+              notes,
+              isStopped,
+              balance: 0,
+              createdAt: now,
+              updatedAt: now,
+              syncedAt: now,
+              syncedBy: editorName,
+              source: 'shamel_sync'
+            };
+            updatedCustomers.push(newCustomer);
+            sysNumMap.set(key, updatedCustomers.length - 1);
+          }
+          summary.created++;
+        }
+      } catch (err) {
+        summary.failed++;
+        summary.errors.push(`خطأ في معالجة زبون: ${err.message}`);
+      }
+    }
+
+    if (!dryRun) {
+      writeJson(CUSTOMERS_FILE, updatedCustomers);
+
+      // مزامنة مع Supabase إن كان متاحاً
+      if (supabase) {
+        try {
+          const sb = updatedCustomers.filter(c => c.source === 'shamel_sync' || c.shamelCode).map(c => ({
+            id: String(c.id),
+            systemNumber: String(c.systemNumber || c.shamelCode || ''),
+            name: String(c.name || ''),
+            phone: String(c.phone || ''),
+            email: String(c.email || ''),
+            address: String(c.address || ''),
+            notes: String(c.notes || ''),
+            isStopped: Boolean(c.isStopped),
+            balance: parseFloat(c.balance) || 0,
+            createdAt: c.createdAt || now
+          }));
+          if (sb.length > 0) await supabase.from('customers').upsert(sb);
+        } catch (sbEx) {
+          console.error('Supabase customers sync error:', sbEx.message);
+        }
+      }
+
+      // تحديث meta المزامنة للزبائن
+      writeJson(path.join(DATA_DIR, 'sync_customers_meta.json'), {
+        lastSyncAt: now,
+        mode: syncMode,
+        itemsReceived: items.length,
+        created: summary.created,
+        updated: summary.updated,
+        unchanged: summary.unchanged,
+        failed: summary.failed
+      });
+    }
+
+    return {
+      success: summary.failed === 0 || (summary.created + summary.updated) > 0,
+      dryRun,
+      summary,
+      totalCustomers: updatedCustomers.length,
+      timestamp: now
+    };
+  },
+
+  // -------------------------------------------------------------
+  // مزامنة دفعة موردين من برنامج الشامل لايت (syncBatchSuppliers)
+  // -------------------------------------------------------------
+  getSuppliers() {
+    return readJson(SUPPLIERS_FILE, []);
+  },
+
+  getLastCustomersSyncMeta() {
+    return readJson(path.join(DATA_DIR, 'sync_customers_meta.json'), null);
+  },
+
+  getLastSuppliersSyncMeta() {
+    return readJson(path.join(DATA_DIR, 'sync_suppliers_meta.json'), null);
+  },
+
+  async syncBatchSuppliers(items, options = {}) {
+    const {
+      dryRun = false,
+      syncMode = 'upsert',
+      editorName = 'مزامنة الشامل لايت'
+    } = options;
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return {
+        success: false,
+        error: 'قائمة الموردين فارغة أو غير صالحة',
+        summary: { totalReceived: 0, created: 0, updated: 0, unchanged: 0, failed: 0, errors: [] }
+      };
+    }
+
+    if (items.length > 500) {
+      return {
+        success: false,
+        error: 'الحد الأقصى لدفعة الموردين هو 500 سجل',
+        summary: { totalReceived: items.length, created: 0, updated: 0, unchanged: 0, failed: 0, errors: [] }
+      };
+    }
+
+    const suppliers = this.getSuppliers();
+    const now = new Date().toISOString();
+
+    const shamelCodeMap = new Map();
+    suppliers.forEach((s, idx) => {
+      if (s.shamelCode) shamelCodeMap.set(String(s.shamelCode).trim().toUpperCase(), idx);
+    });
+
+    const summary = { totalReceived: items.length, created: 0, updated: 0, unchanged: 0, failed: 0, errors: [] };
+    const updatedSuppliers = [...suppliers];
+
+    for (const item of items) {
+      try {
+        const shamelCode = String(item.shamelCode || item.code || '').trim();
+        const name = String(item.name || '').trim();
+        if (!shamelCode || !name) {
+          summary.failed++;
+          summary.errors.push(`سجل مورد ناقص: كود=${shamelCode} اسم=${name}`);
+          continue;
+        }
+
+        const key = shamelCode.toUpperCase();
+        const existingIdx = shamelCodeMap.get(key);
+        const exists = existingIdx !== undefined;
+
+        if (exists && syncMode === 'new_only') { summary.unchanged++; continue; }
+        if (!exists && syncMode === 'update_only') { summary.unchanged++; continue; }
+
+        const phone = String(item.phone || item.mobile || '').trim();
+        const mobile = String(item.mobile || item.phone || '').trim();
+        const email = String(item.email || '').trim();
+        const address = String(item.address || '').trim();
+        const notes = String(item.notes || '').trim();
+        const isStopped = Boolean(item.isStopped);
+
+        if (exists) {
+          const cur = updatedSuppliers[existingIdx];
+          const changed =
+            cur.name !== name ||
+            (phone && cur.phone !== phone) ||
+            (email && cur.email !== email);
+
+          if (!changed) { summary.unchanged++; continue; }
+
+          if (!dryRun) {
+            updatedSuppliers[existingIdx] = {
+              ...cur,
+              name,
+              phone: phone || cur.phone || '',
+              mobile: mobile || cur.mobile || '',
+              email: email || cur.email || '',
+              address: address || cur.address || '',
+              notes: notes || cur.notes || '',
+              isStopped,
+              updatedAt: now,
+              syncedAt: now,
+              syncedBy: editorName
+            };
+          }
+          summary.updated++;
+        } else {
+          if (!dryRun) {
+            const newSupplier = {
+              id: 'supp-shamel-' + shamelCode + '-' + Date.now(),
+              shamelCode,
+              name,
+              phone,
+              mobile,
+              email,
+              address,
+              notes,
+              isStopped,
+              createdAt: now,
+              updatedAt: now,
+              syncedAt: now,
+              syncedBy: editorName,
+              source: 'shamel_sync'
+            };
+            updatedSuppliers.push(newSupplier);
+            shamelCodeMap.set(key, updatedSuppliers.length - 1);
+          }
+          summary.created++;
+        }
+      } catch (err) {
+        summary.failed++;
+        summary.errors.push(`خطأ في معالجة مورد: ${err.message}`);
+      }
+    }
+
+    if (!dryRun) {
+      writeJson(SUPPLIERS_FILE, updatedSuppliers);
+
+      // مزامنة مع Supabase إن كان متاحاً
+      if (supabase) {
+        try {
+          const sb = updatedSuppliers.map(s => ({
+            id: String(s.id),
+            shamelCode: String(s.shamelCode || ''),
+            name: String(s.name || ''),
+            phone: String(s.phone || ''),
+            email: String(s.email || ''),
+            address: String(s.address || ''),
+            notes: String(s.notes || ''),
+            isStopped: Boolean(s.isStopped),
+            createdAt: s.createdAt || now
+          }));
+          if (sb.length > 0) await supabase.from('suppliers').upsert(sb);
+        } catch (sbEx) {
+          console.error('Supabase suppliers sync error:', sbEx.message);
+        }
+      }
+
+      writeJson(path.join(DATA_DIR, 'sync_suppliers_meta.json'), {
+        lastSyncAt: now,
+        mode: syncMode,
+        itemsReceived: items.length,
+        created: summary.created,
+        updated: summary.updated,
+        unchanged: summary.unchanged,
+        failed: summary.failed
+      });
+    }
+
+    return {
+      success: summary.failed === 0 || (summary.created + summary.updated) > 0,
+      dryRun,
+      summary,
+      totalSuppliers: updatedSuppliers.length,
       timestamp: now
     };
   }

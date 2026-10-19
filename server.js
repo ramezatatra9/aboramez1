@@ -231,6 +231,125 @@ app.get('/api/sync/product/:code', requireSyncAuth, (req, res) => {
   }
 });
 
+// 4. فحص حالة مزامنة الزبائن والموردين
+app.get('/api/sync/contacts/status', requireSyncAuth, (req, res) => {
+  try {
+    const customers = dataStore.getCustomers();
+    const suppliers = dataStore.getSuppliers();
+    const custMeta = dataStore.getLastCustomersSyncMeta();
+    const suppMeta = dataStore.getLastSuppliersSyncMeta();
+
+    res.json({
+      success: true,
+      status: 'online',
+      serverTime: new Date().toISOString(),
+      customers: {
+        total: customers.length,
+        shamelSynced: customers.filter(c => c.shamelCode).length,
+        lastSync: custMeta
+      },
+      suppliers: {
+        total: suppliers.length,
+        shamelSynced: suppliers.filter(s => s.shamelCode).length,
+        lastSync: suppMeta
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 5. مزامنة دفعة زبائن من الشامل
+app.post('/api/sync/customers', requireSyncAuth, async (req, res) => {
+  try {
+    const { items, dryRun = false, syncMode = 'upsert' } = req.body;
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ success: false, error: 'يجب إرسال مصفوفة زبائن صالحة في الحقل items' });
+    }
+    if (items.length > 1000) {
+      return res.status(400).json({ success: false, error: 'الحد الأقصى للدفعة هو 1000 زبون' });
+    }
+
+    const validModes = ['upsert', 'new_only', 'update_only'];
+    if (!validModes.includes(syncMode)) {
+      return res.status(400).json({ success: false, error: 'قيمة syncMode غير صالحة' });
+    }
+
+    const result = await dataStore.syncBatchCustomers(items, {
+      dryRun: Boolean(dryRun),
+      syncMode,
+      editorName: 'برنامج مزامنة الشامل'
+    });
+
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 6. مزامنة دفعة موردين من الشامل
+app.post('/api/sync/suppliers', requireSyncAuth, async (req, res) => {
+  try {
+    const { items, dryRun = false, syncMode = 'upsert' } = req.body;
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ success: false, error: 'يجب إرسال مصفوفة موردين صالحة في الحقل items' });
+    }
+    if (items.length > 500) {
+      return res.status(400).json({ success: false, error: 'الحد الأقصى للدفعة هو 500 مورد' });
+    }
+
+    const validModes = ['upsert', 'new_only', 'update_only'];
+    if (!validModes.includes(syncMode)) {
+      return res.status(400).json({ success: false, error: 'قيمة syncMode غير صالحة' });
+    }
+
+    const result = await dataStore.syncBatchSuppliers(items, {
+      dryRun: Boolean(dryRun),
+      syncMode,
+      editorName: 'برنامج مزامنة الشامل'
+    });
+
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 7. الاستعلام عن زبون بكوده من الشامل
+app.get('/api/sync/customer/:code', requireSyncAuth, (req, res) => {
+  try {
+    const code = String(req.params.code).trim().toUpperCase();
+    const customers = dataStore.getCustomers();
+    const customer = customers.find(c =>
+      (c.shamelCode && String(c.shamelCode).toUpperCase() === code) ||
+      (c.systemNumber && String(c.systemNumber).toUpperCase() === code)
+    );
+    if (!customer) return res.status(404).json({ success: false, error: 'الزبون غير موجود' });
+    // لا نعرض الرصيد أو البيانات المالية في هذا المسار
+    const { balance, ...safeCustomer } = customer;
+    res.json({ success: true, customer: safeCustomer });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 8. الاستعلام عن مورد بكوده من الشامل
+app.get('/api/sync/supplier/:code', requireSyncAuth, (req, res) => {
+  try {
+    const code = String(req.params.code).trim().toUpperCase();
+    const suppliers = dataStore.getSuppliers();
+    const supplier = suppliers.find(s =>
+      s.shamelCode && String(s.shamelCode).toUpperCase() === code
+    );
+    if (!supplier) return res.status(404).json({ success: false, error: 'المورد غير موجود' });
+    res.json({ success: true, supplier });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // -------------------------------------------------------------
 // APIs: الفواتير (Invoices)
 // -------------------------------------------------------------
