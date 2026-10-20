@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { supabase } = require('./supabaseClient');
-const { categorizeProduct, getDefaultImageForCategory } = require('./categoryHelper');
+const { categorizeProduct, getDefaultImageForCategory, detectBrand } = require('./categoryHelper');
 
 const DATA_DIR = path.join(__dirname, 'data');
 const PRODUCTS_FILE = path.join(DATA_DIR, 'products.json');
@@ -330,11 +330,18 @@ const dataStore = {
       // تعديل
       const index = products.findIndex(p => p.id === productData.id);
       if (index !== -1) {
+        let finalBrand = productData.brand || products[index].brand;
+        let finalBrandAr = productData.brandAr || products[index].brandAr;
+        if (!finalBrand || finalBrand === 'أخرى') {
+          const detected = detectBrand(productData.name || products[index].name);
+          finalBrand = detected.brand;
+          finalBrandAr = detected.brandAr;
+        }
         product = {
           ...products[index],
           ...productData,
-          brand: productData.brand || products[index].brand || 'أخرى',
-          brandAr: productData.brandAr || products[index].brandAr || 'أخرى / عام',
+          brand: finalBrand,
+          brandAr: finalBrandAr,
           costPrice: parseFloat(productData.costPrice) || 0,
           sellPrice: parseFloat(productData.sellPrice) || 0,
           stock: parseInt(productData.stock) || 0,
@@ -348,12 +355,19 @@ const dataStore = {
 
     if (!product) {
       // إضافة جديد
+      let finalBrand = productData.brand;
+      let finalBrandAr = productData.brandAr;
+      if (!finalBrand || finalBrand === 'أخرى') {
+        const detected = detectBrand(productData.name);
+        finalBrand = detected.brand;
+        finalBrandAr = detected.brandAr;
+      }
       product = {
         id: "prod-" + Date.now(),
         code: productData.code || "PRD-" + Math.floor(100 + Math.random() * 900),
         name: productData.name,
-        brand: productData.brand || "أخرى",
-        brandAr: productData.brandAr || "أخرى / عام",
+        brand: finalBrand,
+        brandAr: finalBrandAr,
         mainCategory: productData.mainCategory || "أجهزة كهربائية كبيرة",
         category: productData.category || "عام",
         costPrice: parseFloat(productData.costPrice) || 0,
@@ -1523,8 +1537,8 @@ const dataStore = {
             id: safeId,
             code: cleanCode,
             name: String(item.name).trim(),
-            brand: item.brand || 'أخرى',
-            brandAr: item.brandAr || 'أخرى / عام',
+            brand: (item.brand && item.brand !== 'أخرى') ? item.brand : detectBrand(item.name).brand,
+            brandAr: (item.brandAr && item.brandAr !== 'أخرى / عام') ? item.brandAr : detectBrand(item.name).brandAr,
             mainCategory: categoryResult.main,
             category: categoryResult.sub,
             costPrice: newCostPrice || 0,
@@ -1660,8 +1674,8 @@ const dataStore = {
         id: existing ? existing.id : 'prod-' + cleanCode.toLowerCase().replace(/[^a-z0-9]/g, ''),
         code: cleanCode,
         name: String(item.name).trim(),
-        brand: (existing && existing.brand && existing.brand !== 'أخرى') ? existing.brand : 'أخرى',
-        brandAr: (existing && existing.brandAr && existing.brandAr !== 'أخرى / عام') ? existing.brandAr : 'أخرى / عام',
+        brand: (existing && existing.brand && existing.brand !== 'أخرى') ? existing.brand : detectBrand(item.name).brand,
+        brandAr: (existing && existing.brandAr && existing.brandAr !== 'أخرى / عام') ? existing.brandAr : detectBrand(item.name).brandAr,
         mainCategory,
         category,
         costPrice,

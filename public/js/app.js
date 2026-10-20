@@ -1729,7 +1729,20 @@ const BRAND_ICONS = {
   'iPlug': { icon: '🔌', color: '#06b6d4', displayAr: 'ايبلوج' },
   'Dahua': { icon: '📹', color: '#0ea5e9', displayAr: 'دهوا' },
   'Hisense': { icon: '📺', color: '#0d9488', displayAr: 'هايسنس' },
-  'RAF': { icon: '⚡', color: '#ea580c', displayAr: 'راف (RAF)' }
+  'RAF': { icon: '⚡', color: '#ea580c', displayAr: 'راف (RAF)' },
+  'Mega': { icon: '⚡', color: '#0284c7', displayAr: 'ميجا' },
+  'Yafa': { icon: '🍊', color: '#ea580c', displayAr: 'يافا' },
+  'Magic': { icon: '🪄', color: '#9333ea', displayAr: 'ماجيك' },
+  'Vision': { icon: '👁️', color: '#0d9488', displayAr: 'فيجين' },
+  'Moulinex': { icon: '🥣', color: '#dc2626', displayAr: 'مولينكس' },
+  'Jennar': { icon: '🔥', color: '#b91c1c', displayAr: 'جينار' },
+  'Tiger': { icon: '🐅', color: '#d97706', displayAr: 'تايجر' },
+  'Infinity': { icon: '♾️', color: '#7c3aed', displayAr: 'انفينيتي' },
+  'Ariston': { icon: '🔥', color: '#e11d48', displayAr: 'اريستون' },
+  'Konica': { icon: '❄️', color: '#2563eb', displayAr: 'كونيكا' },
+  'Cravit': { icon: '🧊', color: '#0891b2', displayAr: 'كرافيت' },
+  'BaByliss': { icon: '💇', color: '#ec4899', displayAr: 'بيبي ليس' },
+  'Philips': { icon: '💡', color: '#1d4ed8', displayAr: 'فيليبس' }
 };
 
 function handleBrandSearchInput(context, val) {
@@ -1851,34 +1864,27 @@ function toggleBrandsCollapse(context) {
 }
 
 function applyStoredBrandCollapseStates() {
-  if (localStorage.getItem('catalog_brands_collapsed') === 'true') {
-    const gridEl = document.getElementById('catalogBrandsGrid');
-    const btnEl = document.getElementById('btnToggleCatalogBrands');
-    const noticeEl = document.getElementById('catalogBrandsCollapsedNotice');
-    if (gridEl) gridEl.classList.add('collapsed');
-    if (noticeEl) noticeEl.style.display = 'flex';
+  // الماركات تظهر دائماً مفتوحة ومباشرة عند تحميل الصفحة
+  try {
+    localStorage.removeItem('catalog_brands_collapsed');
+    localStorage.removeItem('inventory_brands_collapsed');
+  } catch (e) {}
+
+  ['catalog', 'inventory'].forEach(ctx => {
+    const isCat = ctx === 'catalog';
+    const gridEl = document.getElementById(isCat ? 'catalogBrandsGrid' : 'inventoryBrandsGrid');
+    const btnEl = document.getElementById(isCat ? 'btnToggleCatalogBrands' : 'btnToggleInventoryBrands');
+    const noticeEl = document.getElementById(isCat ? 'catalogBrandsCollapsedNotice' : 'inventoryBrandsCollapsedNotice');
+    if (gridEl) gridEl.classList.remove('collapsed');
+    if (noticeEl) noticeEl.style.display = 'none';
     if (btnEl) {
-      btnEl.classList.add('collapsed-state');
+      btnEl.classList.remove('collapsed-state');
       const icon = btnEl.querySelector('.toggle-icon');
       const text = btnEl.querySelector('.toggle-text');
-      if (icon) icon.textContent = '🔽';
-      if (text) text.textContent = 'إظهار الماركات';
+      if (icon) icon.textContent = '🔼';
+      if (text) text.textContent = 'إخفاء الماركات';
     }
-  }
-  if (localStorage.getItem('inventory_brands_collapsed') === 'true') {
-    const gridEl = document.getElementById('inventoryBrandsGrid');
-    const btnEl = document.getElementById('btnToggleInventoryBrands');
-    const noticeEl = document.getElementById('inventoryBrandsCollapsedNotice');
-    if (gridEl) gridEl.classList.add('collapsed');
-    if (noticeEl) noticeEl.style.display = 'flex';
-    if (btnEl) {
-      btnEl.classList.add('collapsed-state');
-      const icon = btnEl.querySelector('.toggle-icon');
-      const text = btnEl.querySelector('.toggle-text');
-      if (icon) icon.textContent = '🔽';
-      if (text) text.textContent = 'إظهار الماركات';
-    }
-  }
+  });
 }
 
 // -------------------------------------------------------------
