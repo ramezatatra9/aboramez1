@@ -1776,7 +1776,11 @@ const dataStore = {
         const notes = String(item.notes || '').trim();
         const isStopped = Boolean(item.isStopped);
 
-        const itemBal = (item.balance !== undefined && item.balance !== null) ? parseFloat(item.balance) : undefined;
+        let itemBal = undefined;
+        if (item.balance !== undefined && item.balance !== null) {
+          const parsed = typeof item.balance === 'number' ? item.balance : parseFloat(String(item.balance).replace(/,/g, '').trim());
+          if (!isNaN(parsed)) itemBal = Math.round(parsed * 100) / 100;
+        }
 
         if (exists) {
           const cur = updatedCustomers[existingIdx];
@@ -1887,7 +1891,11 @@ const dataStore = {
   // مزامنة دفعة موردين من برنامج الشامل لايت (syncBatchSuppliers)
   // -------------------------------------------------------------
   getSuppliers() {
-    return readJson(SUPPLIERS_FILE, []);
+    const list = readJson(SUPPLIERS_FILE, []);
+    return list.map(s => ({
+      ...s,
+      balance: typeof s.balance === 'number' ? s.balance : (parseFloat(String(s.balance || '0').replace(/,/g, '')) || 0)
+    }));
   },
 
   getLastCustomersSyncMeta() {
@@ -1955,7 +1963,11 @@ const dataStore = {
         const address = String(item.address || '').trim();
         const notes = String(item.notes || '').trim();
         const isStopped = Boolean(item.isStopped);
-        const itemBal = (item.balance !== undefined && item.balance !== null) ? parseFloat(item.balance) : undefined;
+        let itemBal = undefined;
+        if (item.balance !== undefined && item.balance !== null) {
+          const parsed = typeof item.balance === 'number' ? item.balance : parseFloat(String(item.balance).replace(/,/g, '').trim());
+          if (!isNaN(parsed)) itemBal = Math.round(parsed * 100) / 100;
+        }
 
         if (exists) {
           const cur = updatedSuppliers[existingIdx];
