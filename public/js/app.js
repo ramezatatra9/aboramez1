@@ -2798,13 +2798,13 @@ function openProductCustomerPreview(productId, initialIndex = 0) {
     startY: 0
   };
 
-  updateCustomerPreviewUi();
-
+  // فتح المودال فوراً بـ inline style بدون الاعتماد على CSS class
   const modal = document.getElementById('customerProductPreviewModal');
   if (modal) {
-    modal.style.display = 'flex';
-    modal.classList.add('active');
+    modal.style.cssText = 'display: flex; position: fixed; inset: 0; background: rgba(5, 7, 12, 0.96); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); z-index: 99999; overflow: hidden; align-items: center; justify-content: center; user-select: none; touch-action: none;';
   }
+
+  updateCustomerPreviewUi();
 
   // تسجيل مستمعات لوحة المفاتيح
   document.addEventListener('keydown', handlePreviewKeyDown);
@@ -2880,7 +2880,6 @@ function closeCustomerProductPreview() {
   const modal = document.getElementById('customerProductPreviewModal');
   if (modal) {
     modal.style.display = 'none';
-    modal.classList.remove('active');
   }
   document.removeEventListener('keydown', handlePreviewKeyDown);
 }
@@ -5165,12 +5164,7 @@ function renderInventoryList() {
             <span>سعر البيع: <strong>${(p.sellPrice || 0).toLocaleString('en-US')} ${cur}</strong></span>
             <span>سعر التكلفة: <strong>${(p.costPrice || 0).toLocaleString('en-US')} ${cur}</strong></span>
           </div>
-          <div class="inv-prod-actions" style="margin-top: 0.45rem; display: flex; gap: 0.4rem; align-items: center;">
-            <button type="button" class="btn btn-xs btn-outline-primary" onclick="openProductCustomerPreview('${p.id}')" style="font-weight: 700; display: inline-flex; align-items: center; gap: 0.25rem;">
-              <span>👁️</span>
-              <span>معاينة الصورة وعرضها للعميل</span>
-            </button>
-          </div>
+          <!-- لا يوجد زر عرض للعميل هنا - المعاينة تتم عبر الضغط على صورة المنتج في الكتالوج -->
         </div>
 
         <!-- عداد التحكم بالكمية -->
