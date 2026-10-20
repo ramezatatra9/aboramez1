@@ -974,7 +974,7 @@ const state = {
   invoicesFilter: 'all',
   currentViewingInvoice: null,
   printMode: 'customer', // 'customer' أو 'internal'
-  catalogPageSize: 36,
+  catalogPageSize: 24,
   catalogCurrentPage: 1,
 
   // سندات القبض
@@ -2213,7 +2213,14 @@ function setupSearchListeners() {
   }
 }
 
+// debounce helper للكتالوج
+let _renderCatalogTimer = null;
 function renderCatalog() {
+  if (_renderCatalogTimer) clearTimeout(_renderCatalogTimer);
+  _renderCatalogTimer = setTimeout(_doRenderCatalog, 60);
+}
+
+function _doRenderCatalog() {
   const container = document.getElementById('productsGridContainer');
   if (!container) return;
 
@@ -2236,7 +2243,7 @@ function renderCatalog() {
       if (p.category !== state.activeCategory) return false;
     }
 
-    // 4. فلتر البحث النصي (مدمج ومحصور داخل الماركة مع تطبيع كامل للغة العربية والمرادفات)
+    // 4. فلتر البحث النصي (مدمج ومحصور داخل الماركة مع تطبيق كامل للغة العربية والمرادفات)
     if (state.catalogSearch) {
       const qNorm = normalizeArabic(state.catalogSearch);
       const searchWords = qNorm.split(/\s+/).filter(w => w.length > 0);
@@ -2291,6 +2298,9 @@ function renderCatalog() {
   const displayedCount = state.catalogCurrentPage * state.catalogPageSize;
   const pageProducts = filtered.slice(0, displayedCount);
 
+  // حساب عدد الأصناف النافدة مرة واحدة فقط (performance fix)
+  const zeroCount = filtered.reduce((acc, p) => acc + ((parseInt(p.stock) || 0) <= 0 ? 1 : 0), 0);
+
   let zeroDividerAdded = false;
   let cardsHtml = pageProducts.map(prod => {
     const cost = parseFloat(prod.costPrice) || 0;
@@ -2309,7 +2319,6 @@ function renderCatalog() {
     let dividerHtml = '';
     if (isZeroStock && !zeroDividerAdded) {
       zeroDividerAdded = true;
-      const zeroCount = filtered.filter(p => (parseInt(p.stock) || 0) <= 0).length;
       dividerHtml = `
         <div class="zero-stock-divider">
           <div class="zero-title">
@@ -2370,10 +2379,6 @@ function renderCatalog() {
                 <span>${isZeroStock ? 'إضافة رغم النفاد' : 'إضافة للفاتورة'}</span>
               </button>
             `}
-            <button class="btn btn-outline-primary btn-sm" onclick="openProductCustomerPreview('${prod.id}')" title="معاينة وعرض صورة الصنف للعميل بدون أرباح أو تكلفة" style="font-weight: 700; display: inline-flex; align-items: center; gap: 0.25rem;">
-              <span>👁️</span>
-              <span>عرض للعميل</span>
-            </button>
             <button class="btn btn-secondary btn-sm" onclick="openEditProductModal('${prod.id}')" title="تعديل المنتج">✏️</button>
             <button class="btn btn-danger btn-sm" onclick="confirmDeleteProduct('${prod.id}')" title="حذف المنتج">🗑️</button>
           </div>
@@ -2391,7 +2396,7 @@ function renderCatalog() {
         </div>
         <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: center;">
           <button class="btn btn-primary" onclick="loadMoreCatalogProducts()">
-            <span>⬇️</span> عرض المزيد (36 منتج إضافي)
+            <span>⬇️</span> عرض المزيد (24 منتج إضافي)
           </button>
           <button class="btn btn-secondary" onclick="loadAllCatalogProducts()">
             <span>👁️</span> عرض جميع المنتجات (${totalCount.toLocaleString('en-US')})
