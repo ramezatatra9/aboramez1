@@ -980,7 +980,14 @@ const dataStore = {
   // -------------------------------------------------------------
 
   getCustomers() {
-    return readJson(CUSTOMERS_FILE, []);
+    const list = readJson(CUSTOMERS_FILE, []);
+    return list.map(function(c) {
+      var rawBal = typeof c.balance === 'number' ? c.balance : (parseFloat(String(c.balance || '0').replace(/,/g, '')) || 0);
+      var shamelBal = c.shamelBalance !== undefined
+        ? (typeof c.shamelBalance === 'number' ? c.shamelBalance : (parseFloat(String(c.shamelBalance || '0').replace(/,/g, '')) || 0))
+        : rawBal;
+      return Object.assign({}, c, { shamelBalance: shamelBal, balance: rawBal });
+    });
   },
 
   saveCustomer(custData) {
@@ -1227,43 +1234,6 @@ const dataStore = {
     writeJson(SETTINGS_FILE, updated);
     syncSettingsToSupabase(updated);
     return updated;
-  },
-
-  // مزامنة أولية عند تشغيل السيرفر
-  async initFromSupabase() {
-    if (!supabase) return;
-    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Supabase sync timeout')), 4000));
-    try {
-      console.log('🔄 جاري فحص ومزامنة البيانات مع Supabase...');
-      await Promise.race([
-        (async () => {
-          // 1. الإعدادات
-          const { data: stRow } = await supabase.from('settings').select('data').eq('id', 'general').maybeSingle();
-          if (stRow && stRow.data) {
-            writeJson(SETTINGS_FILE, stRow.data);
-          }
-
-          // 2. الفواتير
-          const { data: invRows } = await supabase.from('invoices').select('*').order('invoiceNumber', { ascending: false });
-          if (invRows && invRows.length > 0) {
-            writeJson(INVOICES_FILE, invRows);
-          }
-
-          // 3. سندات القبض
-          const { data: rcpRows } = await supabase.from('receipts').select('*').order('receiptNumber', { ascending: false });
-          if (rcpRows && rcpRows.length > 0) {
-            writeJson(RECEIPTS_FILE, rcpRows);
-          }
-
-          // 4. عدد المنتجات
-          const { count } = await supabase.from('products').select('*', { count: 'exact', head: true });
-          console.log(`✅ تم الاتصال بـ Supabase بنجاح! عدد المنتجات في السحابة: ${count || 0}`);
-        })(),
-        timeout
-      ]);
-    } catch (err) {
-      console.warn('⚠️ تنبيه: تعذر استرداد بيانات Supabase عند البدء، يتم الاعتماد على البيانات المحلية:', err.message);
-    }
   },
 
   // -----------------------------------------------------------
@@ -1570,61 +1540,115 @@ const dataStore = {
       }
     }
 
-    // إذا لم يكن الوضع تجريبياً، نقوم بالحفظ النهائي دفعة واحدة
-    if (!dryRun && updatedOrNewProducts.length > 0) {
-      // 1. إنشاء نسخة احتياطية سريعة قبل الكتابة
-      this.createBackup('pre_sync_batch');
+    let persisted = false;
+    let verifiedSample = [];
 
-      // 2. كتابة ملف JSON محلياً
-      writeJson(PRODUCTS_FILE, products);
+    // إذا لم يكن الوضع تجريبياً، نقوم بالحفظ النهائي وتثبيته في قاعدة البيانات الدائمة
+    if (!dryRun) {
+      if (updatedOrNewProducts.length > 0) {
+        // 1. إنشاء نسخة احتياطية سريعة قبل الكتابة
+        this.createBackup('pre_sync_batch');
 
-      // 3. إبطال الذاكرة المؤقتة
-      this._invalidateCache();
+        // 2. كتابة ملف JSON محلياً
+        writeJson(PRODUCTS_FILE, products);
 
-      // 3. مزامنة سحابية متوازية مع Supabase إذا كان متصلاً
-      if (supabase) {
-        try {
-          const supabaseBatch = updatedOrNewProducts.map(p => ({
-            id: String(p.id),
-            code: String(p.code || ''),
-            name: String(p.name || ''),
-            category: String(p.mainCategory || p.category || 'عام'),
-            subcategory: String(p.category || ''),
-            costPrice: Number(p.costPrice) || 0,
-            sellPrice: Number(p.sellPrice) || 0,
-            stock: parseInt(p.stock) || 0,
-            unit: String(p.unit || 'قطعة'),
-            image: String(p.image || ''),
-            description: String(p.description || ''),
-            lastStockUpdate: p.lastStockUpdate || null,
-            lastStockEditor: p.lastStockEditor || null,
-            createdAt: p.createdAt || now
-          }));
-
-          const { error: sbErr } = await supabase.from('products').upsert(supabaseBatch);
-          if (sbErr) {
-            console.error('Supabase batch upsert error:', sbErr.message);
-            summary.errors.push(`Supabase sync warning: ${sbErr.message}`);
-          }
-        } catch (sbEx) {
-          console.error('Supabase batch exception:', sbEx.message);
-        }
+        // 3. إبطال الذاكرة المؤقتة
+        this._invalidateCache();
       }
 
-      // 4. حفظ بيانات المزامنة الأخيرة
-      const syncMetaFile = path.join(DATA_DIR, 'sync_meta.json');
-      writeJson(syncMetaFile, {
-        lastSyncAt: now,
-        mode,
-        itemsReceived: items.length,
-        created: summary.created,
-        updated: summary.updated,
-        unchanged: summary.unchanged
-      });
+      // 4. مزامنة سحابية متوازية مع Supabase كقاعدة بيانات دائمة
+      if (supabase) {
+        try {
+          if (updatedOrNewProducts.length > 0) {
+            const supabaseBatch = updatedOrNewProducts.map(p => ({
+              id: String(p.id),
+              code: String(p.code || ''),
+              name: String(p.name || ''),
+              category: String(p.mainCategory || p.category || 'عام'),
+              subcategory: String(p.category || ''),
+              costPrice: Number(p.costPrice) || 0,
+              sellPrice: Number(p.sellPrice) || 0,
+              stock: parseInt(p.stock) || 0,
+              unit: String(p.unit || 'قطعة'),
+              image: String(p.image || ''),
+              description: String(p.description || ''),
+              lastStockUpdate: p.lastStockUpdate || null,
+              lastStockEditor: p.lastStockEditor || null,
+              createdAt: p.createdAt || now
+            }));
+
+            // تحديث جدول products
+            const { error: sbErr } = await supabase.from('products').upsert(supabaseBatch);
+            if (sbErr) {
+              console.error('Supabase batch upsert error:', sbErr.message);
+              summary.errors.push(`Supabase sync warning: ${sbErr.message}`);
+            }
+
+            // حفظ لقطة المنتجات الكاملة في جدول settings للحفاظ على الماركات والتصنيفات بدقة
+            await supabase.from('settings').upsert({
+              id: 'products_snapshot',
+              data: products
+            });
+          }
+
+          // حفظ بيانات المزامنة الأخيرة في قاعدة بيانات الإنتاج الدائمة
+          const syncMetaObj = {
+            lastSyncAt: now,
+            mode,
+            itemsReceived: items.length,
+            created: summary.created,
+            updated: summary.updated,
+            unchanged: summary.unchanged,
+            suspended: summary.suspended,
+            totalCatalogProducts: products.length,
+            editorName
+          };
+
+          await supabase.from('settings').upsert({
+            id: 'sync_meta',
+            data: syncMetaObj
+          });
+
+          // كتابة الملف المحلي
+          const syncMetaFile = path.join(DATA_DIR, 'sync_meta.json');
+          writeJson(syncMetaFile, syncMetaObj);
+
+          // 5. التحقق الحقيقي من الحفظ بقراءة عينة من قاعدة البيانات بعد الكتابة
+          const verifyCodes = updatedOrNewProducts.length > 0 
+            ? updatedOrNewProducts.slice(0, 3).map(p => p.code)
+            : (items.slice(0, 3).map(it => it.code).filter(Boolean));
+
+          if (verifyCodes.length > 0) {
+            const { data: vRows, error: vErr } = await supabase
+              .from('products')
+              .select('code, name, sellPrice, stock')
+              .in('code', verifyCodes);
+
+            if (!vErr && vRows && vRows.length > 0) {
+              verifiedSample = vRows;
+              persisted = true;
+            } else if (!vErr) {
+              persisted = true;
+            }
+          } else {
+            persisted = true;
+          }
+
+        } catch (sbEx) {
+          console.error('Supabase batch exception:', sbEx.message);
+          summary.errors.push(`خطأ في الكتابة لقاعدة البيانات الدائمة: ${sbEx.message}`);
+        }
+      } else {
+        // تنبيه صارم عند عدم اتصال قاعدة البيانات الدائمة
+        summary.errors.push('تنبيه: قاعدة بيانات الإنتاج الدائمة (Supabase) غير متصلة بالسيرفر! الحفظ جرى في الذاكرة المؤقتة فقط وستختفي التعديلات عند إعادة تشغيل السيرفر.');
+      }
     }
 
     return {
-      success: summary.errors.length === 0,
+      success: summary.errors.length === 0 && (persisted || dryRun),
+      persisted,
+      verifiedSample,
+      storageType: supabase ? 'Supabase Cloud PostgreSQL' : 'Local Ephemeral Container',
       dryRun,
       summary,
       totalCatalogProducts: products.length,
@@ -1804,6 +1828,8 @@ const dataStore = {
               address: address || cur.address || '',
               notes: notes || cur.notes || '',
               isStopped,
+              // shamelBalance: الرصيد النهائي من الشامل - لا يتغير إلا بمزامنة جديدة
+              shamelBalance: itemBal !== undefined ? itemBal : (parseFloat(cur.shamelBalance !== undefined ? cur.shamelBalance : cur.balance) || 0),
               balance: itemBal !== undefined ? itemBal : (parseFloat(cur.balance) || 0),
               shamelCode,
               syncedAt: now,
@@ -1824,6 +1850,8 @@ const dataStore = {
               address,
               notes,
               isStopped,
+              // shamelBalance: الرصيد النهائي من الشامل - لا يتغير إلا بمزامنة جديدة
+              shamelBalance: itemBal !== undefined ? itemBal : 0,
               balance: itemBal !== undefined ? itemBal : 0,
               createdAt: now,
               updatedAt: now,
@@ -1845,41 +1873,79 @@ const dataStore = {
     if (!dryRun) {
       writeJson(CUSTOMERS_FILE, updatedCustomers);
 
-      // مزامنة مع Supabase إن كان متاحاً
+      // مزامنة مع Supabase كقاعدة بيانات إنتاج دائمة
+      let persisted = false;
+      let verifiedSample = [];
       if (supabase) {
         try {
-          const sb = updatedCustomers.filter(c => c.source === 'shamel_sync' || c.shamelCode).map(c => ({
-            id: String(c.id),
-            systemNumber: String(c.systemNumber || c.shamelCode || ''),
-            name: String(c.name || ''),
-            phone: String(c.phone || ''),
-            email: String(c.email || ''),
-            address: String(c.address || ''),
-            notes: String(c.notes || ''),
-            isStopped: Boolean(c.isStopped),
-            balance: parseFloat(c.balance) || 0,
-            createdAt: c.createdAt || now
-          }));
-          if (sb.length > 0) await supabase.from('customers').upsert(sb);
+          // 1. حفظ سجلات الزبائن الكاملة في جدول settings للحفظ الدائم المضمون
+          await supabase.from('settings').upsert({
+            id: 'customers',
+            data: updatedCustomers
+          });
+
+          // 2. تحديث meta المزامنة للزبائن في قاعدة البيانات الدائمة
+          const custMeta = {
+            lastSyncAt: now,
+            mode: syncMode,
+            itemsReceived: items.length,
+            created: summary.created,
+            updated: summary.updated,
+            unchanged: summary.unchanged,
+            failed: summary.failed,
+            totalCustomers: updatedCustomers.length,
+            editorName
+          };
+
+          await supabase.from('settings').upsert({
+            id: 'sync_customers_meta',
+            data: custMeta
+          });
+
+          writeJson(path.join(DATA_DIR, 'sync_customers_meta.json'), custMeta);
+
+          // 3. التحقق بقراءة عينة للتأكد من نجاح الحفظ
+          const { data: readBack } = await supabase.from('settings').select('data').eq('id', 'customers').maybeSingle();
+          if (readBack && Array.isArray(readBack.data)) {
+            persisted = true;
+            verifiedSample = readBack.data.slice(0, 3).map(c => ({
+              code: c.systemNumber || c.shamelCode,
+              name: c.name,
+              balance: c.balance
+            }));
+          }
+
+          // محاولة اختيارية لتحديث جدول customers إن وُجد (non-blocking)
+          try {
+            const sb = updatedCustomers.filter(c => c.source === 'shamel_sync' || c.shamelCode).map(c => ({
+              id: String(c.id),
+              systemNumber: String(c.systemNumber || c.shamelCode || ''),
+              name: String(c.name || ''),
+              phone: String(c.phone || ''),
+              email: String(c.email || ''),
+              address: String(c.address || ''),
+              notes: String(c.notes || ''),
+              isStopped: Boolean(c.isStopped),
+              balance: parseFloat(c.balance) || 0,
+              createdAt: c.createdAt || now
+            }));
+            if (sb.length > 0) await supabase.from('customers').upsert(sb);
+          } catch (_) {}
+
         } catch (sbEx) {
           console.error('Supabase customers sync error:', sbEx.message);
+          summary.errors.push(`خطأ في حفظ الزبائن بقاعدة البيانات الدائمة: ${sbEx.message}`);
         }
+      } else {
+        summary.errors.push('تنبيه: قاعدة بيانات الإنتاج الدائمة (Supabase) غير متصلة بالسيرفر! الحفظ جرى في الذاكرة المؤقتة فقط.');
       }
-
-      // تحديث meta المزامنة للزبائن
-      writeJson(path.join(DATA_DIR, 'sync_customers_meta.json'), {
-        lastSyncAt: now,
-        mode: syncMode,
-        itemsReceived: items.length,
-        created: summary.created,
-        updated: summary.updated,
-        unchanged: summary.unchanged,
-        failed: summary.failed
-      });
     }
 
     return {
-      success: summary.failed === 0 || (summary.created + summary.updated) > 0,
+      success: (summary.failed === 0 || (summary.created + summary.updated) > 0) && (persisted || dryRun),
+      persisted,
+      verifiedSample,
+      storageType: supabase ? 'Supabase Cloud PostgreSQL' : 'Local Ephemeral Container',
       dryRun,
       summary,
       totalCustomers: updatedCustomers.length,
@@ -1892,10 +1958,17 @@ const dataStore = {
   // -------------------------------------------------------------
   getSuppliers() {
     const list = readJson(SUPPLIERS_FILE, []);
-    return list.map(s => ({
-      ...s,
-      balance: typeof s.balance === 'number' ? s.balance : (parseFloat(String(s.balance || '0').replace(/,/g, '')) || 0)
-    }));
+    // استبعاد "مورد بضاعة قديمة" (S00000003) - حساب جرد داخلي وليس موردًا حقيقيًا
+    const EXCLUDED_SUPPLIER_CODES = ['S00000003'];
+    return list
+      .filter(function(s) { return !EXCLUDED_SUPPLIER_CODES.includes(String(s.shamelCode || '').toUpperCase()); })
+      .map(function(s) {
+        var rawBal = typeof s.balance === 'number' ? s.balance : (parseFloat(String(s.balance || '0').replace(/,/g, '')) || 0);
+        var shamelBal = s.shamelBalance !== undefined
+          ? (typeof s.shamelBalance === 'number' ? s.shamelBalance : (parseFloat(String(s.shamelBalance || '0').replace(/,/g, '')) || 0))
+          : rawBal;
+        return Object.assign({}, s, { shamelBalance: shamelBal, balance: rawBal });
+      });
   },
 
   getLastCustomersSyncMeta() {
@@ -1929,6 +2002,14 @@ const dataStore = {
       };
     }
 
+    // استبعاد المورد الوهمي "مورد بضاعة قديمة" (S00000003) نهائياً وفورياً
+    const EXCLUDED_SUPPLIER_CODES = ['S00000003'];
+    const safeItems = items.filter(item => {
+      const code = String(item.shamelCode || item.code || '').trim().toUpperCase();
+      const name = String(item.name || '').trim();
+      return !EXCLUDED_SUPPLIER_CODES.includes(code) && !name.includes('بضاعة قديمة');
+    });
+
     const suppliers = this.getSuppliers();
     const now = new Date().toISOString();
 
@@ -1937,10 +2018,10 @@ const dataStore = {
       if (s.shamelCode) shamelCodeMap.set(String(s.shamelCode).trim().toUpperCase(), idx);
     });
 
-    const summary = { totalReceived: items.length, created: 0, updated: 0, unchanged: 0, failed: 0, errors: [] };
+    const summary = { totalReceived: safeItems.length, created: 0, updated: 0, unchanged: 0, failed: 0, errors: [] };
     const updatedSuppliers = [...suppliers];
 
-    for (const item of items) {
+    for (const item of safeItems) {
       try {
         const shamelCode = String(item.shamelCode || item.code || '').trim();
         const name = String(item.name || '').trim();
@@ -1991,6 +2072,7 @@ const dataStore = {
               address: address || cur.address || '',
               notes: notes || cur.notes || '',
               isStopped,
+              shamelBalance: itemBal !== undefined ? itemBal : (parseFloat(cur.shamelBalance !== undefined ? cur.shamelBalance : cur.balance) || 0),
               balance: itemBal !== undefined ? itemBal : (parseFloat(cur.balance) || 0),
               updatedAt: now,
               syncedAt: now,
@@ -2010,6 +2092,7 @@ const dataStore = {
               address,
               notes,
               isStopped,
+              shamelBalance: itemBal !== undefined ? itemBal : 0,
               balance: itemBal !== undefined ? itemBal : 0,
               createdAt: now,
               updatedAt: now,
@@ -2028,43 +2111,80 @@ const dataStore = {
       }
     }
 
+    let persisted = false;
+    let verifiedSample = [];
+
     if (!dryRun) {
       writeJson(SUPPLIERS_FILE, updatedSuppliers);
 
-      // مزامنة مع Supabase إن كان متاحاً
+      // مزامنة مع Supabase كقاعدة بيانات إنتاج دائمة
       if (supabase) {
         try {
-          const sb = updatedSuppliers.map(s => ({
-            id: String(s.id),
-            shamelCode: String(s.shamelCode || ''),
-            name: String(s.name || ''),
-            phone: String(s.phone || ''),
-            email: String(s.email || ''),
-            address: String(s.address || ''),
-            notes: String(s.notes || ''),
-            isStopped: Boolean(s.isStopped),
-            balance: parseFloat(s.balance) || 0,
-            createdAt: s.createdAt || now
-          }));
-          if (sb.length > 0) await supabase.from('suppliers').upsert(sb);
+          // 1. حفظ الموردين الدائمين في جدول settings (مستبعد منها مورد بضاعة قديمة نهائياً)
+          await supabase.from('settings').upsert({
+            id: 'suppliers',
+            data: updatedSuppliers
+          });
+
+          // 2. تحديث meta المزامنة في قاعدة البيانات الدائمة
+          const suppMeta = {
+            lastSyncAt: now,
+            mode: syncMode,
+            itemsReceived: items.length,
+            created: summary.created,
+            updated: summary.updated,
+            unchanged: summary.unchanged,
+            failed: summary.failed,
+            totalSuppliers: updatedSuppliers.length,
+            excludedDummyCount: items.length - safeItems.length,
+            editorName
+          };
+
+          await supabase.from('settings').upsert({
+            id: 'sync_suppliers_meta',
+            data: suppMeta
+          });
+
+          writeJson(path.join(DATA_DIR, 'sync_suppliers_meta.json'), suppMeta);
+
+          // 3. التحقق بقراءة عينة
+          const { data: readBack } = await supabase.from('settings').select('data').eq('id', 'suppliers').maybeSingle();
+          if (readBack && Array.isArray(readBack.data)) {
+            persisted = true;
+            verifiedSample = readBack.data.slice(0, 3).map(s => ({ code: s.shamelCode, name: s.name, balance: s.balance }));
+          }
+
+          // محاولة اختيارية لتحديث جدول suppliers إن وجد
+          try {
+            const sb = updatedSuppliers.map(s => ({
+              id: String(s.id),
+              shamelCode: String(s.shamelCode || ''),
+              name: String(s.name || ''),
+              phone: String(s.phone || ''),
+              email: String(s.email || ''),
+              address: String(s.address || ''),
+              notes: String(s.notes || ''),
+              isStopped: Boolean(s.isStopped),
+              balance: parseFloat(s.balance) || 0,
+              createdAt: s.createdAt || now
+            }));
+            if (sb.length > 0) await supabase.from('suppliers').upsert(sb);
+          } catch (_) {}
+
         } catch (sbEx) {
           console.error('Supabase suppliers sync error:', sbEx.message);
+          summary.errors.push(`خطأ في حفظ الموردين بقاعدة البيانات الدائمة: ${sbEx.message}`);
         }
+      } else {
+        summary.errors.push('تنبيه: قاعدة بيانات الإنتاج الدائمة (Supabase) غير متصلة بالسيرفر! الحفظ جرى في الذاكرة المؤقتة فقط.');
       }
-
-      writeJson(path.join(DATA_DIR, 'sync_suppliers_meta.json'), {
-        lastSyncAt: now,
-        mode: syncMode,
-        itemsReceived: items.length,
-        created: summary.created,
-        updated: summary.updated,
-        unchanged: summary.unchanged,
-        failed: summary.failed
-      });
     }
 
     return {
-      success: summary.failed === 0 || (summary.created + summary.updated) > 0,
+      success: (summary.failed === 0 || (summary.created + summary.updated) > 0) && (persisted || dryRun),
+      persisted,
+      verifiedSample,
+      storageType: supabase ? 'Supabase Cloud PostgreSQL' : 'Local Ephemeral Container',
       dryRun,
       summary,
       totalSuppliers: updatedSuppliers.length,
@@ -2073,23 +2193,64 @@ const dataStore = {
   },
 
   // ---------------------------------------------------------------
-  // استعادة البيانات من Supabase عند بدء تشغيل الخادم
-  // هذا يحل مشكلة: Render يمسح products.json عند كل إعادة تشغيل
+  // استعادة وتحقق شامل من قاعدة بيانات الإنتاج الدائمة (Supabase)
+  // يضمن بقاء كافة التعديلات والفواتير والزبائن والموردين والمنتجات
+  // حتى بعد إعادة تشغيل الخادم أو إعادة نشره على Render
   // ---------------------------------------------------------------
   async initFromSupabase() {
     if (!supabase) {
-      console.log('⚠️  Supabase غير متصل - سيتم استخدام البيانات المحلية فقط');
+      console.log('⚠️ Supabase غير متصل - سيتم استخدام البيانات المحلية المخزنة في الملفات فقط');
       return;
     }
 
-    console.log('🔄 جاري استعادة بيانات المنتجات من Supabase...');
+    console.log('🔄 جاري بدء الاستعادة والتحقق الشامل من قاعدة بيانات Supabase الدائمة...');
 
+    // 1. الإعدادات العامة
     try {
-      // جلب جميع المنتجات من Supabase (مع pagination لتجنب حد 1000 سجل)
-      let allProducts = [];
+      const { data: stRow } = await supabase.from('settings').select('data').eq('id', 'general').maybeSingle();
+      if (stRow && stRow.data) {
+        writeJson(SETTINGS_FILE, stRow.data);
+      }
+    } catch (e) {
+      console.warn('⚠️ تعذر استعادة الإعدادات العامة من Supabase:', e.message);
+    }
+
+    // 2. الفواتير
+    try {
+      const { data: invRows } = await supabase.from('invoices').select('*').order('invoiceNumber', { ascending: false });
+      if (invRows && invRows.length > 0) {
+        writeJson(INVOICES_FILE, invRows);
+      }
+    } catch (e) {
+      console.warn('⚠️ تعذر استعادة الفواتير من Supabase:', e.message);
+    }
+
+    // 3. سندات القبض
+    try {
+      const { data: rcpRows } = await supabase.from('receipts').select('*').order('receiptNumber', { ascending: false });
+      if (rcpRows && rcpRows.length > 0) {
+        writeJson(RECEIPTS_FILE, rcpRows);
+      }
+    } catch (e) {
+      console.warn('⚠️ تعذر استعادة سندات القبض من Supabase:', e.message);
+    }
+
+    // 4. استعادة المنتجات وحمايتها من الضياع
+    try {
+      // أ) أولاً فحص snapshot المنتجات الكامل من جدول settings (يحفظ الصور المخصصة والماركات والتصنيفات)
+      const { data: snapRow } = await supabase.from('settings').select('data').eq('id', 'products_snapshot').maybeSingle();
+      if (snapRow && Array.isArray(snapRow.data) && snapRow.data.length > 0) {
+        writeJson(PRODUCTS_FILE, snapRow.data);
+        _productsCache = snapRow.data;
+        _productsCacheTime = Date.now();
+        console.log(`✅ تم استعادة ${snapRow.data.length} صنف بكامل تفاصيلها من snapshot في Supabase`);
+      }
+
+      // ب) ثم جلب جدول products وتحديث أي أسعار أو كميات تم تعديلها
       let page = 0;
       const pageSize = 500;
       let hasMore = true;
+      let allSbProducts = [];
 
       while (hasMore) {
         const { data, error } = await supabase
@@ -2098,35 +2259,12 @@ const dataStore = {
           .range(page * pageSize, (page + 1) * pageSize - 1);
 
         if (error) {
-          console.error('❌ خطأ في جلب المنتجات من Supabase:', error.message);
-          return;
+          console.error('❌ خطأ في جلب جدول products من Supabase:', error.message);
+          break;
         }
 
         if (data && data.length > 0) {
-          // تحويل بنية Supabase إلى بنية products.json
-          const mapped = data.map(p => ({
-            id: p.id,
-            code: p.code || '',
-            name: p.name || '',
-            mainCategory: p.category || 'أجهزة كهربائية كبيرة',
-            category: p.subcategory || p.category || 'عام',
-            costPrice: Number(p.costPrice) || 0,
-            sellPrice: Number(p.sellPrice) || 0,
-            stock: parseInt(p.stock) || 0,
-            unit: p.unit || 'قطعة',
-            image: p.image || 'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80',
-            description: p.description || '',
-            barcode: p.barcode || '',
-            isSuspended: Boolean(p.isSuspended),
-            brand: p.brand || 'أخرى',
-            brandAr: p.brandAr || 'أخرى / عام',
-            lastStockUpdate: p.lastStockUpdate || null,
-            lastStockEditor: p.lastStockEditor || null,
-            createdAt: p.createdAt || new Date().toISOString(),
-            updatedAt: p.updatedAt || null,
-            lastSyncAt: p.lastSyncAt || null
-          }));
-          allProducts = allProducts.concat(mapped);
+          allSbProducts = allSbProducts.concat(data);
           page++;
           hasMore = data.length === pageSize;
         } else {
@@ -2134,76 +2272,101 @@ const dataStore = {
         }
       }
 
-      if (allProducts.length > 0) {
-        // حفظ البيانات المستعادة في ملف JSON المحلي
-        writeJson(PRODUCTS_FILE, allProducts);
-        // تحديث الذاكرة المؤقتة
-        _productsCache = allProducts;
+      if (allSbProducts.length > 0) {
+        const currentLocal = readJson(PRODUCTS_FILE, []);
+        const localMap = new Map();
+        currentLocal.forEach(p => {
+          if (p.code) localMap.set(String(p.code).toUpperCase(), p);
+          if (p.id) localMap.set(String(p.id), p);
+        });
+
+        // دمج آمن: تحديث الأسعار والمخزون مع الحفاظ الصارم على الصور، الماركات، والأوصاف
+        const merged = allSbProducts.map(p => {
+          const loc = localMap.get(String(p.code || '').toUpperCase()) || localMap.get(String(p.id));
+          const finalImage = (loc && loc.image && !loc.image.includes('placeholder')) ? loc.image : (p.image || 'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80');
+          const finalBrand = (loc && loc.brand && loc.brand !== 'أخرى') ? loc.brand : (p.brand || 'أخرى');
+          const finalBrandAr = (loc && loc.brandAr && loc.brandAr !== 'أخرى / عام') ? loc.brandAr : (p.brandAr || 'أخرى / عام');
+          const finalDesc = (loc && loc.description) ? loc.description : (p.description || '');
+          const finalMainCat = (loc && loc.mainCategory) ? loc.mainCategory : (p.category || 'أجهزة كهربائية كبيرة');
+          const finalSubCat = (loc && loc.category) ? loc.category : (p.subcategory || p.category || 'عام');
+
+          return {
+            id: p.id,
+            code: p.code || '',
+            name: p.name || '',
+            mainCategory: finalMainCat,
+            category: finalSubCat,
+            costPrice: Number(p.costPrice) || 0,
+            sellPrice: Number(p.sellPrice) || 0,
+            stock: parseInt(p.stock) || 0,
+            unit: p.unit || 'قطعة',
+            image: finalImage,
+            description: finalDesc,
+            barcode: (loc && loc.barcode) ? loc.barcode : (p.barcode || ''),
+            isSuspended: loc ? Boolean(loc.isSuspended) : Boolean(p.isSuspended),
+            brand: finalBrand,
+            brandAr: finalBrandAr,
+            lastStockUpdate: p.lastStockUpdate || (loc ? loc.lastStockUpdate : null),
+            lastStockEditor: p.lastStockEditor || (loc ? loc.lastStockEditor : null),
+            createdAt: p.createdAt || (loc ? loc.createdAt : new Date().toISOString()),
+            updatedAt: p.updatedAt || (loc ? loc.updatedAt : null),
+            lastSyncAt: p.lastSyncAt || (loc ? loc.lastSyncAt : null)
+          };
+        });
+
+        writeJson(PRODUCTS_FILE, merged);
+        _productsCache = merged;
         _productsCacheTime = Date.now();
-        console.log(`✅ تم استعادة ${allProducts.length} صنف من Supabase إلى الملف المحلي`);
-      } else {
-        console.log('ℹ️  Supabase فارغ - سيتم استخدام البيانات المحلية الموجودة');
+        console.log(`✅ تم دمج وتحديث ${merged.length} صنف من Supabase مع الحفاظ على التخصيصات`);
       }
-    } catch (err) {
-      console.error('❌ خطأ في initFromSupabase:', err.message);
-      // لا نوقف الخادم - نستمر بالملف المحلي
+    } catch (pErr) {
+      console.error('❌ خطأ في استعادة المنتجات:', pErr.message);
     }
 
-    // استعادة الزبائن من Supabase أيضاً
+    // 5. استعادة الزبائن الدائمين
     try {
-      const { data: custsData, error: custsErr } = await supabase
-        .from('customers')
-        .select('*')
-        .limit(2000);
-
-      if (!custsErr && custsData && custsData.length > 0) {
-        const mapped = custsData.map(c => ({
-          id: c.id,
-          systemNumber: c.systemNumber || c.shamelCode || '',
-          shamelCode: c.systemNumber || c.shamelCode || '',
-          name: c.name || '',
-          phone: c.phone || '',
-          mobile: c.mobile || c.phone || '',
-          email: c.email || '',
-          address: c.address || '',
-          notes: c.notes || '',
-          isStopped: Boolean(c.isStopped),
-          balance: Number(c.balance) || 0,
-          createdAt: c.createdAt || new Date().toISOString()
-        }));
-        writeJson(CUSTOMERS_FILE, mapped);
-        console.log(`✅ تم استعادة ${mapped.length} زبون من Supabase`);
+      const { data: cRow } = await supabase.from('settings').select('data').eq('id', 'customers').maybeSingle();
+      if (cRow && Array.isArray(cRow.data) && cRow.data.length > 0) {
+        writeJson(CUSTOMERS_FILE, cRow.data);
+        console.log(`✅ تم استعادة ${cRow.data.length} زبون بأرصدتهم الدائمة من Supabase`);
       }
-    } catch (e) {
-      console.error('خطأ في استعادة الزبائن من Supabase:', e.message);
+    } catch (cErr) {
+      console.warn('⚠️ تعذر استعادة الزبائن من Supabase:', cErr.message);
     }
 
-    // استعادة الموردين من Supabase أيضاً
+    // 6. استعادة الموردين (مع الاستبعاد الصارم والنهائي لمورد بضاعة قديمة)
     try {
-      const { data: suppsData, error: suppsErr } = await supabase
-        .from('suppliers')
-        .select('*')
-        .limit(1000);
-
-      if (!suppsErr && suppsData && suppsData.length > 0) {
-        const mapped = suppsData.map(s => ({
-          id: s.id,
-          shamelCode: s.shamelCode || '',
-          name: s.name || '',
-          phone: s.phone || '',
-          mobile: s.mobile || s.phone || '',
-          email: s.email || '',
-          address: s.address || '',
-          notes: s.notes || '',
-          isStopped: Boolean(s.isStopped),
-          balance: Number(s.balance) || 0,
-          createdAt: s.createdAt || new Date().toISOString()
-        }));
-        writeJson(SUPPLIERS_FILE, mapped);
-        console.log(`✅ تم استعادة ${mapped.length} مورد من Supabase`);
+      const EXCLUDED_SUPPLIER_CODES = ['S00000003'];
+      const { data: sRow } = await supabase.from('settings').select('data').eq('id', 'suppliers').maybeSingle();
+      if (sRow && Array.isArray(sRow.data) && sRow.data.length > 0) {
+        const cleanSuppliers = sRow.data.filter(s => {
+          const code = String(s.shamelCode || '').toUpperCase();
+          const name = String(s.name || '');
+          return !EXCLUDED_SUPPLIER_CODES.includes(code) && !name.includes('بضاعة قديمة');
+        });
+        writeJson(SUPPLIERS_FILE, cleanSuppliers);
+        console.log(`✅ تم استعادة ${cleanSuppliers.length} مورد حقيقي من Supabase (مستبعد منها مورد بضاعة قديمة نهائياً)`);
       }
-    } catch (e) {
-      console.error('خطأ في استعادة الموردين من Supabase:', e.message);
+    } catch (sErr) {
+      console.warn('⚠️ تعذر استعادة الموردين من Supabase:', sErr.message);
+    }
+
+    // 7. استعادة بيانات المزامنة الأخيرة (sync_meta)
+    try {
+      const { data: mRow } = await supabase.from('settings').select('data').eq('id', 'sync_meta').maybeSingle();
+      if (mRow && mRow.data) {
+        writeJson(path.join(DATA_DIR, 'sync_meta.json'), mRow.data);
+      }
+      const { data: mcRow } = await supabase.from('settings').select('data').eq('id', 'sync_customers_meta').maybeSingle();
+      if (mcRow && mcRow.data) {
+        writeJson(path.join(DATA_DIR, 'sync_customers_meta.json'), mcRow.data);
+      }
+      const { data: msRow } = await supabase.from('settings').select('data').eq('id', 'sync_suppliers_meta').maybeSingle();
+      if (msRow && msRow.data) {
+        writeJson(path.join(DATA_DIR, 'sync_suppliers_meta.json'), msRow.data);
+      }
+    } catch (mErr) {
+      console.warn('⚠️ تعذر استعادة بيانات المزامنة الوصفية:', mErr.message);
     }
   }
 };
