@@ -16,16 +16,16 @@ if (!fs.existsSync(BACKUPS_DIR)) {
   fs.mkdirSync(BACKUPS_DIR, { recursive: true });
 }
 
-// مزامنة خلفية غير معطلة مع Supabase (Non-blocking background sync)
+// مزامنة صنف مع قاعدة بيانات Supabase الدائمة
 async function syncProductToSupabase(product) {
-  if (!supabase) return;
+  if (!supabase) return { success: false, error: 'Supabase غير متصل' };
   try {
-    await supabase.from('products').upsert({
+    const payload = {
       id: String(product.id),
-      code: String(product.code || ''),
-      name: String(product.name || ''),
-      category: String(product.mainCategory || product.category || 'عام'),
-      subcategory: String(product.category || ''),
+      code: String(product.code || '').trim(),
+      name: String(product.name || '').trim(),
+      category: String(product.mainCategory || product.category || 'أجهزة كهربائية كبيرة'),
+      subcategory: String(product.category || 'عام'),
       costPrice: Number(product.costPrice) || 0,
       sellPrice: Number(product.sellPrice) || 0,
       stock: parseInt(product.stock) || 0,
@@ -35,9 +35,16 @@ async function syncProductToSupabase(product) {
       lastStockUpdate: product.lastStockUpdate || null,
       lastStockEditor: product.lastStockEditor || null,
       createdAt: product.createdAt || new Date().toISOString()
-    });
+    };
+    const { error } = await supabase.from('products').upsert(payload);
+    if (error) {
+      console.error('Supabase product sync error:', error.message);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
   } catch (err) {
     console.error('Supabase product sync error:', err.message);
+    return { success: false, error: err.message };
   }
 }
 
@@ -197,99 +204,26 @@ const defaultSettings = {
   invoiceFooterText: "شكراً لتعاملكم معنا - بضاعة الشركة مكفولة حسب شروط الضمان"
 };
 
-// منتجات أولية تجريبية متنوعة ذات صور حقيقية وعالية الجودة
-const defaultProducts = [
-  {
-    id: "prod-1",
-    code: "TV-SAM-55",
-    name: "شاشة سامسونج 55 بوصة Smart 4K UHD",
-    category: "شاشات وتلفزيونات",
-    costPrice: 1350,
-    sellPrice: 1850,
-    stock: 14,
-    image: "https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?w=600&auto=format&fit=crop&q=80",
-    description: "شاشة ذكية فائقة الوضوح مع تقنية HDR ونظام Tizen، تدعم جميع التطبيقات.",
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: "prod-2",
-    code: "LAP-DELL-15",
-    name: "لابتوب Dell Inspiron 15 (Core i7 / 16GB / 512GB SSD)",
-    category: "أجهزة كمبيوتر ولابتوب",
-    costPrice: 2400,
-    sellPrice: 3100,
-    stock: 8,
-    image: "https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=600&auto=format&fit=crop&q=80",
-    description: "لابتوب أداء عالي مناسب للأعمال والبرمجة والتصميم، شاشة مضادة للتوهج.",
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: "prod-3",
-    code: "PHN-IPH-15P",
-    name: "هاتف iPhone 15 Pro Max سعة 256GB تيتانيوم",
-    category: "هواتف ذكية",
-    costPrice: 3800,
-    sellPrice: 4450,
-    stock: 12,
-    image: "https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=600&auto=format&fit=crop&q=80",
-    description: "معالج A17 Pro، كاميرا احترافية 48MP، هيكل من التيتانيوم القوي والخفيف.",
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: "prod-4",
-    code: "AIR-APL-PRO",
-    name: "سماعات Apple AirPods Pro (الجيل الثاني Type-C)",
-    category: "إكسسوارات وسماعات",
-    costPrice: 650,
-    sellPrice: 890,
-    stock: 25,
-    image: "https://images.unsplash.com/photo-1600294037681-c80b4cb5b434?w=600&auto=format&fit=crop&q=80",
-    description: "عزل ضوضاء نشط مضاعف، صوت مكاني مخصص، بطارية تدوم حتى 30 ساعة مع العلبة.",
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: "prod-5",
-    code: "WCH-SAM-6C",
-    name: "ساعة سامسونج Galaxy Watch 6 Classic مقاس 47mm",
-    category: "ساعات ذكية",
-    costPrice: 750,
-    sellPrice: 1050,
-    stock: 10,
-    image: "https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?w=600&auto=format&fit=crop&q=80",
-    description: "إطار دوار كلاسيكي، تتبع نبضات القلب ونسبة الدهون ونمط النوم، شاشة كريستال الياقوت.",
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: "prod-6",
-    code: "TAB-IPA-AIR",
-    name: "تابلت Apple iPad Air M2 شاشة 11 بوصة 128GB",
-    category: "أجهزة لوحية",
-    costPrice: 1950,
-    sellPrice: 2500,
-    stock: 9,
-    image: "https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=600&auto=format&fit=crop&q=80",
-    description: "شريحة M2 القوية من آبل، شاشة Liquid Retina فائقة الجمال، دعم قلم Apple Pencil Pro.",
-    createdAt: new Date().toISOString()
-  }
-];
+// تم إلغاء استخدام أي منتجات تجريبية أو مثبتة داخل الكود نهائياً
+// الاعتماد الحصري هو على بيانات الشامل لايت المحفوظة في قاعدة بيانات Supabase الدائمة
 
-// ذاكرة تخزين مؤقت للمنتجات (تُحدَّث عند كل عملية تعديل)
+// ذاكرة تخزين مؤقت للمنتجات (تُحدَّث عند كل عملية تعديل أو مزامنة)
 let _productsCache = null;
 let _productsCacheTime = 0;
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 دقائق
 
 const dataStore = {
-  // المنتجات - يقرأ من الذاكرة المؤقتة أولاً ثم الملف المحلي
+  // المنتجات - يقرأ من الذاكرة المؤقتة ثم الملف المحلي المتزامن (بدون أي منتجات وهمية نهائياً)
   getProducts() {
     // إن كانت الذاكرة المؤقتة حديثة استخدمها فوراً
     if (_productsCache && (Date.now() - _productsCacheTime) < CACHE_TTL_MS) {
       return _productsCache;
     }
-    // قراءة من الملف المحلي
-    const data = readJson(PRODUCTS_FILE, defaultProducts);
-    _productsCache = data;
+    // قراءة من الملف المحلي المتزامن دون أي افتراضات وهمية
+    const data = readJson(PRODUCTS_FILE, []);
+    _productsCache = Array.isArray(data) ? data : [];
     _productsCacheTime = Date.now();
-    return data;
+    return _productsCache;
   },
 
   // تحديث الذاكرة المؤقتة
@@ -1720,19 +1654,66 @@ const dataStore = {
 
     if (!dryRun) {
       writeJson(PRODUCTS_FILE, rebuilt);
-      const syncMetaFile = path.join(DATA_DIR, 'sync_meta.json');
-      writeJson(syncMetaFile, {
+      _productsCache = rebuilt;
+      _productsCacheTime = Date.now();
+
+      const syncMetaObj = {
         lastSyncAt: now,
         mode: 'reset_all',
         itemsReceived: items.length,
-        totalCatalogProducts: rebuilt.length
-      });
+        totalCatalogProducts: rebuilt.length,
+        editorName
+      };
+
+      const syncMetaFile = path.join(DATA_DIR, 'sync_meta.json');
+      writeJson(syncMetaFile, syncMetaObj);
+
+      if (supabase) {
+        try {
+          // رفع الأصناف المعاد بناؤها إلى جدول products بدفعات
+          const CHUNK_SIZE = 100;
+          for (let i = 0; i < rebuilt.length; i += CHUNK_SIZE) {
+            const chunk = rebuilt.slice(i, i + CHUNK_SIZE).map(p => ({
+              id: String(p.id),
+              code: String(p.code || '').trim(),
+              name: String(p.name || '').trim(),
+              category: String(p.mainCategory || p.category || 'أجهزة كهربائية كبيرة'),
+              subcategory: String(p.category || 'عام'),
+              costPrice: Number(p.costPrice) || 0,
+              sellPrice: Number(p.sellPrice) || 0,
+              stock: parseInt(p.stock) || 0,
+              unit: String(p.unit || 'قطعة'),
+              image: String(p.image || ''),
+              description: String(p.description || ''),
+              lastStockUpdate: p.lastStockUpdate || null,
+              lastStockEditor: p.lastStockEditor || null,
+              createdAt: p.createdAt || now
+            }));
+            await supabase.from('products').upsert(chunk);
+          }
+
+          // حفظ snapshot كامل في settings
+          await supabase.from('settings').upsert({
+            id: 'products_snapshot',
+            data: rebuilt
+          });
+
+          // حفظ sync_meta في settings
+          await supabase.from('settings').upsert({
+            id: 'sync_meta',
+            data: syncMetaObj
+          });
+        } catch (sbEx) {
+          console.error('Supabase resetAllProducts error:', sbEx.message);
+        }
+      }
     }
 
     return {
       success: true,
       dryRun,
       totalCatalogProducts: rebuilt.length,
+      storageType: supabase ? 'Supabase Cloud PostgreSQL' : 'Local Ephemeral Container',
       timestamp: now
     };
   },
@@ -2318,6 +2299,11 @@ const dataStore = {
         _productsCache = merged;
         _productsCacheTime = Date.now();
         console.log(`✅ تم دمج وتحديث ${merged.length} صنف من Supabase مع الحفاظ على التخصيصات`);
+      } else if (!snapRow || !snapRow.data || snapRow.data.length === 0) {
+        const local = readJson(PRODUCTS_FILE, []);
+        _productsCache = Array.isArray(local) ? local : [];
+        _productsCacheTime = Date.now();
+        console.log(`ℹ️ جدول Supabase السحابي فارغ - تم تحميل ${_productsCache.length} صنف حقيقي من النسخة المتزامنة محلياً`);
       }
     } catch (pErr) {
       console.error('❌ خطأ في استعادة المنتجات:', pErr.message);
