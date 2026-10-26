@@ -64,14 +64,30 @@ CREATE TABLE IF NOT EXISTS public.customers (
   "shamelCode" text,
   name text NOT NULL,
   phone text DEFAULT '',
+  mobile text DEFAULT '',
+  email text DEFAULT '',
+  address text DEFAULT '',
   balance numeric DEFAULT 0,
   "shamelBalance" numeric DEFAULT 0,
+  "isStopped" boolean DEFAULT false,
   notes text DEFAULT '',
-  "accountType" text DEFAULT 'customer',
+  source text DEFAULT '',
+  "syncedAt" timestamptz,
+  "syncedBy" text,
   "createdAt" timestamptz DEFAULT now(),
   "updatedAt" timestamptz DEFAULT now(),
   "lastSyncAt" timestamptz
 );
+
+-- إضافة الأعمدة المفقودة لجدول customers في حال كان موجوداً مسبقاً
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS mobile text DEFAULT '';
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS email text DEFAULT '';
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS address text DEFAULT '';
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS "shamelBalance" numeric DEFAULT 0;
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS "isStopped" boolean DEFAULT false;
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS source text DEFAULT '';
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS "syncedAt" timestamptz;
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS "syncedBy" text;
 
 CREATE INDEX IF NOT EXISTS idx_customers_sysnum ON public.customers ("systemNumber");
 CREATE INDEX IF NOT EXISTS idx_customers_shamel ON public.customers ("shamelCode");
@@ -82,14 +98,30 @@ CREATE TABLE IF NOT EXISTS public.suppliers (
   "shamelCode" text UNIQUE,
   name text NOT NULL,
   phone text DEFAULT '',
+  mobile text DEFAULT '',
+  email text DEFAULT '',
+  address text DEFAULT '',
   balance numeric DEFAULT 0,
   "shamelBalance" numeric DEFAULT 0,
+  "isStopped" boolean DEFAULT false,
   notes text DEFAULT '',
-  "accountType" text DEFAULT 'supplier',
+  source text DEFAULT '',
+  "syncedAt" timestamptz,
+  "syncedBy" text,
   "createdAt" timestamptz DEFAULT now(),
   "updatedAt" timestamptz DEFAULT now(),
   "lastSyncAt" timestamptz
 );
+
+-- إضافة الأعمدة المفقودة لجدول suppliers في حال كان موجوداً مسبقاً
+ALTER TABLE public.suppliers ADD COLUMN IF NOT EXISTS mobile text DEFAULT '';
+ALTER TABLE public.suppliers ADD COLUMN IF NOT EXISTS email text DEFAULT '';
+ALTER TABLE public.suppliers ADD COLUMN IF NOT EXISTS address text DEFAULT '';
+ALTER TABLE public.suppliers ADD COLUMN IF NOT EXISTS "shamelBalance" numeric DEFAULT 0;
+ALTER TABLE public.suppliers ADD COLUMN IF NOT EXISTS "isStopped" boolean DEFAULT false;
+ALTER TABLE public.suppliers ADD COLUMN IF NOT EXISTS source text DEFAULT '';
+ALTER TABLE public.suppliers ADD COLUMN IF NOT EXISTS "syncedAt" timestamptz;
+ALTER TABLE public.suppliers ADD COLUMN IF NOT EXISTS "syncedBy" text;
 
 CREATE INDEX IF NOT EXISTS idx_suppliers_shamel ON public.suppliers ("shamelCode");
 
@@ -97,17 +129,39 @@ CREATE INDEX IF NOT EXISTS idx_suppliers_shamel ON public.suppliers ("shamelCode
 CREATE TABLE IF NOT EXISTS public.invoices (
   id text PRIMARY KEY,
   "invoiceNumber" integer,
+  "invoiceType" text DEFAULT 'sales',   -- 'sales' | 'purchase' | 'quotation'
+  "isQuotation" boolean DEFAULT false,
   "createdAt" timestamptz DEFAULT now(),
+  "convertedAt" timestamptz,
+  "convertedBy" text,
   "employeeName" text,
   "customerName" text,
   "customerPhone" text,
+  "customerAddress" text,
+  "customerId" text,
+  "customerSystemNumber" text,
   notes text,
   items jsonb DEFAULT '[]'::jsonb,
   summary jsonb,
   "paymentMethod" text,
   "installmentDetails" jsonb,
+  "warrantyId" text,
+  "warrantyNumber" integer,
+  "warrantyMonths" integer DEFAULT 12,
   "telegramStatus" jsonb
 );
+
+-- إضافة الأعمدة المفقودة لجدول invoices في حال كان موجوداً مسبقاً
+ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS "invoiceType" text DEFAULT 'sales';
+ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS "isQuotation" boolean DEFAULT false;
+ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS "convertedAt" timestamptz;
+ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS "convertedBy" text;
+ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS "customerAddress" text;
+ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS "customerId" text;
+ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS "customerSystemNumber" text;
+ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS "warrantyId" text;
+ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS "warrantyNumber" integer;
+ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS "warrantyMonths" integer DEFAULT 12;
 
 CREATE INDEX IF NOT EXISTS idx_invoices_number ON public.invoices ("invoiceNumber");
 

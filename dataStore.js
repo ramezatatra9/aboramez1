@@ -1496,18 +1496,27 @@ const dataStore = {
           if (updatedOrNewProducts.length > 0) {
             const supabaseBatch = updatedOrNewProducts.map(p => ({
               id: String(p.id),
-              code: String(p.code || ''),
-              name: String(p.name || ''),
-              category: String(p.mainCategory || p.category || 'عام'),
-              subcategory: String(p.category || ''),
+              code: String(p.code || '').trim(),
+              name: String(p.name || '').trim(),
+              // category في الجدول = mainCategory في JS
+              category: String(p.mainCategory || p.category || 'أجهزة كهربائية كبيرة'),
+              // subcategory في الجدول = category (الفرعي) في JS
+              subcategory: String(p.category || 'عام'),
               costPrice: Number(p.costPrice) || 0,
               sellPrice: Number(p.sellPrice) || 0,
               stock: parseInt(p.stock) || 0,
               unit: String(p.unit || 'قطعة'),
               image: String(p.image || ''),
               description: String(p.description || ''),
+              barcode: String(p.barcode || ''),
+              isSuspended: Boolean(p.isSuspended),
+              brand: String(p.brand || 'أخرى'),
+              brandAr: String(p.brandAr || 'أخرى / عام'),
+              images: (Array.isArray(p.images) && p.images.length > 0) ? p.images : [],
               lastStockUpdate: p.lastStockUpdate || null,
               lastStockEditor: p.lastStockEditor || null,
+              updatedAt: p.updatedAt || null,
+              lastSyncAt: p.lastSyncAt || null,
               createdAt: p.createdAt || now
             }));
 
@@ -1685,8 +1694,15 @@ const dataStore = {
               unit: String(p.unit || 'قطعة'),
               image: String(p.image || ''),
               description: String(p.description || ''),
+              barcode: String(p.barcode || ''),
+              isSuspended: Boolean(p.isSuspended),
+              brand: String(p.brand || 'أخرى'),
+              brandAr: String(p.brandAr || 'أخرى / عام'),
+              images: (Array.isArray(p.images) && p.images.length > 0) ? p.images : [],
               lastStockUpdate: p.lastStockUpdate || null,
               lastStockEditor: p.lastStockEditor || null,
+              updatedAt: p.updatedAt || null,
+              lastSyncAt: p.lastSyncAt || null,
               createdAt: p.createdAt || now
             }));
             await supabase.from('products').upsert(chunk);
