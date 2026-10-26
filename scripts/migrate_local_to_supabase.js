@@ -70,7 +70,7 @@ async function migrate() {
         createdAt: p.createdAt || new Date().toISOString()
       }));
 
-      const { error } = await supabase.from('products').upsert(chunk, { onConflict: 'code' });
+      const { error } = await supabase.from('products').upsert(chunk);
       if (error) {
         failedCount += chunk.length;
         if (!firstError) firstError = error.message;

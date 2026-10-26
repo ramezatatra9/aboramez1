@@ -147,39 +147,43 @@ CREATE TABLE IF NOT EXISTS public.warranties (
 CREATE INDEX IF NOT EXISTS idx_warranties_number ON public.warranties ("warrantyNumber");
 
 -- ====================================================================
+-- ====================================================================
 -- سياسات الأمان (Row Level Security - RLS)
--- تتيح القراءة والكتابة الكاملة للتطبيق الآمن عبر السيرفر
+-- معايير أمان صارمة: القراءة العامة للكتالوج فقط، والكتابة محصورة بخادم النظام عبر service_role
 -- ====================================================================
 
+-- 1. جدول المنتجات: متاح للقراءة العامة لزوار الموقع، والكتابة والتعديل محصورة بالخادم المعتمد
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "products_read_policy" ON public.products;
 DROP POLICY IF EXISTS "products_write_policy" ON public.products;
 DROP POLICY IF EXISTS "products_full_access" ON public.products;
-CREATE POLICY "products_full_access" ON public.products FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "products_public_read" ON public.products;
+CREATE POLICY "products_public_read" ON public.products FOR SELECT USING (true);
 
+-- 2. جدول الإعدادات: محمي بالكامل ومحصور بخادم النظام
 ALTER TABLE public.settings ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "settings_full_access" ON public.settings;
-CREATE POLICY "settings_full_access" ON public.settings FOR ALL USING (true) WITH CHECK (true);
 
+-- 3. جدول الزبائن: محمي بالكامل ولا يتاح للمتصفح المباشر (بيانات سرية وحسابات ديون)
 ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "customers_full_access" ON public.customers;
-CREATE POLICY "customers_full_access" ON public.customers FOR ALL USING (true) WITH CHECK (true);
 
+-- 4. جدول الموردين: محمي بالكامل ومحصور بإدارة النظام
 ALTER TABLE public.suppliers ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "suppliers_full_access" ON public.suppliers;
-CREATE POLICY "suppliers_full_access" ON public.suppliers FOR ALL USING (true) WITH CHECK (true);
 
+-- 5. جدول الفواتير: محمي بالكامل
 ALTER TABLE public.invoices ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "invoices_full_access" ON public.invoices;
-CREATE POLICY "invoices_full_access" ON public.invoices FOR ALL USING (true) WITH CHECK (true);
 
+-- 6. جدول سندات القبض: محمي بالكامل
 ALTER TABLE public.receipts ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "receipts_full_access" ON public.receipts;
-CREATE POLICY "receipts_full_access" ON public.receipts FOR ALL USING (true) WITH CHECK (true);
 
+-- 7. جدول الضمانات: محمي بالكامل
 ALTER TABLE public.warranties ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "warranties_full_access" ON public.warranties;
-CREATE POLICY "warranties_full_access" ON public.warranties FOR ALL USING (true) WITH CHECK (true);
 
 -- تأكيد انتهاء المايجريشن
 COMMENT ON TABLE public.products IS 'معرض أبو رامز - الأصناف والمخزون الدائم المحدث من الشامل لايت';
+

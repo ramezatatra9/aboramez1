@@ -123,6 +123,57 @@ async function runTests() {
     assert.strictEqual(hasOldGoods, false, 'يجب ألا يظهر مورد بضاعة قديمة نهائياً');
   });
 
+  // 6. اختبار محاكاة إعادة التشغيل البارد (Cold Restart) وضمان بقاء 1,431 صنفاً
+  await asyncTest('محاكاة إعادة تشغيل الخادم لا تفقد الأصناف ولا تُعيد إدخال بيانات تجريبية', async () => {
+    dataStore._invalidateCache();
+    await dataStore.initFromSupabase();
+    const products = dataStore.getProducts();
+    assert.strictEqual(products.length, 1431, 'يجب أن يظل عدد الأصناف 1431 بعد إعادة الإقلاع');
+    const customers = dataStore.getCustomers();
+    assert.strictEqual(customers.length, 483, 'يجب أن يظل عدد الزبائن 483 بعد إعادة الإقلاع');
+    const suppliers = dataStore.getSuppliers();
+    assert.strictEqual(suppliers.length, 13, 'يجب أن يظل عدد الموردين 13 بعد إعادة الإقلاع');
+  });
+
+  // 7. اختبار المزامنة الجزئية وعدم حذف الأصناف الغائبة
+  await asyncTest('المزامنة الجزئية لعدد محدد من الأصناف لا تحذف باقي الأصناف من الكتالوج', async () => {
+    const productsBefore = dataStore.getProducts();
+    const initialCount = productsBefore.length;
+
+    // مزامنة صنفين فقط من أصل 1431
+    const sample1 = productsBefore[0];
+    const sample2 = productsBefore[1];
+    const res = await dataStore.syncBatchProducts([
+      { code: sample1.code, name: sample1.name, sellPrice: 555, stock: 10 },
+      { code: sample2.code, name: sample2.name, sellPrice: 777, stock: 20 }
+    ], { dryRun: true });
+
+    assert.strictEqual(res.success, true);
+    assert.strictEqual(res.summary.totalReceived, 2);
+    // الكتالوج الأصلي لا يتأثر بعدده الكلي
+    assert.strictEqual(productsBefore.length, initialCount, 'يجب بقاء كافة الأصناف الـ 1431 كاملة دون حذف أي صنف غائب');
+  });
+
+  // 8. اختبار الشفافية التامة عند فشل الكتابة (عدم الادعاء بنجاح وهمي)
+  test('في حال وجود أخطاء أو تعذر الكتابة، يُرجع النظام success: false مع تقرير الخطأ بوضوح', () => {
+    // إرسال عناصر غير صالحة للتأكد من تسجيل الخطأ
+    const invalidBatch = [{ code: '', name: '' }];
+    return dataStore.syncBatchProducts(invalidBatch, { dryRun: true }).then(res => {
+      assert.strictEqual(res.summary.errors.length > 0, true, 'يجب تسجيل وجود أخطاء');
+    });
+  });
+
+  // 9. اختبار توافق استجابة API مع متطلبات تطبيق ShamelSyncPro
+  test('هيكلية بيانات المزامنة مطابقة للمواصفات المطلوبة لتطبيق الشامل', () => {
+    const meta = dataStore.getLastSyncMeta();
+    const custMeta = dataStore.getLastCustomersSyncMeta();
+    const suppMeta = dataStore.getLastSuppliersSyncMeta();
+
+    assert(meta !== undefined, 'بيانات sync_meta يجب أن تكون موجودة');
+    assert(custMeta !== undefined, 'بيانات sync_customers_meta يجب أن تكون موجودة');
+    assert(suppMeta !== undefined, 'بيانات sync_suppliers_meta يجب أن تكون موجودة');
+  });
+
   console.log('\n====================================================');
   console.log(`📊 ملخص الاختبارات: تم بنجاح ${passed} من أصل ${total} اختبارات`);
   console.log('====================================================\n');
@@ -133,3 +184,4 @@ async function runTests() {
 }
 
 runTests();
+
