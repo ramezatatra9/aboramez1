@@ -7,13 +7,15 @@
     "mobile": "",
     "email": "",
     "address": "",
-    "notes": "",
+    "notes": "مستحق دائن للمورد: 460,405.36 شيكل",
     "isStopped": false,
     "createdAt": "2026-10-19T16:23:21.984Z",
     "updatedAt": "2026-10-19T16:23:21.984Z",
     "syncedAt": "2026-10-19T16:23:21.984Z",
     "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
-    "source": "shamel_sync"
+    "source": "shamel_sync",
+    "shamelBalance": 460405.36,
+    "balance": 460405.36
   },
   {
     "id": "supp-shamel-S00000002-1792427001986",
@@ -23,29 +25,15 @@
     "mobile": "",
     "email": "",
     "address": "",
-    "notes": "",
+    "notes": "مستحق دائن للمورد: 135 شيكل",
     "isStopped": false,
     "createdAt": "2026-10-19T16:23:21.984Z",
     "updatedAt": "2026-10-19T16:23:21.984Z",
     "syncedAt": "2026-10-19T16:23:21.984Z",
     "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
-    "source": "shamel_sync"
-  },
-  {
-    "id": "supp-shamel-S00000003-1792427001986",
-    "shamelCode": "S00000003",
-    "name": "مورد بضاعة قديمة",
-    "phone": "",
-    "mobile": "",
-    "email": "",
-    "address": "",
-    "notes": "",
-    "isStopped": false,
-    "createdAt": "2026-10-19T16:23:21.984Z",
-    "updatedAt": "2026-10-19T16:23:21.984Z",
-    "syncedAt": "2026-10-19T16:23:21.984Z",
-    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
-    "source": "shamel_sync"
+    "source": "shamel_sync",
+    "shamelBalance": 135,
+    "balance": 135
   },
   {
     "id": "supp-shamel-S00000004-1792427001986",
@@ -61,7 +49,9 @@
     "updatedAt": "2026-10-19T16:23:21.984Z",
     "syncedAt": "2026-10-19T16:23:21.984Z",
     "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
-    "source": "shamel_sync"
+    "source": "shamel_sync",
+    "shamelBalance": 0,
+    "balance": 0
   },
   {
     "id": "supp-shamel-S00000005-1792427001986",
@@ -77,7 +67,9 @@
     "updatedAt": "2026-10-19T16:23:21.984Z",
     "syncedAt": "2026-10-19T16:23:21.984Z",
     "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
-    "source": "shamel_sync"
+    "source": "shamel_sync",
+    "shamelBalance": 0,
+    "balance": 0
   },
   {
     "id": "supp-shamel-S00000006-1792427001986",
@@ -87,13 +79,15 @@
     "mobile": "",
     "email": "",
     "address": "",
-    "notes": "",
+    "notes": "مستحق دائن للمورد: -170 شيكل",
     "isStopped": false,
     "createdAt": "2026-10-19T16:23:21.984Z",
     "updatedAt": "2026-10-19T16:23:21.984Z",
     "syncedAt": "2026-10-19T16:23:21.984Z",
     "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
-    "source": "shamel_sync"
+    "source": "shamel_sync",
+    "shamelBalance": -170,
+    "balance": -170
   },
   {
     "id": "supp-shamel-S00000007-1792427001986",
@@ -103,13 +97,15 @@
     "mobile": "",
     "email": "",
     "address": "",
-    "notes": "",
+    "notes": "مستحق دائن للمورد: 1,320 شيكل",
     "isStopped": false,
     "createdAt": "2026-10-19T16:23:21.984Z",
     "updatedAt": "2026-10-19T16:23:21.984Z",
     "syncedAt": "2026-10-19T16:23:21.984Z",
     "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
-    "source": "shamel_sync"
+    "source": "shamel_sync",
+    "shamelBalance": 1320,
+    "balance": 1320
   },
   {
     "id": "supp-shamel-S00000008-1792427001986",
@@ -125,7 +121,9 @@
     "updatedAt": "2026-10-19T16:23:21.984Z",
     "syncedAt": "2026-10-19T16:23:21.984Z",
     "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
-    "source": "shamel_sync"
+    "source": "shamel_sync",
+    "shamelBalance": 0,
+    "balance": 0
   },
   {
     "id": "supp-shamel-S00000009-1792427001986",
@@ -135,13 +133,15 @@
     "mobile": "",
     "email": "",
     "address": "",
-    "notes": "",
+    "notes": "مستحق دائن للمورد: 152 شيكل",
     "isStopped": false,
     "createdAt": "2026-10-19T16:23:21.984Z",
     "updatedAt": "2026-10-19T16:23:21.984Z",
     "syncedAt": "2026-10-19T16:23:21.984Z",
     "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
-    "source": "shamel_sync"
+    "source": "shamel_sync",
+    "shamelBalance": 152,
+    "balance": 152
   },
   {
     "id": "supp-shamel-S00000010-1792427001986",
@@ -151,13 +151,15 @@
     "mobile": "",
     "email": "",
     "address": "",
-    "notes": "",
+    "notes": "مستحق دائن للمورد: 2,570 شيكل",
     "isStopped": false,
     "createdAt": "2026-10-19T16:23:21.984Z",
     "updatedAt": "2026-10-19T16:23:21.984Z",
     "syncedAt": "2026-10-19T16:23:21.984Z",
     "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
-    "source": "shamel_sync"
+    "source": "shamel_sync",
+    "shamelBalance": 2570,
+    "balance": 2570
   },
   {
     "id": "supp-shamel-S00000011-1792427001986",
@@ -173,7 +175,9 @@
     "updatedAt": "2026-10-19T16:23:21.984Z",
     "syncedAt": "2026-10-19T16:23:21.984Z",
     "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
-    "source": "shamel_sync"
+    "source": "shamel_sync",
+    "shamelBalance": 0,
+    "balance": 0
   },
   {
     "id": "supp-shamel-S00000012-1792427001986",
@@ -183,13 +187,15 @@
     "mobile": "",
     "email": "",
     "address": "",
-    "notes": "",
+    "notes": "مستحق دائن للمورد: 19,228 شيكل",
     "isStopped": false,
     "createdAt": "2026-10-19T16:23:21.984Z",
     "updatedAt": "2026-10-19T16:23:21.984Z",
     "syncedAt": "2026-10-19T16:23:21.984Z",
     "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
-    "source": "shamel_sync"
+    "source": "shamel_sync",
+    "shamelBalance": 19228,
+    "balance": 19228
   },
   {
     "id": "supp-shamel-S00000013-1792427001986",
@@ -205,7 +211,9 @@
     "updatedAt": "2026-10-19T16:23:21.984Z",
     "syncedAt": "2026-10-19T16:23:21.984Z",
     "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
-    "source": "shamel_sync"
+    "source": "shamel_sync",
+    "shamelBalance": 0,
+    "balance": 0
   },
   {
     "id": "supp-shamel-S00000014-1792427001986",
@@ -215,12 +223,14 @@
     "mobile": "",
     "email": "",
     "address": "",
-    "notes": "",
+    "notes": "مستحق دائن للمورد: 700 شيكل",
     "isStopped": false,
     "createdAt": "2026-10-19T16:23:21.984Z",
     "updatedAt": "2026-10-19T16:23:21.984Z",
     "syncedAt": "2026-10-19T16:23:21.984Z",
     "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
-    "source": "shamel_sync"
+    "source": "shamel_sync",
+    "shamelBalance": 700,
+    "balance": 700
   }
 ]

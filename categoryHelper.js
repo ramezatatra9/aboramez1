@@ -154,6 +154,15 @@ const BRAND_DEFS = [
 ];
 
 function detectBrand(name) {
+  try {
+    const brandClassifier = require('./brandClassifier');
+    const result = brandClassifier.analyzeProductBrand({ name });
+    if (result && result.proposedBrand && result.proposedBrand !== 'أخرى') {
+      return { brand: result.proposedBrand, brandAr: result.proposedBrandAr };
+    }
+  } catch (e) {
+    // fallback
+  }
   if (!name) return { brand: 'أخرى', brandAr: 'أخرى / عام' };
   for (const b of BRAND_DEFS) {
     for (const pat of b.patterns) {

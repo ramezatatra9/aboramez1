@@ -1145,7 +1145,7 @@ app.get('/api/customers', (req, res) => {
           shamelCode: s.shamelCode,
           name: s.name,
           phone: s.phone || s.mobile || '',
-          balance: rawBal,
+          balance: s.shamelBalance !== undefined ? s.shamelBalance : rawBal,
           notes: s.notes || (rawBal !== 0 ? `مستحق دائن للمورد: ${rawBal.toLocaleString('en-US')} شيكل` : ''),
           accountType: 'supplier',
           isSupplier: true,
@@ -1174,7 +1174,11 @@ app.get('/api/customers', (req, res) => {
 // جلب جميع الموردين والأرصدة
 app.get('/api/suppliers', (req, res) => {
   try {
-    const suppliers = dataStore.getSuppliers();
+    // نُرجع الموردين مع shamelBalance كرصيد العرض النهائي من الشامل
+    const suppliers = dataStore.getSuppliers().map(function(s) {
+      var displayBal = s.shamelBalance !== undefined ? s.shamelBalance : (parseFloat(s.balance) || 0);
+      return Object.assign({}, s, { balance: displayBal });
+    });
     res.json({ success: true, suppliers });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -1730,6 +1734,129 @@ app.post('/api/backups/restore', pdfUpload.single('backupFile'), (req, res) => {
   } catch (err) {
     console.error('Restore backup error:', err);
     res.status(400).json({ success: false, error: 'فشل استعادة النسخة: ' + err.message });
+  }
+});
+
+// -------------------------------------------------------------
+// APIs: إدارة وتصنيف الماركات الذكي (Smart Brand Classification)
+// -------------------------------------------------------------
+const brandClassifier = require('./brandClassifier');
+
+// جلب التدقيق الكامل لجميع الأصناف والماركات
+app.get('/api/brands-classification/audit', (req, res) => {
+  try {
+    const products = dataStore.getProducts();
+    const dictionary = brandClassifier.loadDictionary();
+    const analysis = brandClassifier.analyzeAllProducts(products, dictionary);
+    res.json({ success: true, ...analysis });
+  } catch (err) {
+    console.error('Brand audit error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// فحص تعارض الماركة عند إضافة أو تعديل منتج (Real-time conflict detection)
+app.post('/api/brands-classification/check-conflict', (req, res) => {
+  try {
+    const { name, model, brand } = req.body;
+    const dictionary = brandClassifier.loadDictionary();
+    const analysis = brandClassifier.analyzeProductBrand({ name, description: model, brand }, dictionary);
+    const hasConflict = analysis.status === 'candidate_change' && analysis.proposedBrand.toLowerCase() !== (brand || '').toLowerCase();
+    res.json({
+      success: true,
+      hasConflict,
+      currentBrand: brand,
+      proposedBrand: analysis.proposedBrand,
+      proposedBrandAr: analysis.proposedBrandAr,
+      confidence: analysis.confidence,
+      reason: analysis.reason
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// تطبيق التغييرات المعتمدة على الماركات
+app.post('/api/brands-classification/apply', (req, res) => {
+  try {
+    const { items, allHighConfidence, editorName } = req.body;
+    const productsPath = path.join(__dirname, 'data', 'products.json');
+    let itemsToUpdate = [];
+
+    if (allHighConfidence) {
+      const products = dataStore.getProducts();
+      const dictionary = brandClassifier.loadDictionary();
+      const analysis = brandClassifier.analyzeAllProducts(products, dictionary);
+      itemsToUpdate = analysis.items.filter(i => i.status === 'candidate_change' && i.confidence === 'high');
+    } else if (Array.isArray(items)) {
+      itemsToUpdate = items;
+    } else {
+      return res.status(400).json({ success: false, error: 'لم يتم تحديد أي أصناف للتحديث' });
+    }
+
+    if (itemsToUpdate.length === 0) {
+      return res.json({ success: true, updatedCount: 0, message: 'لا توجد أصناف مؤهلة للتحديث' });
+    }
+
+    const result = brandClassifier.applyBrandChanges(productsPath, itemsToUpdate, editorName || 'مدير النظام');
+    res.json({
+      success: true,
+      ...result,
+      message: `تم بنجاح تحديث ماركات ${result.updatedCount} صنف وحفظ نسخة احتياطية: ${result.backupFile}`
+    });
+  } catch (err) {
+    console.error('Apply brand changes error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// التراجع عن آخر عملية تعديل للماركات
+app.post('/api/brands-classification/rollback', (req, res) => {
+  try {
+    const productsPath = path.join(__dirname, 'data', 'products.json');
+    const result = brandClassifier.rollbackLastChange(productsPath);
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+    res.json(result);
+  } catch (err) {
+    console.error('Rollback brand error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// جلب قاموس الماركات
+app.get('/api/brands-classification/dictionary', (req, res) => {
+  try {
+    const dict = brandClassifier.loadDictionary();
+    res.json({ success: true, dictionary: dict });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// حفظ / تعديل قاموس الماركات
+app.post('/api/brands-classification/dictionary', (req, res) => {
+  try {
+    const { dictionary } = req.body;
+    if (!Array.isArray(dictionary)) {
+      return res.status(400).json({ success: false, error: 'صيغة القاموس غير صالحة' });
+    }
+    const saved = brandClassifier.saveDictionary(dictionary);
+    res.json({ success: saved });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// جلب سجل التدقيق وتاريخ التعديلات
+app.get('/api/brands-classification/logs', (req, res) => {
+  try {
+    const logFile = path.join(__dirname, 'data', 'brand_changes_log.json');
+    const logs = fs.existsSync(logFile) ? JSON.parse(fs.readFileSync(logFile, 'utf8')) : [];
+    res.json({ success: true, logs });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 

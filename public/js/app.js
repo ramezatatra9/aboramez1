@@ -1172,6 +1172,10 @@ function actuallySwitchTab(tabId) {
     if (lastEmp && auditEmp && !auditEmp.value) auditEmp.value = lastEmp;
   } else if (tabId === 'settings') {
     loadBackupsList();
+  } else if (tabId === 'brands-audit') {
+    if (typeof runBrandAudit === 'function') {
+      runBrandAudit();
+    }
   } else if (tabId === 'warranties') {
     onWarrantiesTabActivated();
   }
@@ -2495,7 +2499,19 @@ function handleProductNameInput(value) {
   const detected = detectBrandFromName(value);
   if (detected) {
     iconEl.textContent = detected.icon;
-    nameEl.textContent = `سيُحفظ تحت: ${detected.brand} — ${detected.brandAr}`;
+    const currentInputBrand = (brandInput ? brandInput.value : '').trim();
+    const isConflict = currentInputBrand && currentInputBrand.toLowerCase() !== 'أخرى' && currentInputBrand.toLowerCase() !== detected.brand.toLowerCase();
+
+    if (isConflict) {
+      nameEl.innerHTML = `⚠️ <strong style="color:#d97706;">تنبيه تعارض الماركة:</strong> اسم الصنف يشير إلى <strong>${detected.brand} (${detected.brandAr})</strong> بينما الماركة المحددة هي "${currentInputBrand}". <button type="button" class="btn btn-xs btn-primary" onclick="document.getElementById('prodBrandInput').value='${detected.brand}'; handleProductNameInput(document.getElementById('prodName').value);" style="margin-right: 6px; padding: 2px 6px;">تصحيح لـ ${detected.brand}</button>`;
+      badge.style.borderColor = '#f59e0b';
+      badge.style.background = 'rgba(245, 158, 11, 0.12)';
+    } else {
+      nameEl.textContent = `سيُحفظ تحت: ${detected.brand} — ${detected.brandAr}`;
+      badge.style.borderColor = '#0ea5e9';
+      badge.style.background = 'linear-gradient(135deg,#1e3a5f22,#0ea5e922)';
+    }
+
     badge.style.display = 'flex';
     brandField.value = detected.brand;
     brandArField.value = detected.brandAr;
@@ -5648,23 +5664,32 @@ async function loadCustomers() {
     const dataCust = await resCust.json();
     const dataSupp = await resSupp.json();
 
-    const customersList = (dataCust.customers || []).map(c => ({
-      ...c,
-      accountType: 'customer',
-      isSupplier: false,
-      systemNumber: c.systemNumber || c.shamelCode || ''
-    }));
+    const customersList = (dataCust.customers || []).map(c => {
+      // shamelBalance: الرصيد النهائي من الشامل — لا يتأثر بالسندات/الفواتير المحلية
+      // إن لم يكن موجوداً (سجلات قديمة قبل المزامنة) نستخدم balance كبديل مؤقت
+      const displayBal = c.shamelBalance !== undefined ? parseFloat(c.shamelBalance) || 0 : parseFloat(c.balance) || 0;
+      return {
+        ...c,
+        balance: displayBal,
+        shamelBalance: displayBal,
+        accountType: 'customer',
+        isSupplier: false,
+        systemNumber: c.systemNumber || c.shamelCode || ''
+      };
+    });
 
     const suppliersList = (dataSupp.suppliers || []).map(s => {
-      const rawBal = parseFloat(s.balance) || 0;
+      // shamelBalance: الرصيد النهائي من الشامل — هذا هو ما يُعرَض في الجدول
+      const displayBal = s.shamelBalance !== undefined ? parseFloat(s.shamelBalance) || 0 : parseFloat(s.balance) || 0;
       return {
         id: s.id,
         systemNumber: s.shamelCode || s.systemNumber || '',
         shamelCode: s.shamelCode,
         name: s.name,
         phone: s.phone || s.mobile || '',
-        balance: rawBal,
-        notes: s.notes || (rawBal !== 0 ? `مستحق دائن للمورد بذمة المعرض: ${rawBal.toLocaleString('en-US')} شيكل` : 'حساب خالص'),
+        balance: displayBal,
+        shamelBalance: displayBal,
+        notes: s.notes || (displayBal !== 0 ? `مستحق دائن للمورد بذمة المعرض: ${displayBal.toLocaleString('en-US')} شيكل` : 'حساب خالص'),
         accountType: 'supplier',
         isSupplier: true,
         isStopped: Boolean(s.isStopped),
@@ -7920,7 +7945,7 @@ function buildPrintableCustomerDebtsHtml() {
             <th style="border: 1px solid #cbd5e1; padding: 7px; width: 90px; text-align: center;">رقم النظام</th>
             <th style="border: 1px solid #cbd5e1; padding: 7px;">اسم الزبون</th>
             <th style="border: 1px solid #cbd5e1; padding: 7px; width: 120px;">الهاتف</th>
-            <th style="border: 1px solid #cbd5e1; padding: 7px; width: 170px; text-align: center;">الرصيد المالي الحالي</th>
+            <th style="border: 1px solid #cbd5e1; padding: 7px; width: 170px; text-align: center;">الرصيد النهائي (شامل)</th>
             <th style="border: 1px solid #cbd5e1; padding: 7px;">ملاحظات</th>
           </tr>
         </thead>
