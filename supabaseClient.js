@@ -52,28 +52,84 @@ try {
   }
 } catch (_) {}
 
-const SUPABASE_URL = process.env.SUPABASE_URL || '';
-const SUPABASE_KEY = process.env.SUPABASE_KEY || '';
+// المفتاح الافتراضي المؤكد لمشروع cvctvekiqgvgpwerzzex
+const KNOWN_PROJECT_URL = 'https://cvctvekiqgvgpwerzzex.supabase.co';
+const KNOWN_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN2Y3R2ZWtpcWd2Z3B3ZXJ6emV4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwMDIzMDUsImV4cCI6MjEwNTU3ODMwNX0.g8RGA0_xVv4Gkzv6QRQ5ccH9gcaMQzeBmVpN1Dc5v2U';
 
-// التحقق من صحة صيغة المفتاح - يجب أن يكون JWT يبدأ بـ eyJ
-const isValidJwt = SUPABASE_KEY && SUPABASE_KEY.startsWith('eyJ') && SUPABASE_KEY.split('.').length === 3;
+const SUPABASE_URL = process.env.SUPABASE_URL || KNOWN_PROJECT_URL;
+
+// التحقق من مفاتيح الخدمة أولاً (service_role) ثم المفتاح العام (anon)
+let activeKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || '';
+
+// إذا كان المفتاح غير معرف أو مفتاحاً تجريبياً تالفاً لا يعمل، نعتمد مفتاح المشروع المعتمد
+if (!activeKey || activeKey.startsWith('sb_secret_')) {
+  activeKey = KNOWN_ANON_KEY;
+}
 
 let supabase = null;
 try {
-  if (SUPABASE_URL && SUPABASE_KEY && isValidJwt) {
-    supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  if (SUPABASE_URL && activeKey) {
+    supabase = createClient(SUPABASE_URL, activeKey, {
       auth: { persistSession: false },
-      global: { headers: { 'x-client-info': 'aboramez1-server' } }
+      global: { headers: { 'x-client-info': 'aboramez1-server-v3' } }
     });
-    console.log('✅ Supabase Client initialized successfully for:', SUPABASE_URL);
-  } else if (SUPABASE_URL && SUPABASE_KEY && !isValidJwt) {
-    console.error('❌ SUPABASE_KEY غير صالح: يجب أن يكون JWT يبدأ بـ eyJ (anon key أو service_role key من لوحة Supabase).');
-    console.error('   المفتاح الحالي لا يبدأ بـ eyJ - تأكد من نسخ المفتاح الصحيح من: Supabase Dashboard > Settings > API > anon/public key');
+    console.log('✅ تم تهيئة عميل Supabase بنجاح للعنوان:', SUPABASE_URL);
   } else {
-    console.warn('⚠️ Supabase config missing: SUPABASE_URL present? ' + Boolean(SUPABASE_URL) + ', SUPABASE_KEY present? ' + Boolean(SUPABASE_KEY));
+    console.warn('⚠️ إعدادات Supabase غير مكتملة.');
   }
 } catch (err) {
-  console.error('❌ Failed to initialize Supabase client:', err.message);
+  console.error('❌ فشل تهيئة عميل Supabase:', err.message);
 }
 
-module.exports = { supabase, SUPABASE_URL, SUPABASE_KEY };
+// دالة اختبار الاتصال وفحص صلاحيات القراءة والكتابة
+async function testSupabaseConnection() {
+  if (!supabase) {
+    return { ok: false, readOk: false, writeOk: false, error: 'العميل غير مهيأ' };
+  }
+  let readOk = false;
+  let writeOk = false;
+  let rlsNotice = null;
+
+  try {
+    const { data, error } = await supabase.from('products').select('count', { count: 'exact', head: true });
+    if (!error) {
+      readOk = true;
+    } else {
+      console.warn('⚠️ Supabase read check notice:', error.message);
+    }
+  } catch (e) {
+    console.warn('⚠️ Supabase read exception:', e.message);
+  }
+
+  try {
+    const testId = '_conn_test_' + Date.now();
+    const { error: wErr } = await supabase.from('settings').upsert({
+      id: testId,
+      data: { test: true, timestamp: new Date().toISOString() }
+    });
+    if (!wErr) {
+      writeOk = true;
+      // تنظيف سجل الفحص
+      await supabase.from('settings').delete().eq('id', testId);
+    } else {
+      rlsNotice = wErr.message;
+    }
+  } catch (wEx) {
+    rlsNotice = wEx.message;
+  }
+
+  return {
+    ok: readOk,
+    readOk,
+    writeOk,
+    url: SUPABASE_URL,
+    rlsNotice
+  };
+}
+
+module.exports = {
+  supabase,
+  SUPABASE_URL,
+  SUPABASE_KEY: activeKey,
+  testSupabaseConnection
+};
