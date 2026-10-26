@@ -1,7 +1,9 @@
 // ====================================================================
 // مَعْرِض أَبُو رَامِز لِلأَجْهِزَة الكَهْرَبَائِيّة
-// سكربت الترحيل الشامل والمُحكَم: نقل البيانات الحقيقية من الملفات المحلية إلى Supabase
-// النسخة 2.0 — مع دعم جداول customers وsuppliers المستقلة وضمان عدم مسح الحقول المخصصة
+// سكربت الترحيل الشامل v3.0
+// الاستخدام:
+//   node migrate_local_to_supabase.js           (ترحيل فعلي)
+//   node migrate_local_to_supabase.js --dry-run (معاينة فقط، لا كتابة)
 // ====================================================================
 
 const fs = require('fs');
@@ -10,10 +12,14 @@ const { supabase, testSupabaseConnection, SUPABASE_KEY_SOURCE } = require('../su
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
 
-// =====================================================
-// أدوات مساعدة
-// =====================================================
+// ---------------------------------------------------------------
+// وضع التشغيل: dry-run أم ترحيل فعلي؟
+// ---------------------------------------------------------------
+const DRY_RUN = process.argv.includes('--dry-run');
 
+// ---------------------------------------------------------------
+// أدوات مساعدة
+// ---------------------------------------------------------------
 function readJson(filePath) {
   try {
     if (!fs.existsSync(filePath)) return null;
@@ -24,7 +30,20 @@ function readJson(filePath) {
   }
 }
 
-// دفعات متسلسلة آمنة مع معالجة أخطاء الشبكة وتكرار المحاولة
+// قراءة عدد الصفوف الموجودة في جدول Supabase (بدون تعديل)
+async function getTableCount(table) {
+  try {
+    const { count, error } = await supabase
+      .from(table)
+      .select('*', { count: 'exact', head: true });
+    if (error) return { count: null, error: error.message, code: error.code };
+    return { count: count || 0, error: null };
+  } catch (e) {
+    return { count: null, error: e.message, code: 'EXCEPTION' };
+  }
+}
+
+// دفعات متسلسلة آمنة — لا تُستدعى في وضع dry-run
 async function upsertInBatches(table, records, { batchSize = 50, retries = 2, onProgress } = {}) {
   if (!records || records.length === 0) return { ok: true, uploaded: 0, failed: 0, errors: [] };
 
@@ -41,19 +60,12 @@ async function upsertInBatches(table, records, { batchSize = 50, retries = 2, on
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
         const { error } = await supabase.from(table).upsert(batch, { onConflict: 'id' });
-        if (!error) {
-          success = true;
-          break;
-        }
+        if (!error) { success = true; break; }
         lastErr = error.message;
-        if (attempt < retries) {
-          await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
-        }
+        if (attempt < retries) await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
       } catch (e) {
         lastErr = e.message;
-        if (attempt < retries) {
-          await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
-        }
+        if (attempt < retries) await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
       }
     }
 
@@ -63,34 +75,154 @@ async function upsertInBatches(table, records, { batchSize = 50, retries = 2, on
     } else {
       failed += batch.length;
       errors.push(`دفعة ${b + 1}/${totalBatches} فشلت (${batch.length} سجل): ${lastErr}`);
-      // إيقاف فوري عند فشل دفعة — لا نستمر بصمت
       return { ok: false, uploaded, failed, errors };
     }
   }
-
   return { ok: true, uploaded, failed, errors };
 }
 
-async function migrate() {
-  console.log('===============================================================');
-  console.log('🚀 بدء ترحيل البيانات الحقيقية إلى قاعدة بيانات Supabase الدائمة');
-  console.log('===============================================================');
+// ---------------------------------------------------------------
+// دالة dry-run: تفحص وتعرض المعلومات دون كتابة
+// ---------------------------------------------------------------
+async function runDryRun() {
+  console.log('╔══════════════════════════════════════════════════════════════╗');
+  console.log('║         🔍  وضع المعاينة (--dry-run) — لا كتابة فعلية       ║');
+  console.log('╚══════════════════════════════════════════════════════════════╝\n');
 
-  // ---- 0. التحقق من جاهزية الاتصال والصلاحيات ----
+  // فحص الاتصال
+  console.log(`🔑 مصدر المفتاح: ${SUPABASE_KEY_SOURCE}`);
+  const conn = await testSupabaseConnection();
+  console.log('📡 الاتصال:', conn.readOk ? '✅ متصل' : '❌ غير متصل');
+  console.log('✏️  الكتابة:', conn.writeOk ? '✅ متاحة' : '⚠️ محجوبة بـ RLS');
+  console.log('');
+
+  // ---- حالة البيانات المحلية ----
+  console.log('═══ [ البيانات المحلية — المصدر ] ═══');
+  const productsRaw = readJson(path.join(DATA_DIR, 'products.json')) || [];
+  const customersRaw = readJson(path.join(DATA_DIR, 'customers.json')) || [];
+  const suppliersRaw = readJson(path.join(DATA_DIR, 'suppliers.json')) || [];
+  const invoicesRaw = readJson(path.join(DATA_DIR, 'invoices.json')) || [];
+  const EXCLUDED_SUPPLIER_CODES = ['S00000003'];
+  const suppliersFiltered = suppliersRaw.filter(s => {
+    const code = String(s.shamelCode || '').toUpperCase();
+    const name = String(s.name || '');
+    return !EXCLUDED_SUPPLIER_CODES.includes(code) && !name.includes('بضاعة قديمة');
+  });
+
+  // إحصاءات المنتجات
+  const withImage = productsRaw.filter(p => p.image && p.image.trim()).length;
+  const withDesc = productsRaw.filter(p => p.description && p.description.trim()).length;
+  const withBrand = productsRaw.filter(p => p.brand && p.brand !== 'أخرى').length;
+  const withImages = productsRaw.filter(p => Array.isArray(p.images) && p.images.length > 0).length;
+  const isSuspended = productsRaw.filter(p => p.isSuspended).length;
+
+  console.log(`  products.json  : ${productsRaw.length} صنف`);
+  console.log(`    ↳ لديه image      : ${withImage}/${productsRaw.length}`);
+  console.log(`    ↳ لديه description: ${withDesc}/${productsRaw.length}`);
+  console.log(`    ↳ لديه brand≠أخرى : ${withBrand}/${productsRaw.length}`);
+  console.log(`    ↳ لديه images[]   : ${withImages}/${productsRaw.length} (الحقل غير ممتلئ بعد)`);
+  console.log(`    ↳ مُعلَّق (isSuspended): ${isSuspended}`);
+  console.log(`  customers.json : ${customersRaw.length} زبون`);
+  console.log(`  suppliers.json : ${suppliersRaw.length} (إجمالي) → ${suppliersFiltered.length} بعد استبعاد الوهمي`);
+  console.log(`  invoices.json  : ${invoicesRaw.length} فاتورة`);
+
+  // ---- حالة Supabase الفعلية ----
+  console.log('\n═══ [ حالة Supabase الفعلية — قبل الترحيل ] ═══');
+  const tables = ['products', 'settings', 'customers', 'suppliers', 'invoices', 'receipts', 'warranties'];
+  const supabaseCounts = {};
+  for (const tbl of tables) {
+    const r = await getTableCount(tbl);
+    if (r.code === '42P01' || r.code === 'PGRST205' || (r.error && r.error.includes('does not exist'))) {
+      console.log(`  ${tbl}: ❌ الجدول غير موجود — يحتاج تنفيذ SQL Migration أولاً`);
+      supabaseCounts[tbl] = 'missing';
+    } else if (r.error) {
+      console.log(`  ${tbl}: ⚠️ خطأ: ${r.error.slice(0, 60)}`);
+      supabaseCounts[tbl] = 'error';
+    } else {
+      console.log(`  ${tbl}: ✅ موجود — ${r.count} صف حالياً`);
+      supabaseCounts[tbl] = r.count;
+    }
+  }
+
+  // ---- التحقق من تطابق الحقول ----
+  console.log('\n═══ [ تطابق الحقول بين JSON والمخطط SQL ] ═══');
+  if (productsRaw.length > 0) {
+    const sample = productsRaw[0];
+    const expectedSQLCols = ['id','code','name','category','subcategory','costPrice','sellPrice',
+      'stock','unit','image','description','barcode','isSuspended','brand','brandAr',
+      'images','lastStockUpdate','lastStockEditor','updatedAt','lastSyncAt','createdAt'];
+    const sqlToJs = {
+      'category': 'mainCategory',   // في SQL: category = الفئة الرئيسية
+      'subcategory': 'category',    // في SQL: subcategory = الفئة الفرعية
+    };
+    for (const col of expectedSQLCols) {
+      const jsKey = sqlToJs[col] || col;
+      const inJson = jsKey in sample;
+      const note = sqlToJs[col] ? ` ← مُعيَّن من JSON.${jsKey}` : '';
+      if (!inJson && col !== 'subcategory' && col !== 'images') {
+        console.log(`  ⚠️  ${col}: غير موجود في JSON[0]${note}`);
+      }
+    }
+    console.log('  ✅ التعيينات الخاصة:');
+    console.log('     JSON.mainCategory → SQL.category    (الفئة الرئيسية)');
+    console.log('     JSON.category     → SQL.subcategory (الفئة الفرعية)');
+    console.log('     images[]          → SQL.images      (فارغ حالياً — سيُرسَل كـ [])');
+  }
+
+  // ---- ما سيُرحَّل ----
+  console.log('\n═══ [ ما سيُرحَّل عند تشغيل الترحيل الفعلي ] ═══');
+  const planned = [
+    { table: 'products',  records: productsRaw.length,       current: supabaseCounts['products'] },
+    { table: 'customers', records: customersRaw.length,      current: supabaseCounts['customers'] },
+    { table: 'suppliers', records: suppliersFiltered.length, current: supabaseCounts['suppliers'] },
+    { table: 'invoices',  records: invoicesRaw.length,       current: supabaseCounts['invoices'] },
+  ];
+  for (const p of planned) {
+    const status = p.current === 'missing' ? '❌ جدول غير موجود — يحتاج SQL Migration' :
+                   p.current === 'error'   ? '⚠️ خطأ في فحص الجدول' :
+                   p.current === 0         ? '✅ جدول فارغ — ترحيل نظيف' :
+                   `⚠️ يحتوي ${p.current} صف موجود — upsert سيحدّثها لا يحذفها`;
+    console.log(`  ${p.table}: ${p.records} سجل محلي | ${status}`);
+  }
+
+  // ---- المتطلبات قبل الترحيل ----
+  console.log('\n═══ [ المتطلبات المفقودة قبل الترحيل الفعلي ] ═══');
+  const missingTables = tables.filter(t => supabaseCounts[t] === 'missing');
+  if (missingTables.length > 0) {
+    console.log(`  ❌ جداول مفقودة في Supabase: ${missingTables.join(', ')}`);
+    console.log('     → نفّذ migrations/001_permanent_schema.sql في Supabase SQL Editor');
+  } else {
+    console.log('  ✅ جميع الجداول موجودة في Supabase');
+  }
+  const needsServiceKey = !conn.writeOk;
+  if (needsServiceKey) {
+    console.log('  ❌ صلاحية الكتابة محجوبة');
+    console.log('     → أضف SUPABASE_SERVICE_ROLE_KEY (JWT من Dashboard → API) إلى .env و Render');
+    console.log(`     → المفتاح الحالي: مصدر=[${SUPABASE_KEY_SOURCE}] — يُرفض بـ 401`);
+  } else {
+    console.log('  ✅ صلاحية الكتابة متاحة');
+  }
+
+  console.log('\n✅ انتهى وضع المعاينة. لا كتابة حدثت.');
+}
+
+// ---------------------------------------------------------------
+// الترحيل الفعلي
+// ---------------------------------------------------------------
+async function migrate() {
+  console.log('╔══════════════════════════════════════════════════════════════╗');
+  console.log('║     🚀  ترحيل البيانات الحقيقية إلى Supabase الدائمة        ║');
+  console.log('╚══════════════════════════════════════════════════════════════╝\n');
+
   if (!supabase) {
     console.error('❌ خطأ فادح: عميل Supabase غير مهيأ. تعذر المتابعة.');
-    console.error('   تأكد من وجود SUPABASE_URL في ملف .env.');
     process.exit(1);
   }
 
-  console.log(`\n🔑 مصدر المفتاح المستخدم: ${SUPABASE_KEY_SOURCE}`);
+  console.log(`🔑 مصدر المفتاح: ${SUPABASE_KEY_SOURCE}`);
   const conn = await testSupabaseConnection();
-  console.log('📡 فحص الاتصال:', {
-    'القراءة': conn.readOk ? '✅ متاحة' : '❌ محجوبة',
-    'الكتابة': conn.writeOk ? '✅ متاحة' : '⚠️ محجوبة بـ RLS',
-    'العنوان': conn.url,
-    'مصدر المفتاح': conn.keySource
-  });
+  console.log('📡 القراءة:', conn.readOk ? '✅' : '❌');
+  console.log('✏️  الكتابة:', conn.writeOk ? '✅' : '❌');
 
   if (!conn.readOk) {
     console.error('❌ تعذر الاتصال بـ Supabase. تحقق من SUPABASE_URL والإنترنت.');
@@ -99,8 +231,31 @@ async function migrate() {
 
   if (!conn.writeOk) {
     console.error('\n❌ صلاحية الكتابة محجوبة. لا يمكن تنفيذ الترحيل.');
-    console.error('   الحل المطلوب: أضف SUPABASE_SERVICE_ROLE_KEY الصحيح إلى ملف .env ثم أعد التشغيل.');
-    if (conn.rlsNotice) console.error('   تفاصيل الخطأ:', conn.rlsNotice);
+    console.error(`   المفتاح الحالي [${SUPABASE_KEY_SOURCE}] لا يملك صلاحية INSERT/UPDATE.`);
+    console.error('   الحل: أضف SUPABASE_SERVICE_ROLE_KEY (JWT من Dashboard → API) إلى .env ثم أعد التشغيل.');
+    if (conn.rlsNotice) console.error('   تفاصيل:', conn.rlsNotice);
+    process.exit(1);
+  }
+
+  // ---- فحص حالة جداول Supabase قبل البدء ----
+  console.log('\n═══ [ فحص حالة Supabase قبل البدء ] ═══');
+  const requiredTables = ['products', 'settings', 'customers', 'suppliers', 'invoices', 'receipts', 'warranties'];
+  const missingTables = [];
+  for (const tbl of requiredTables) {
+    const r = await getTableCount(tbl);
+    if (r.code === '42P01' || r.code === 'PGRST205' || (r.error && r.error.includes('not exist'))) {
+      console.log(`  ${tbl}: ❌ مفقود`);
+      missingTables.push(tbl);
+    } else if (r.error) {
+      console.log(`  ${tbl}: ⚠️ ${r.error.slice(0,60)}`);
+    } else {
+      console.log(`  ${tbl}: ✅ ${r.count} صف حالي`);
+    }
+  }
+
+  if (missingTables.length > 0) {
+    console.error(`\n❌ جداول مفقودة: ${missingTables.join(', ')}`);
+    console.error('   نفّذ migrations/001_permanent_schema.sql في Supabase SQL Editor ثم أعد المحاولة.');
     process.exit(1);
   }
 
@@ -108,38 +263,36 @@ async function migrate() {
   const migrationReport = {};
 
   // ====================================================
-  // 1. ترحيل المنتجات (1431 صنف → جدول products)
+  // 1. المنتجات → products
   // ====================================================
-  console.log('\n--- [ 1/4 ] ترحيل المنتجات ---');
+  console.log('\n─── [ 1/4 ] ترحيل المنتجات ───');
   const productsRaw = readJson(path.join(DATA_DIR, 'products.json'));
   if (!productsRaw || !Array.isArray(productsRaw)) {
-    console.error('❌ تعذر قراءة products.json أو الملف تالف. إيقاف الترحيل.');
+    console.error('❌ تعذر قراءة products.json. إيقاف الترحيل.');
     process.exit(1);
   }
+  console.log(`📦 ${productsRaw.length} صنف في products.json`);
 
-  console.log(`📦 إجمالي المنتجات في الملف المحلي: ${productsRaw.length}`);
-
-  // بناء حمولة المنتجات بتطابق كامل مع مخطط SQL
-  // مهم: نحتفظ بجميع حقول الموقع المخصصة (images, brand, description)
+  // تعيين دقيق: JSON → SQL schema
+  // mainCategory (JS) → category (SQL)
+  // category (JS)     → subcategory (SQL)
   const productsPayload = productsRaw.map(p => ({
     id: String(p.id),
     code: String(p.code || '').trim(),
     name: String(p.name || '').trim(),
-    // category في الجدول = mainCategory في JS
     category: String(p.mainCategory || p.category || 'أجهزة كهربائية كبيرة'),
-    // subcategory في الجدول = category (التصنيف الفرعي) في JS
     subcategory: String(p.category || 'عام'),
     costPrice: Number(p.costPrice) || 0,
     sellPrice: Number(p.sellPrice) || 0,
     stock: parseInt(p.stock) || 0,
     unit: String(p.unit || 'قطعة'),
-    // الحقول المخصصة للموقع — لا تُستبدل بقيم فارغة
     image: String(p.image || ''),
     description: String(p.description || ''),
     barcode: String(p.barcode || ''),
     isSuspended: Boolean(p.isSuspended),
     brand: String(p.brand || 'أخرى'),
     brandAr: String(p.brandAr || 'أخرى / عام'),
+    // images: حقل موجود في JSON فعلياً كـ undefined/مفقود لجميع المنتجات، نُرسَل [] للحفاظ على القيمة الافتراضية
     images: (Array.isArray(p.images) && p.images.length > 0) ? p.images : [],
     lastStockUpdate: p.lastStockUpdate || null,
     lastStockEditor: p.lastStockEditor || null,
@@ -148,57 +301,33 @@ async function migrate() {
     createdAt: p.createdAt || new Date().toISOString()
   }));
 
-  console.log(`📤 جاري الرفع بدفعات (50 صنف/دفعة)...`);
   const prodResult = await upsertInBatches('products', productsPayload, {
     batchSize: 50,
     onProgress: (done, total) => {
-      if (done % 200 === 0 || done === total) {
-        console.log(`   ↳ تم رفع ${done}/${total} صنف...`);
-      }
+      if (done % 250 === 0 || done === total) console.log(`   ↳ ${done}/${total} صنف...`);
     }
   });
+  migrationReport.products = { source: productsRaw.length, uploaded: prodResult.uploaded, failed: prodResult.failed, ok: prodResult.ok };
+  if (!prodResult.ok) { console.error(`❌ فشل المنتجات: ${prodResult.errors[0]}`); totalErrors++; }
+  else console.log(`✅ ${prodResult.uploaded}/${productsRaw.length} صنف`);
 
-  migrationReport.products = {
-    source: productsRaw.length,
-    uploaded: prodResult.uploaded,
-    failed: prodResult.failed,
-    ok: prodResult.ok
-  };
-
-  if (!prodResult.ok) {
-    console.error(`❌ فشل ترحيل المنتجات: ${prodResult.errors.join(' | ')}`);
-    totalErrors++;
-  } else {
-    console.log(`✅ تم ترحيل ${prodResult.uploaded}/${productsRaw.length} صنف بنجاح.`);
-  }
-
-  // حفظ snapshot كامل في settings كطبقة حماية إضافية
+  // snapshot احتياطي في settings
   try {
-    const { error: snapErr } = await supabase.from('settings').upsert({
-      id: 'products_snapshot',
-      data: productsRaw
-    });
-    if (!snapErr) {
-      console.log(`✅ تم حفظ snapshot كامل للمنتجات في settings.`);
-    } else {
-      console.warn(`⚠️ تحذير: تعذر حفظ products_snapshot:`, snapErr.message);
-    }
-  } catch (e) {
-    console.warn('⚠️ استثناء في حفظ snapshot:', e.message);
-  }
+    const { error: snapErr } = await supabase.from('settings').upsert({ id: 'products_snapshot', data: productsRaw });
+    if (!snapErr) console.log('✅ snapshot المنتجات في settings');
+    else console.warn('⚠️ snapshot فشل:', snapErr.message);
+  } catch (e) { console.warn('⚠️ snapshot استثناء:', e.message); }
 
   // ====================================================
-  // 2. ترحيل الزبائن (483 → جدول customers + settings)
+  // 2. الزبائن → customers + settings
   // ====================================================
-  console.log('\n--- [ 2/4 ] ترحيل الزبائن ---');
+  console.log('\n─── [ 2/4 ] ترحيل الزبائن ───');
   const customersRaw = readJson(path.join(DATA_DIR, 'customers.json'));
   if (!customersRaw || !Array.isArray(customersRaw)) {
-    console.warn('⚠️ تعذر قراءة customers.json أو الملف غير موجود — تخطّي.');
-    migrationReport.customers = { source: 0, uploaded: 0, ok: false };
+    console.warn('⚠️ customers.json غير موجود — تخطّي.');
+    migrationReport.customers = { source: 0, ok: false };
   } else {
-    console.log(`👥 إجمالي الزبائن في الملف المحلي: ${customersRaw.length}`);
-
-    // حمولة تتطابق مع مخطط جدول customers في SQL
+    console.log(`👥 ${customersRaw.length} زبون`);
     const custPayload = customersRaw.map(c => ({
       id: String(c.id),
       systemNumber: String(c.systemNumber || c.shamelCode || '').trim() || null,
@@ -219,53 +348,32 @@ async function migrate() {
       updatedAt: c.updatedAt || null,
       lastSyncAt: c.lastSyncAt || null
     }));
-
     const custResult = await upsertInBatches('customers', custPayload, { batchSize: 50 });
-    migrationReport.customers = {
-      source: customersRaw.length,
-      uploaded: custResult.uploaded,
-      failed: custResult.failed,
-      ok: custResult.ok
-    };
-
-    if (!custResult.ok) {
-      console.error(`❌ فشل ترحيل الزبائن: ${custResult.errors.join(' | ')}`);
-      totalErrors++;
-    } else {
-      console.log(`✅ تم ترحيل ${custResult.uploaded}/${customersRaw.length} زبون بنجاح.`);
-    }
-
-    // حفظ نسخة احتياطية في settings أيضاً
+    migrationReport.customers = { source: customersRaw.length, uploaded: custResult.uploaded, failed: custResult.failed, ok: custResult.ok };
+    if (!custResult.ok) { console.error(`❌ فشل الزبائن: ${custResult.errors[0]}`); totalErrors++; }
+    else console.log(`✅ ${custResult.uploaded}/${customersRaw.length} زبون`);
+    // نسخة احتياطية في settings
     try {
-      const { error: cSnapErr } = await supabase.from('settings').upsert({
-        id: 'customers',
-        data: customersRaw
-      });
-      if (!cSnapErr) console.log(`✅ تم حفظ نسخة الزبائن في settings.`);
-      else console.warn('⚠️ تعذر حفظ الزبائن في settings:', cSnapErr.message);
-    } catch (e) {
-      console.warn('⚠️ استثناء في حفظ الزبائن في settings:', e.message);
-    }
+      await supabase.from('settings').upsert({ id: 'customers', data: customersRaw });
+    } catch (e) {}
   }
 
   // ====================================================
-  // 3. ترحيل الموردين (13 → جدول suppliers + settings)
+  // 3. الموردون → suppliers + settings
   // ====================================================
-  console.log('\n--- [ 3/4 ] ترحيل الموردين ---');
-  const EXCLUDED_SUPPLIER_CODES = ['S00000003'];
+  console.log('\n─── [ 3/4 ] ترحيل الموردين ───');
+  const EXCLUDED = ['S00000003'];
   const suppliersRaw = readJson(path.join(DATA_DIR, 'suppliers.json'));
   if (!suppliersRaw || !Array.isArray(suppliersRaw)) {
-    console.warn('⚠️ تعذر قراءة suppliers.json أو الملف غير موجود — تخطّي.');
-    migrationReport.suppliers = { source: 0, uploaded: 0, ok: false };
+    console.warn('⚠️ suppliers.json غير موجود — تخطّي.');
+    migrationReport.suppliers = { source: 0, ok: false };
   } else {
-    // استبعاد المورد الوهمي نهائياً
     const suppliersFiltered = suppliersRaw.filter(s => {
       const code = String(s.shamelCode || '').toUpperCase();
       const name = String(s.name || '');
-      return !EXCLUDED_SUPPLIER_CODES.includes(code) && !name.includes('بضاعة قديمة');
+      return !EXCLUDED.includes(code) && !name.includes('بضاعة قديمة');
     });
-    console.log(`🏢 الموردين في الملف: ${suppliersRaw.length} | بعد استبعاد الوهميين: ${suppliersFiltered.length}`);
-
+    console.log(`🏢 ${suppliersRaw.length} إجمالي → ${suppliersFiltered.length} بعد الاستبعاد`);
     const suppPayload = suppliersFiltered.map(s => ({
       id: String(s.id),
       shamelCode: String(s.shamelCode || '').trim() || null,
@@ -285,45 +393,23 @@ async function migrate() {
       updatedAt: s.updatedAt || null,
       lastSyncAt: s.lastSyncAt || null
     }));
-
     const suppResult = await upsertInBatches('suppliers', suppPayload, { batchSize: 50 });
-    migrationReport.suppliers = {
-      source: suppliersFiltered.length,
-      uploaded: suppResult.uploaded,
-      failed: suppResult.failed,
-      ok: suppResult.ok
-    };
-
-    if (!suppResult.ok) {
-      console.error(`❌ فشل ترحيل الموردين: ${suppResult.errors.join(' | ')}`);
-      totalErrors++;
-    } else {
-      console.log(`✅ تم ترحيل ${suppResult.uploaded}/${suppliersFiltered.length} مورد بنجاح.`);
-    }
-
-    // حفظ في settings أيضاً
-    try {
-      const { error: sSnapErr } = await supabase.from('settings').upsert({
-        id: 'suppliers',
-        data: suppliersFiltered
-      });
-      if (!sSnapErr) console.log(`✅ تم حفظ نسخة الموردين في settings.`);
-      else console.warn('⚠️ تعذر حفظ الموردين في settings:', sSnapErr.message);
-    } catch (e) {
-      console.warn('⚠️ استثناء في حفظ الموردين في settings:', e.message);
-    }
+    migrationReport.suppliers = { source: suppliersFiltered.length, uploaded: suppResult.uploaded, failed: suppResult.failed, ok: suppResult.ok };
+    if (!suppResult.ok) { console.error(`❌ فشل الموردين: ${suppResult.errors[0]}`); totalErrors++; }
+    else console.log(`✅ ${suppResult.uploaded}/${suppliersFiltered.length} مورد`);
+    try { await supabase.from('settings').upsert({ id: 'suppliers', data: suppliersFiltered }); } catch(e) {}
   }
 
   // ====================================================
-  // 4. ترحيل الفواتير (→ جدول invoices)
+  // 4. الفواتير → invoices
   // ====================================================
-  console.log('\n--- [ 4/4 ] ترحيل الفواتير ---');
+  console.log('\n─── [ 4/4 ] ترحيل الفواتير ───');
   const invoicesRaw = readJson(path.join(DATA_DIR, 'invoices.json'));
   if (!invoicesRaw || !Array.isArray(invoicesRaw) || invoicesRaw.length === 0) {
-    console.log('ℹ️ لا توجد فواتير لترحيلها.');
-    migrationReport.invoices = { source: 0, uploaded: 0, ok: true };
+    console.log('ℹ️ لا فواتير.');
+    migrationReport.invoices = { source: 0, ok: true };
   } else {
-    console.log(`🧾 إجمالي الفواتير: ${invoicesRaw.length}`);
+    console.log(`🧾 ${invoicesRaw.length} فاتورة`);
     const invPayload = invoicesRaw.map(inv => ({
       id: String(inv.id),
       invoiceNumber: inv.invoiceNumber || null,
@@ -348,65 +434,55 @@ async function migrate() {
       warrantyMonths: inv.warrantyMonths || 12,
       telegramStatus: inv.telegramStatus || null
     }));
-
     const invResult = await upsertInBatches('invoices', invPayload, { batchSize: 50 });
-    migrationReport.invoices = {
-      source: invoicesRaw.length,
-      uploaded: invResult.uploaded,
-      failed: invResult.failed,
-      ok: invResult.ok
-    };
+    migrationReport.invoices = { source: invoicesRaw.length, uploaded: invResult.uploaded, failed: invResult.failed, ok: invResult.ok };
+    if (!invResult.ok) { console.error(`❌ فشل الفواتير: ${invResult.errors[0]}`); totalErrors++; }
+    else console.log(`✅ ${invResult.uploaded}/${invoicesRaw.length} فاتورة`);
+  }
 
-    if (!invResult.ok) {
-      console.error(`❌ فشل ترحيل الفواتير: ${invResult.errors.join(' | ')}`);
-      totalErrors++;
+  // ====================================================
+  // تحقق عددي بعد الترحيل
+  // ====================================================
+  console.log('\n═══ [ التحقق العددي في Supabase بعد الترحيل ] ═══');
+  const verifyTables = ['products', 'customers', 'suppliers', 'invoices'];
+  for (const tbl of verifyTables) {
+    const r = await getTableCount(tbl);
+    const sourceCount = migrationReport[tbl]?.source ?? '—';
+    const uploadCount = migrationReport[tbl]?.uploaded ?? '—';
+    if (r.error) {
+      console.log(`  ${tbl}: ⚠️ تعذر فحص — ${r.error.slice(0,60)}`);
     } else {
-      console.log(`✅ تم ترحيل ${invResult.uploaded}/${invoicesRaw.length} فاتورة بنجاح.`);
+      const match = r.count === uploadCount ? '✅ تطابق' : `⚠️ فرق (رُفِع=${uploadCount}، في Supabase=${r.count})`;
+      console.log(`  ${tbl}: مصدر=${sourceCount} | رُفِع=${uploadCount} | Supabase=${r.count} | ${match}`);
     }
   }
 
   // ====================================================
-  // 5. التحقق من الأعداد الفعلية في Supabase
+  // تقرير ختامي
   // ====================================================
-  console.log('\n--- [ تحقق نهائي ] مقارنة الأعداد بين المصدر وSupabase ---');
-
-  const tables = ['products', 'customers', 'suppliers', 'invoices'];
-  for (const tbl of tables) {
-    try {
-      const { count, error } = await supabase
-        .from(tbl)
-        .select('*', { count: 'exact', head: true });
-      if (error) {
-        console.warn(`⚠️ ${tbl}: تعذر فحص العدد —`, error.message);
-      } else {
-        const sourceCount = migrationReport[tbl]?.source ?? '—';
-        const match = (count === migrationReport[tbl]?.uploaded) ? '✅ تطابق' : '⚠️ تباين';
-        console.log(`   ${tbl}: Supabase=${count} | مصدر محلي=${sourceCount} | ${match}`);
-      }
-    } catch (e) {
-      console.warn(`⚠️ ${tbl}: استثناء في الفحص —`, e.message);
-    }
-  }
-
-  // ====================================================
-  // 6. تقرير ختامي
-  // ====================================================
-  console.log('\n===============================================================');
+  console.log('\n╔══════════════════════════════════════════════════════════════╗');
   if (totalErrors === 0) {
-    console.log('🎉 اكتمل الترحيل بنجاح — لا أخطاء مسجلة.');
+    console.log('║  🎉  اكتمل الترحيل بنجاح — لا أخطاء                         ║');
   } else {
-    console.error(`⚠️ اكتمل الترحيل مع ${totalErrors} جدول/جداول فاشلة. راجع السجلات أعلاه.`);
+    console.log(`║  ⚠️  اكتمل مع ${totalErrors} أخطاء — راجع السجلات أعلاه          ║`);
   }
-  console.log('تقرير الترحيل:');
+  console.log('╚══════════════════════════════════════════════════════════════╝');
   Object.entries(migrationReport).forEach(([tbl, r]) => {
-    const status = r.ok ? '✅' : '❌';
-    console.log(`  ${status} ${tbl}: مصدر=${r.source ?? '—'} | تم رفعه=${r.uploaded ?? 0} | فشل=${r.failed ?? 0}`);
+    const s = r.ok ? '✅' : '❌';
+    console.log(`  ${s} ${tbl}: ${r.source ?? '—'}→${r.uploaded ?? 0} | فشل=${r.failed ?? 0}`);
   });
-  console.log('===============================================================\n');
 
-  if (totalErrors > 0) {
-    process.exit(1);
-  }
+  if (totalErrors > 0) process.exit(1);
 }
 
-migrate();
+// ---------------------------------------------------------------
+// نقطة الدخول
+// ---------------------------------------------------------------
+if (DRY_RUN) {
+  if (!supabase) {
+    console.warn('⚠️ Supabase غير متصل — dry-run سيعمل مع البيانات المحلية فقط');
+  }
+  runDryRun().catch(e => { console.error('❌ خطأ في dry-run:', e.message); process.exit(1); });
+} else {
+  migrate().catch(e => { console.error('❌ خطأ غير متوقع:', e.message); process.exit(1); });
+}

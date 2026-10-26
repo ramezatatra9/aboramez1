@@ -55,45 +55,65 @@ try {
 // المعلومات الثابتة للمشروع (URL عام، لا يُعدّ سراً)
 const KNOWN_PROJECT_URL = 'https://cvctvekiqgvgpwerzzex.supabase.co';
 
-// المفتاح العام للقراءة العامة فقط (anon key — يظهر في github workflow ولا يُعدّ سراً)
-// يُستخدم فقط للقراءة العامة (SELECT على products) إذا لم يُعيَّن مفتاح الخدمة
+// المفتاح العام للقراءة فقط — مستخرج من github workflow (ليس سراً)
+// supabase-js 2.x يرسله في ترويسة: { apikey: KEY, Authorization: 'Bearer KEY' }
+// Supabase يقبل فقط مفاتيح JWT (eyJ...) أو مفاتيح خاصة بالمشروع كـ service_role JWT
 const PUBLIC_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN2Y3R2ZWtpcWd2Z3B3ZXJ6emV4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwMDIzMDUsImV4cCI6MjEwNTU3ODMwNX0.g8RGA0_xVv4Gkzv6QRQ5ccH9gcaMQzeBmVpN1Dc5v2U';
 
 const SUPABASE_URL = (process.env.SUPABASE_URL || KNOWN_PROJECT_URL).trim();
 
 // ===================================================================
-// اختيار المفتاح النشط بترتيب صارم وآمن:
+// اختيار المفتاح النشط — منطق أولوية صارم:
 //
-// الأولوية 1: SUPABASE_SERVICE_ROLE_KEY (مفتاح الخادم الخلفي)
-//   → مطلوب للكتابة. يقبل أي صيغة (JWT أو sb_secret_ أو sbp_)
-//   → لا يُشارَك مع المتصفح أبداً
+// الأولوية 1: SUPABASE_SERVICE_ROLE_KEY
+//   → يجب أن يكون JWT صالحاً (eyJ...) من Supabase Dashboard → API
+//   → الوحيد القادر على الكتابة عبر RLS
 //
-// الأولوية 2: SUPABASE_KEY (مفتاح بديل من البيئة، قد يكون anon أو service)
-//   → يُستخدم فقط إذا غاب SUPABASE_SERVICE_ROLE_KEY
+// الأولوية 2: SUPABASE_KEY
+//   → مقبول فقط إذا كان بصيغة JWT (eyJ...)
+//   → إذا كان بصيغة sb_secret_ → يُرفض ويُنبَّه المستخدم لأن
+//     Supabase يرفضه بـ 401 "Unregistered API key"
 //
-// الأولوية 3: PUBLIC_ANON_KEY (مفتاح القراءة العام المضمّن)
-//   → آخر ملجأ؛ صلاحيات الكتابة ستكون مرفوضة بـ RLS
-//   → لا يُستخدم كبديل صامت عند وجود مفتاح خدمة خاطئ
+// الأولوية 3: PUBLIC_ANON_KEY (المضمَّن)
+//   → قراءة عامة فقط، الكتابة مرفوضة بـ RLS
 // ===================================================================
 
 let activeKey = '';
 let keySource = '';
+let writeCapable = false;
 
 const envServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
-const envAnonKey    = (process.env.SUPABASE_KEY || '').trim();
+const envKey        = (process.env.SUPABASE_KEY || '').trim();
 
 if (envServiceKey) {
-  // مفتاح الخدمة موجود في البيئة — الأولوية القصوى
+  if (!envServiceKey.startsWith('eyJ')) {
+    // sb_secret_* أو صيغة غير JWT — تحذير صريح، لا تجاهل صامت
+    console.warn('⚠️ SUPABASE_SERVICE_ROLE_KEY لا يبدأ بـ eyJ — قد يكون مفتاح إدارة وليس مفتاح خدمة.');
+    console.warn('   Supabase يتطلب مفتاح service_role بصيغة JWT من: Dashboard → Project Settings → API');
+    console.warn('   سيُجرى اختبار فوري للتحقق من صلاحيته...');
+  }
   activeKey = envServiceKey;
   keySource = 'SUPABASE_SERVICE_ROLE_KEY';
-} else if (envAnonKey) {
-  // مفتاح بيئة آخر موجود (anon أو service_role بديل)
-  activeKey = envAnonKey;
-  keySource = 'SUPABASE_KEY';
+  writeCapable = true; // سيتم التحقق لاحقاً بـ testSupabaseConnection
+} else if (envKey) {
+  if (!envKey.startsWith('eyJ')) {
+    // مفتاح بصيغة غير JWT (مثل sb_secret_...) — Supabase يرفضه بـ 401
+    console.warn('⚠️ SUPABASE_KEY بصيغة غير JWT (لا يبدأ بـ eyJ).');
+    console.warn('   هذا النوع يُرفض بـ 401 Unregistered API key من Supabase.');
+    console.warn('   الحل: احصل على anon أو service_role JWT من Dashboard → Project Settings → API');
+    console.warn('   سيتم استخدام المفتاح العام (anon) مؤقتاً للقراءة فقط.');
+    activeKey = PUBLIC_ANON_KEY;
+    keySource = 'PUBLIC_ANON_KEY (بديل — SUPABASE_KEY غير JWT)';
+    writeCapable = false;
+  } else {
+    activeKey = envKey;
+    keySource = 'SUPABASE_KEY (JWT)';
+    writeCapable = true; // سيتم التحقق
+  }
 } else {
-  // لا يوجد مفتاح في البيئة — استخدام المفتاح العام للقراءة فقط
   activeKey = PUBLIC_ANON_KEY;
-  keySource = 'PUBLIC_ANON_KEY (قراءة عامة فقط)';
+  keySource = 'PUBLIC_ANON_KEY (قراءة عامة فقط — لا مفتاح في البيئة)';
+  writeCapable = false;
 }
 
 // تسجيل آمن: المصدر فقط بدون عرض أي قيمة للمفتاح
