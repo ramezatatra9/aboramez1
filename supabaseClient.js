@@ -81,58 +81,70 @@ const SUPABASE_URL = (process.env.SUPABASE_URL || KNOWN_PROJECT_URL).trim();
 let activeKey = '';
 let keySource = '';
 let writeCapable = false;
+let supabase = null;
 
-const envServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
-const envKey        = (process.env.SUPABASE_KEY || '').trim();
+function resolveActiveKey() {
+  const envServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || process.env.SERVICE_ROLE_KEY || '').trim();
+  const envKey = (process.env.SUPABASE_KEY || process.env.SUPABASE_SECRET_KEY || '').trim();
 
-if (envServiceKey) {
-  activeKey = envServiceKey;
-  keySource = 'SUPABASE_SERVICE_ROLE_KEY';
-  writeCapable = true;
-} else if (envKey) {
-  // مفتاح من البيئة (سواء كان sb_secret_ أو eyJ... أو غيره)
-  activeKey = envKey;
-  keySource = 'SUPABASE_KEY';
-  writeCapable = true;
-} else {
-  activeKey = PUBLIC_ANON_KEY;
-  keySource = 'PUBLIC_ANON_KEY (قراءة عامة فقط — لا مفتاح في البيئة)';
-  writeCapable = false;
+  if (envServiceKey) {
+    return {
+      key: envServiceKey,
+      source: 'SUPABASE_SERVICE_ROLE_KEY',
+      writeCapable: true
+    };
+  }
+  if (envKey) {
+    return {
+      key: envKey,
+      source: 'SUPABASE_KEY',
+      writeCapable: true
+    };
+  }
+  return {
+    key: PUBLIC_ANON_KEY,
+    source: 'PUBLIC_ANON_KEY (قراءة عامة فقط — لا مفتاح في البيئة)',
+    writeCapable: false
+  };
 }
 
-// تسجيل آمن تماماً: لا يُطبع أي محرف من المفتاح إطلاقاً (لا بداية ولا نهاية)
-const keyType = activeKey.startsWith('sb_secret_') ? 'Secret Key (sb_secret_...)'
-  : activeKey.startsWith('eyJ') ? 'JWT Key (eyJ...)'
-  : 'Standard Key';
-const keyLength = activeKey.length;
-console.log(`🔑 مفتاح Supabase النشط: مصدر=[${keySource}] نوع=[${keyType}] (طول: ${keyLength})`);
+function refreshSupabaseClient() {
+  const resolved = resolveActiveKey();
+  if (resolved.key !== activeKey || !supabase) {
+    activeKey = resolved.key;
+    keySource = resolved.source;
+    writeCapable = resolved.writeCapable;
+    try {
+      supabase = createClient(SUPABASE_URL, activeKey, {
+        auth: { persistSession: false },
+        global: { headers: { 'x-client-info': 'aboramez1-server-v4' } }
+      });
+      const keyType = activeKey.startsWith('sb_secret_') ? 'Secret Key (sb_secret_...)'
+        : activeKey.startsWith('eyJ') ? 'JWT Key (eyJ...)'
+        : 'Standard Key';
+      const keyLen = activeKey.length;
+      console.log(`🔑 تحديث عميل Supabase: مصدر=[${keySource}] نوع=[${keyType}] (طول: ${keyLen})`);
+    } catch (err) {
+      console.error('❌ فشل تهيئة عميل Supabase:', err.message);
+    }
+  }
+  return supabase;
+}
 
-// تحذير واضح إذا كانت الصلاحيات ستكون محدودة للقراءة فقط
+// تهيئة أولية
+refreshSupabaseClient();
+
 if (keySource.includes('PUBLIC_ANON_KEY')) {
   console.warn('⚠️ تحذير: لم يُعيَّن مفتاح خدمة خلفي في البيئة (SUPABASE_SERVICE_ROLE_KEY أو SUPABASE_KEY).');
   console.warn('   عمليات الكتابة (INSERT/UPDATE/DELETE) ستُرفض من RLS.');
   console.warn('   لتفعيل الكتابة: أضف المفتاح السري إلى ملف .env أو متغيرات Render.');
 }
 
-let supabase = null;
-try {
-  if (SUPABASE_URL && activeKey) {
-    supabase = createClient(SUPABASE_URL, activeKey, {
-      auth: { persistSession: false },
-      global: { headers: { 'x-client-info': 'aboramez1-server-v4' } }
-    });
-    console.log('✅ تم تهيئة عميل Supabase بنجاح للعنوان:', SUPABASE_URL);
-  } else {
-    console.warn('⚠️ إعدادات Supabase غير مكتملة (URL أو مفتاح).');
-  }
-} catch (err) {
-  console.error('❌ فشل تهيئة عميل Supabase:', err.message);
-}
-
 // دالة اختبار الاتصال وفحص الصلاحيات
 // فحص آمن غير مدمر: قراءة فقط عبر HEAD request ما لم يُطلب صراحة allowWriteProbe: true
 async function testSupabaseConnection(options = {}) {
   const { allowWriteProbe = false } = options;
+  refreshSupabaseClient();
   if (!supabase) {
     return { ok: false, readOk: false, writeOk: false, keySource, error: 'العميل غير مهيأ' };
   }
@@ -186,9 +198,24 @@ async function testSupabaseConnection(options = {}) {
 }
 
 // تصدير: لا يُصدَّر المفتاح الخام (activeKey) — يُصدَّر المصدر فقط للتتبع
+function getSafeKeyMetadata() {
+  const detectedKeys = Object.keys(process.env).filter(k => k.toUpperCase().includes('SUPABASE') || k.toUpperCase().includes('SERVICE_ROLE'));
+  return {
+    keySource,
+    writeCapable,
+    detectedEnvKeys: detectedKeys,
+    keyType: activeKey.startsWith('sb_secret_') ? 'Secret Key (sb_secret_...)'
+      : activeKey.startsWith('eyJ') ? 'JWT Key (eyJ...)'
+      : 'Standard Key',
+    keyLength: activeKey.length
+  };
+}
+
 module.exports = {
-  supabase,
+  get supabase() { return supabase; },
   SUPABASE_URL,
-  SUPABASE_KEY_SOURCE: keySource,
-  testSupabaseConnection
+  get SUPABASE_KEY_SOURCE() { return keySource; },
+  testSupabaseConnection,
+  getSafeKeyMetadata,
+  refreshSupabaseClient
 };

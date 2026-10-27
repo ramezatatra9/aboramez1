@@ -83,8 +83,18 @@ app.use('/uploads', express.static(UPLOADS_DIR));
 app.use(systemMode.requireWritePermission);
 
 // ─── endpoints للصحة والجاهزية ───
+const { getSafeKeyMetadata } = require('./supabaseClient');
+
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', ...systemMode.getStatus() });
+  const meta = typeof getSafeKeyMetadata === 'function' ? getSafeKeyMetadata() : {};
+  res.json({
+    status: 'ok',
+    ...systemMode.getStatus(),
+    meta: {
+      uptimeSeconds: Math.floor(process.uptime()),
+      ...meta
+    }
+  });
 });
 
 app.get('/api/ready', (req, res) => {
