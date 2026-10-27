@@ -86,47 +86,32 @@ const envServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
 const envKey        = (process.env.SUPABASE_KEY || '').trim();
 
 if (envServiceKey) {
-  if (!envServiceKey.startsWith('eyJ')) {
-    // sb_secret_* أو صيغة غير JWT — تحذير صريح، لا تجاهل صامت
-    console.warn('⚠️ SUPABASE_SERVICE_ROLE_KEY لا يبدأ بـ eyJ — قد يكون مفتاح إدارة وليس مفتاح خدمة.');
-    console.warn('   Supabase يتطلب مفتاح service_role بصيغة JWT من: Dashboard → Project Settings → API');
-    console.warn('   سيُجرى اختبار فوري للتحقق من صلاحيته...');
-  }
   activeKey = envServiceKey;
   keySource = 'SUPABASE_SERVICE_ROLE_KEY';
-  writeCapable = true; // سيتم التحقق لاحقاً بـ testSupabaseConnection
+  writeCapable = true;
 } else if (envKey) {
-  if (!envKey.startsWith('eyJ')) {
-    // مفتاح بصيغة غير JWT (مثل sb_secret_...) — Supabase يرفضه بـ 401
-    console.warn('⚠️ SUPABASE_KEY بصيغة غير JWT (لا يبدأ بـ eyJ).');
-    console.warn('   هذا النوع يُرفض بـ 401 Unregistered API key من Supabase.');
-    console.warn('   الحل: احصل على anon أو service_role JWT من Dashboard → Project Settings → API');
-    console.warn('   سيتم استخدام المفتاح العام (anon) مؤقتاً للقراءة فقط.');
-    activeKey = PUBLIC_ANON_KEY;
-    keySource = 'PUBLIC_ANON_KEY (بديل — SUPABASE_KEY غير JWT)';
-    writeCapable = false;
-  } else {
-    activeKey = envKey;
-    keySource = 'SUPABASE_KEY (JWT)';
-    writeCapable = true; // سيتم التحقق
-  }
+  // مفتاح من البيئة (سواء كان sb_secret_ أو eyJ... أو غيره)
+  activeKey = envKey;
+  keySource = 'SUPABASE_KEY';
+  writeCapable = true;
 } else {
   activeKey = PUBLIC_ANON_KEY;
   keySource = 'PUBLIC_ANON_KEY (قراءة عامة فقط — لا مفتاح في البيئة)';
   writeCapable = false;
 }
 
-// تسجيل آمن: المصدر فقط بدون عرض أي قيمة للمفتاح
-const keyHint = activeKey.length > 8
-  ? activeKey.slice(0, 4) + '...' + activeKey.slice(-4)
-  : '(قصير جداً)';
-console.log(`🔑 مفتاح Supabase النشط: مصدر=[${keySource}] إشارة=[${keyHint}]`);
+// تسجيل آمن تماماً: لا يُطبع أي محرف من المفتاح إطلاقاً (لا بداية ولا نهاية)
+const keyType = activeKey.startsWith('sb_secret_') ? 'Secret Key (sb_secret_...)'
+  : activeKey.startsWith('eyJ') ? 'JWT Key (eyJ...)'
+  : 'Standard Key';
+const keyLength = activeKey.length;
+console.log(`🔑 مفتاح Supabase النشط: مصدر=[${keySource}] نوع=[${keyType}] (طول: ${keyLength})`);
 
 // تحذير واضح إذا كانت الصلاحيات ستكون محدودة للقراءة فقط
-if (keySource === 'PUBLIC_ANON_KEY (قراءة عامة فقط)') {
-  console.warn('⚠️ تحذير: لم يُعيَّن SUPABASE_SERVICE_ROLE_KEY في البيئة.');
+if (keySource.includes('PUBLIC_ANON_KEY')) {
+  console.warn('⚠️ تحذير: لم يُعيَّن مفتاح خدمة خلفي في البيئة (SUPABASE_SERVICE_ROLE_KEY أو SUPABASE_KEY).');
   console.warn('   عمليات الكتابة (INSERT/UPDATE/DELETE) ستُرفض من RLS.');
-  console.warn('   لتفعيل الكتابة: أضف SUPABASE_SERVICE_ROLE_KEY إلى ملف .env أو متغيرات Render.');
+  console.warn('   لتفعيل الكتابة: أضف المفتاح السري إلى ملف .env أو متغيرات Render.');
 }
 
 let supabase = null;
@@ -144,9 +129,10 @@ try {
   console.error('❌ فشل تهيئة عميل Supabase:', err.message);
 }
 
-// دالة اختبار الاتصال وفحص صلاحيات القراءة والكتابة
-// ملاحظة: لا تعيد قيمة المفتاح في أي حال، فقط الحالة والعنوان
-async function testSupabaseConnection() {
+// دالة اختبار الاتصال وفحص الصلاحيات
+// فحص آمن غير مدمر: قراءة فقط عبر HEAD request ما لم يُطلب صراحة allowWriteProbe: true
+async function testSupabaseConnection(options = {}) {
+  const { allowWriteProbe = false } = options;
   if (!supabase) {
     return { ok: false, readOk: false, writeOk: false, keySource, error: 'العميل غير مهيأ' };
   }
@@ -154,40 +140,39 @@ async function testSupabaseConnection() {
   let writeOk = false;
   let rlsNotice = null;
 
-  // فحص القراءة
+  // فحص القراءة غير المدمر
   try {
-    const { error } = await supabase.from('products').select('count', { count: 'exact', head: true });
-    if (!error) {
+    const { count, error, status, statusText } = await supabase.from('products').select('*', { count: 'exact', head: true });
+    if (!error && status && status < 400) {
       readOk = true;
     } else {
-      console.warn('⚠️ Supabase read check notice:', error.message);
+      const msg = (error && error.message) ? error.message : (statusText || `HTTP ${status}`);
+      console.warn(`⚠️ تنبيه فحص الاتصال بـ Supabase: ${msg}`);
     }
   } catch (e) {
-    console.warn('⚠️ Supabase read exception:', e.message);
+    console.warn('⚠️ استثناء فحص الاتصال بـ Supabase:', e.message);
   }
 
-  // فحص الكتابة بسجل مؤقت آمن
-  try {
-    const testId = '_conn_test_' + Date.now();
-    const { error: wErr } = await supabase.from('settings').upsert({
-      id: testId,
-      data: { test: true, timestamp: new Date().toISOString() }
-    });
-    if (!wErr) {
-      writeOk = true;
-      // تنظيف سجل الاختبار فوراً
-      await supabase.from('settings').delete().eq('id', testId);
-    } else {
-      rlsNotice = wErr.message;
-      // تحذير صريح عند فشل الكتابة — لا يُستبدل بمفتاح آخر صامتاً
-      if (!writeOk && keySource === 'PUBLIC_ANON_KEY (قراءة عامة فقط)') {
-        console.warn('⚠️ RLS تحجب الكتابة مع المفتاح العام. هذا متوقع حتى يُعيَّن SUPABASE_SERVICE_ROLE_KEY.');
-      } else if (!writeOk) {
-        console.warn(`⚠️ الكتابة مرفوضة بالرغم من استخدام [${keySource}]. تحقق من صلاحيات المفتاح في Supabase.`);
+  // فحص الكتابة: لا يُنفَّذ أي كتابة في الوضع الافتراضي أو وضع المعاينة
+  if (allowWriteProbe) {
+    try {
+      const testId = '_conn_test_' + Date.now();
+      const { error: wErr } = await supabase.from('settings').upsert({
+        id: testId,
+        data: { test: true, timestamp: new Date().toISOString() }
+      });
+      if (!wErr) {
+        writeOk = true;
+        await supabase.from('settings').delete().eq('id', testId);
+      } else {
+        rlsNotice = wErr.message;
       }
+    } catch (wEx) {
+      rlsNotice = wEx.message;
     }
-  } catch (wEx) {
-    rlsNotice = wEx.message;
+  } else {
+    // تحديد الصلاحية بناءً على نوع ومصدر المفتاح دون أي كتابة تجريبية
+    writeOk = (activeKey !== PUBLIC_ANON_KEY && !keySource.includes('PUBLIC_ANON_KEY'));
   }
 
   return {

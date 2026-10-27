@@ -200,6 +200,17 @@ CREATE TABLE IF NOT EXISTS public.warranties (
 
 CREATE INDEX IF NOT EXISTS idx_warranties_number ON public.warranties ("warrantyNumber");
 
+-- إضافة الأعمدة المكتملة لجدول warranties في حال كان موجوداً مسبقاً
+ALTER TABLE public.warranties ADD COLUMN IF NOT EXISTS "customerId" text;
+ALTER TABLE public.warranties ADD COLUMN IF NOT EXISTS "customerSystemNumber" text;
+ALTER TABLE public.warranties ADD COLUMN IF NOT EXISTS "durationText" text;
+ALTER TABLE public.warranties ADD COLUMN IF NOT EXISTS terms jsonb DEFAULT '[]'::jsonb;
+ALTER TABLE public.warranties ADD COLUMN IF NOT EXISTS "companyName" text;
+ALTER TABLE public.warranties ADD COLUMN IF NOT EXISTS "companyPhone" text;
+ALTER TABLE public.warranties ADD COLUMN IF NOT EXISTS "companyAddress" text;
+ALTER TABLE public.warranties ADD COLUMN IF NOT EXISTS notes text DEFAULT '';
+ALTER TABLE public.warranties ADD COLUMN IF NOT EXISTS "updatedAt" timestamptz DEFAULT now();
+
 -- ====================================================================
 -- ====================================================================
 -- سياسات الأمان (Row Level Security - RLS)

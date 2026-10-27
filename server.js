@@ -8,6 +8,14 @@ const dataStore = require('./dataStore');
 const telegramService = require('./telegramService');
 const excelParser = require('./excelParser');
 const { supabase } = require('./supabaseClient');
+const systemMode = require('./systemMode');
+const {
+  generateInvoiceFingerprint,
+  generateReceiptFingerprint,
+  checkIdempotency,
+  resolveIdempotency,
+  releaseIdempotency
+} = require('./idempotency');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -71,6 +79,19 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(UPLOADS_DIR));
 
+// ─── فحص جاهزية Supabase قبل كل عملية كتابة (Read-Only Degraded Mode) ───
+app.use(systemMode.requireWritePermission);
+
+// ─── endpoints للصحة والجاهزية ───
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', ...systemMode.getStatus() });
+});
+
+app.get('/api/ready', (req, res) => {
+  const s = systemMode.getStatus();
+  res.status(s.isWriteReady ? 200 : 503).json(s);
+});
+
 // -------------------------------------------------------------
 // APIs: المنتجات (Products)
 // -------------------------------------------------------------
@@ -86,14 +107,14 @@ app.get('/api/products', (req, res) => {
 });
 
 // إضافة أو تعديل منتج
-app.post('/api/products', (req, res) => {
+app.post('/api/products', async (req, res) => {
   try {
     const { id, code, name, brand, brandAr, mainCategory, category, costPrice, sellPrice, stock, image, images, description } = req.body;
     if (!name || name.trim() === '') {
       return res.status(400).json({ success: false, error: 'اسم المنتج مطلوب' });
     }
 
-    const saved = dataStore.saveProduct({
+    const saved = await dataStore.saveProduct({
       id,
       code,
       name: name.trim(),
@@ -116,9 +137,9 @@ app.post('/api/products', (req, res) => {
 });
 
 // حذف منتج
-app.delete('/api/products/:id', (req, res) => {
+app.delete('/api/products/:id', async (req, res) => {
   try {
-    const deleted = dataStore.deleteProduct(req.params.id);
+    const deleted = await dataStore.deleteProduct(req.params.id);
     res.json({ success: true, deleted });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -514,8 +535,16 @@ app.post('/api/invoices', async (req, res) => {
       };
     }
 
+    // ─── فحص تكرار الطلب (Idempotency) ───
+    const invoiceFingerprint = generateInvoiceFingerprint(req.body);
+    const idemCheck = checkIdempotency(invoiceFingerprint);
+    if (idemCheck.isDuplicate) {
+      if (idemCheck.status === 'completed') return res.json(idemCheck.response);
+      return res.status(429).json({ success: false, error: 'طلب مماثل قيد المعالجة حالياً، يرجى الانتظار لحظة ثم المحاولة مرة واحدة فقط' });
+    }
+
     // حفظ الفاتورة
-    const newInvoice = dataStore.createInvoice({
+    const newInvoice = await dataStore.createInvoice({
       invoiceType: isQuotationMode ? 'quotation' : (isPurchase ? 'purchase' : 'sales'),
       isQuotation: isQuotationMode,
       employeeName,
@@ -547,9 +576,9 @@ app.post('/api/invoices', async (req, res) => {
     if (isQuotationMode) {
       updatedStockProducts = [];
     } else if (isPurchase) {
-      updatedStockProducts = dataStore.addStockForPurchaseInvoice(validatedItems, employeeName);
+      updatedStockProducts = await dataStore.addStockForPurchaseInvoice(validatedItems, employeeName);
     } else {
-      updatedStockProducts = dataStore.deductStockForInvoice(validatedItems, employeeName);
+      updatedStockProducts = await dataStore.deductStockForInvoice(validatedItems, employeeName);
     }
 
     // إرسال إشعار تيليجرام فوراً (لفواتير المبيعات والتوريد الفعلية فقط)
@@ -582,12 +611,15 @@ app.post('/api/invoices', async (req, res) => {
       };
     }
 
-    res.json({
+    const invoiceResponse = {
       success: true,
       invoice: newInvoice,
       telegramNotification: telegramResult
-    });
+    };
+    resolveIdempotency(invoiceFingerprint, invoiceResponse);
+    res.json(invoiceResponse);
   } catch (err) {
+    if (typeof invoiceFingerprint !== 'undefined') releaseIdempotency(invoiceFingerprint);
     console.error('Create invoice error:', err);
     res.status(500).json({ success: false, error: err.message });
   }
@@ -617,7 +649,7 @@ app.post('/api/invoices/:id/resend-telegram', async (req, res) => {
 app.post('/api/invoices/:id/convert-to-sales', async (req, res) => {
   try {
     const { employeeName } = req.body;
-    const result = dataStore.convertQuotationToSalesInvoice(req.params.id, employeeName || 'مسؤول المبيعات');
+    const result = await dataStore.convertQuotationToSalesInvoice(req.params.id, employeeName || 'مسؤول المبيعات');
     const { invoice, warranty } = result;
 
     // إرسال تيليجرام بعد تحويل العرض لفاتورة فعلية
@@ -706,9 +738,9 @@ app.patch('/api/warranties/:id', (req, res) => {
 });
 
 // حذف كفالة
-app.delete('/api/warranties/:id', (req, res) => {
+app.delete('/api/warranties/:id', async (req, res) => {
   try {
-    const deleted = dataStore.deleteWarranty(req.params.id);
+    const deleted = await dataStore.deleteWarranty(req.params.id);
     res.json({ success: true, deleted });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -731,9 +763,9 @@ app.get('/api/settings', (req, res) => {
 });
 
 // حفظ الإعدادات
-app.post('/api/settings', (req, res) => {
+app.post('/api/settings', async (req, res) => {
   try {
-    const updated = dataStore.saveSettings(req.body);
+    const updated = await dataStore.saveSettings(req.body);
     res.json({ success: true, settings: updated });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -1092,7 +1124,14 @@ app.post('/api/receipts', async (req, res) => {
       return res.status(400).json({ success: false, error: 'المبلغ يجب أن يكون أكبر من صفر' });
     }
 
-    const receipt = dataStore.createReceipt({
+    // ─── فحص تكرار الطلب (Idempotency) ───
+    const receiptFingerprint = generateReceiptFingerprint(req.body);
+    const receiptIdem = checkIdempotency(receiptFingerprint);
+    if (receiptIdem.isDuplicate) {
+      if (receiptIdem.status === 'completed') return res.json(receiptIdem.response);
+      return res.status(429).json({ success: false, error: 'طلب مماثل قيد المعالجة حالياً، يرجى الانتظار لحظة ثم المحاولة مرة واحدة فقط' });
+    }
+        const receipt = await dataStore.createReceipt({
       employeeName,
       customerName,
       customerPhone,
@@ -1116,8 +1155,10 @@ app.post('/api/receipts', async (req, res) => {
       }
     }
 
+    resolveIdempotency(receiptFingerprint, { success: true, receipt });
     res.json({ success: true, receipt });
   } catch (err) {
+    if (typeof receiptFingerprint !== 'undefined') releaseIdempotency(receiptFingerprint);
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -1186,13 +1227,13 @@ app.get('/api/suppliers', (req, res) => {
 });
 
 // إضافة أو تعديل زبون
-app.post('/api/customers', (req, res) => {
+app.post('/api/customers', async (req, res) => {
   try {
     const { id, systemNumber, name, phone, balance, notes } = req.body;
     if (!name || !name.trim()) {
       return res.status(400).json({ success: false, error: 'اسم الزبون مطلوب' });
     }
-    const saved = dataStore.saveCustomer({ id, systemNumber, name, phone, balance, notes });
+    const saved = await dataStore.saveCustomer({ id, systemNumber, name, phone, balance, notes });
     res.json({ success: true, customer: saved });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -1484,9 +1525,9 @@ app.post('/api/receipts/:id/send-pdf-telegram', pdfUpload.single('pdfFile'), asy
 });
 
 // حذف زبون
-app.delete('/api/customers/:id', (req, res) => {
+app.delete('/api/customers/:id', async (req, res) => {
   try {
-    const deleted = dataStore.deleteCustomer(req.params.id);
+    const deleted = await dataStore.deleteCustomer(req.params.id);
     res.json({ success: true, deleted });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -1573,9 +1614,9 @@ app.post('/api/customers/:id/send-reminder-telegram', pdfUpload.single('pdfFile'
 
 
 // حذف سند قبض
-app.delete('/api/receipts/:id', (req, res) => {
+app.delete('/api/receipts/:id', async (req, res) => {
   try {
-    const deleted = dataStore.deleteReceipt(req.params.id);
+    const deleted = await dataStore.deleteReceipt(req.params.id);
     res.json({ success: true, deleted });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -1901,8 +1942,24 @@ app.listen(PORT, '0.0.0.0', async () => {
   console.log(`🚀 نظام المبيعات وإصدار الفواتير يعمل بنجاح على:`);
   console.log(`🔗 الرابط المحلي: http://localhost:${PORT}`);
   console.log(`=======================================================`);
+
   // بدء جدولة النسخ الاحتياطي التلقائي
   startAutoBackupSchedule();
-  // فحص ومزامنة البيانات السحابية مع Supabase
+
+  // ─── فحص جاهزية Supabase قبل استقبال أي طلبات كتابة ───
+  const readiness = await systemMode.verifyReadiness();
+  if (readiness.ok) {
+    console.log(`✅ وضع النظام: قراءة وكتابة (Read-Write Mode) — جميع العمليات مفعّلة`);
+  } else {
+    console.warn(`⚠️ وضع النظام: قراءة فقط (Read-Only Degraded Mode) — سبب: ${readiness.error || 'تعذر الاتصال بـ Supabase'}`);
+    console.warn(`   ستُرفض جميع عمليات الحفظ والتعديل والحذف حتى يعود الاتصال.`);
+  }
+
+  // فحص دوري كل 30 ثانية لاستعادة وضع الكتابة عند عودة الاتصال
+  systemMode.startPeriodicHealthCheck(30000, async () => {
+    await dataStore.initFromSupabase();
+  });
+
+  // استعادة البيانات من Supabase
   await dataStore.initFromSupabase();
 });

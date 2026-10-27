@@ -1008,9 +1008,54 @@ document.addEventListener('DOMContentLoaded', () => {
   initApp();
 });
 
+
+// ─── فحص حالة قاعدة البيانات السحابية ووضع النظام ───
+let isDatabaseWriteReady = true;
+
+async function checkDatabaseStatus() {
+  const dbBadge = document.getElementById('dbHeaderBadge');
+  const dbText = document.getElementById('dbStatusText');
+  const dbBanner = document.getElementById('dbAlertBanner');
+
+  try {
+    const res = await fetch('/api/ready');
+    const data = await res.json();
+    isDatabaseWriteReady = (data.isWriteReady === true);
+
+    if (isDatabaseWriteReady) {
+      if (dbBadge) {
+        dbBadge.className = 'header-info-badge badge-success';
+        dbBadge.style.background = '#e6f4ea';
+        dbBadge.style.color = '#137333';
+      }
+      if (dbText) dbText.textContent = 'قاعدة البيانات: متصلة ✅';
+      if (dbBanner) dbBanner.style.display = 'none';
+    } else {
+      if (dbBadge) {
+        dbBadge.className = 'header-info-badge badge-warning';
+        dbBadge.style.background = '#fef7e0';
+        dbBadge.style.color = '#b06000';
+      }
+      if (dbText) dbText.textContent = 'قاعدة البيانات: قراءة فقط ⚠️';
+      if (dbBanner) dbBanner.style.display = 'flex';
+    }
+  } catch (e) {
+    isDatabaseWriteReady = false;
+    if (dbBadge) {
+      dbBadge.className = 'header-info-badge badge-danger';
+      dbBadge.style.background = '#fce8e6';
+      dbBadge.style.color = '#c5221f';
+    }
+    if (dbText) dbText.textContent = 'قاعدة البيانات: غير متصلة ❌';
+    if (dbBanner) dbBanner.style.display = 'flex';
+  }
+}
+
 async function initApp() {
   updateDateTimeDisplay();
   setInterval(updateDateTimeDisplay, 60000);
+  checkDatabaseStatus();
+  setInterval(checkDatabaseStatus, 20000);
 
   // استرجاع اسم الموظف الأخير من الذاكرة المحلية للتسهيل
   const lastEmployee = localStorage.getItem('last_employee_name');

@@ -54,6 +54,10 @@
             <span>✈️</span>
             <span id="telegramStatusText">تيليجرام: جاري الفحص...</span>
           </div>
+          <div class="header-info-badge" id="dbHeaderBadge" style="cursor: pointer;" title="حالة قاعدة البيانات">
+            <span id="dbBadgeIcon">🗄️</span>
+            <span id="dbStatusText">قاعدة البيانات: جاري الفحص...</span>
+          </div>
         </div>
       </div>
 
@@ -125,6 +129,13 @@
         ⚠️ <strong>تنبيه:</strong> لم يتم ضبط معرف بوت تيليجرام بعد. يُرجى الانتقال إلى تبويب <strong>الإعدادات وتيليجرام</strong> لتصلك تفاصيل الفواتير والأرباح فوراً على هاتفك.
       </div>
       <button class="btn btn-sm btn-telegram" onclick="switchTab('settings')">ضبط تيليجرام الآن</button>
+    </div>
+
+    <!-- Database Outage Alert Banner (shown when in read-only degraded mode) -->
+    <div id="dbAlertBanner" class="telegram-status-banner warning" style="display: none; background: #fff3cd; color: #856404; border: 1px solid #ffeeba; margin-bottom: 1rem;">
+      <div>
+        ⚠️ <strong>وضع القراءة فقط لحماية البيانات:</strong> قاعدة البيانات السحابية (Supabase) غير متصلة مؤقتاً. تم إيقاف الحفظ والتعديل تلقائياً لحماية البيانات المحاسبية من الضياع، وسيتم استئناف الحفظ تلقائياً فور عودة الاتصال.
+      </div>
     </div>
 
     <!-- ======================================================= -->

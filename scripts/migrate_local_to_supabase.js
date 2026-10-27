@@ -33,11 +33,15 @@ function readJson(filePath) {
 // قراءة عدد الصفوف الموجودة في جدول Supabase (بدون تعديل)
 async function getTableCount(table) {
   try {
-    const { count, error } = await supabase
+    const { count, error, status, statusText } = await supabase
       .from(table)
-      .select('*', { count: 'exact', head: true });
-    if (error) return { count: null, error: error.message, code: error.code };
-    return { count: count || 0, error: null };
+      .select('*', { count: 'exact' })
+      .limit(1);
+    if (error || (status && status >= 400)) {
+      const errMsg = (error && error.message) ? error.message : (statusText || `HTTP ${status}`);
+      return { count: null, error: errMsg, code: error ? error.code : String(status), status };
+    }
+    return { count: count || 0, error: null, status };
   } catch (e) {
     return { count: null, error: e.message, code: 'EXCEPTION' };
   }
@@ -82,18 +86,18 @@ async function upsertInBatches(table, records, { batchSize = 50, retries = 2, on
 }
 
 // ---------------------------------------------------------------
-// دالة dry-run: تفحص وتعرض المعلومات دون كتابة
+// دالة dry-run: تفحص وتعرض المعلومات دون أي كتابة إطلاقاً
 // ---------------------------------------------------------------
 async function runDryRun() {
   console.log('╔══════════════════════════════════════════════════════════════╗');
   console.log('║         🔍  وضع المعاينة (--dry-run) — لا كتابة فعلية       ║');
   console.log('╚══════════════════════════════════════════════════════════════╝\n');
 
-  // فحص الاتصال
+  // فحص الاتصال دون أي عملية كتابة (allowWriteProbe: false)
   console.log(`🔑 مصدر المفتاح: ${SUPABASE_KEY_SOURCE}`);
-  const conn = await testSupabaseConnection();
-  console.log('📡 الاتصال:', conn.readOk ? '✅ متصل' : '❌ غير متصل');
-  console.log('✏️  الكتابة:', conn.writeOk ? '✅ متاحة' : '⚠️ محجوبة بـ RLS');
+  const conn = await testSupabaseConnection({ allowWriteProbe: false });
+  console.log('📡 الاتصال:', conn.readOk ? '✅ متصل ومتاح للقراءة' : '❌ غير متصل / غير مصادق عليه');
+  console.log('✏️  الكتابة:', conn.writeOk ? '✅ متاح دور الخادم' : '⚠️ محجوبة أو المفتاح عام فقط');
   console.log('');
 
   // ---- حالة البيانات المحلية ----
@@ -102,6 +106,10 @@ async function runDryRun() {
   const customersRaw = readJson(path.join(DATA_DIR, 'customers.json')) || [];
   const suppliersRaw = readJson(path.join(DATA_DIR, 'suppliers.json')) || [];
   const invoicesRaw = readJson(path.join(DATA_DIR, 'invoices.json')) || [];
+  const receiptsRaw = readJson(path.join(DATA_DIR, 'receipts.json')) || [];
+  const warrantiesRaw = readJson(path.join(DATA_DIR, 'warranties.json')) || [];
+  const settingsRaw = readJson(path.join(DATA_DIR, 'settings.json')) || null;
+
   const EXCLUDED_SUPPLIER_CODES = ['S00000003'];
   const suppliersFiltered = suppliersRaw.filter(s => {
     const code = String(s.shamelCode || '').toUpperCase();
@@ -116,15 +124,18 @@ async function runDryRun() {
   const withImages = productsRaw.filter(p => Array.isArray(p.images) && p.images.length > 0).length;
   const isSuspended = productsRaw.filter(p => p.isSuspended).length;
 
-  console.log(`  products.json  : ${productsRaw.length} صنف`);
+  console.log(`  products.json   : ${productsRaw.length} صنف`);
   console.log(`    ↳ لديه image      : ${withImage}/${productsRaw.length}`);
   console.log(`    ↳ لديه description: ${withDesc}/${productsRaw.length}`);
   console.log(`    ↳ لديه brand≠أخرى : ${withBrand}/${productsRaw.length}`);
   console.log(`    ↳ لديه images[]   : ${withImages}/${productsRaw.length} (الحقل غير ممتلئ بعد)`);
   console.log(`    ↳ مُعلَّق (isSuspended): ${isSuspended}`);
-  console.log(`  customers.json : ${customersRaw.length} زبون`);
-  console.log(`  suppliers.json : ${suppliersRaw.length} (إجمالي) → ${suppliersFiltered.length} بعد استبعاد الوهمي`);
-  console.log(`  invoices.json  : ${invoicesRaw.length} فاتورة`);
+  console.log(`  customers.json  : ${customersRaw.length} زبون`);
+  console.log(`  suppliers.json  : ${suppliersRaw.length} (إجمالي) → ${suppliersFiltered.length} بعد استبعاد مورد بضاعة قديمة`);
+  console.log(`  invoices.json   : ${invoicesRaw.length} فاتورة`);
+  console.log(`  receipts.json   : ${receiptsRaw.length} سند قبض`);
+  console.log(`  warranties.json : ${warrantiesRaw.length} كفالة وضمان`);
+  console.log(`  settings.json   : ${settingsRaw ? '✅ متوفر (إعدادات عامة)' : '⚠️ غير متوفر'}`);
 
   // ---- حالة Supabase الفعلية ----
   console.log('\n═══ [ حالة Supabase الفعلية — قبل الترحيل ] ═══');
@@ -147,42 +158,30 @@ async function runDryRun() {
   // ---- التحقق من تطابق الحقول ----
   console.log('\n═══ [ تطابق الحقول بين JSON والمخطط SQL ] ═══');
   if (productsRaw.length > 0) {
-    const sample = productsRaw[0];
-    const expectedSQLCols = ['id','code','name','category','subcategory','costPrice','sellPrice',
-      'stock','unit','image','description','barcode','isSuspended','brand','brandAr',
-      'images','lastStockUpdate','lastStockEditor','updatedAt','lastSyncAt','createdAt'];
-    const sqlToJs = {
-      'category': 'mainCategory',   // في SQL: category = الفئة الرئيسية
-      'subcategory': 'category',    // في SQL: subcategory = الفئة الفرعية
-    };
-    for (const col of expectedSQLCols) {
-      const jsKey = sqlToJs[col] || col;
-      const inJson = jsKey in sample;
-      const note = sqlToJs[col] ? ` ← مُعيَّن من JSON.${jsKey}` : '';
-      if (!inJson && col !== 'subcategory' && col !== 'images') {
-        console.log(`  ⚠️  ${col}: غير موجود في JSON[0]${note}`);
-      }
-    }
-    console.log('  ✅ التعيينات الخاصة:');
+    console.log('  ✅ التعيينات الخاصة للمنتجات:');
     console.log('     JSON.mainCategory → SQL.category    (الفئة الرئيسية)');
     console.log('     JSON.category     → SQL.subcategory (الفئة الفرعية)');
-    console.log('     images[]          → SQL.images      (فارغ حالياً — سيُرسَل كـ [])');
+    console.log('     images[]          → SQL.images      (مصفوفة jsonb)');
   }
 
   // ---- ما سيُرحَّل ----
   console.log('\n═══ [ ما سيُرحَّل عند تشغيل الترحيل الفعلي ] ═══');
   const planned = [
-    { table: 'products',  records: productsRaw.length,       current: supabaseCounts['products'] },
-    { table: 'customers', records: customersRaw.length,      current: supabaseCounts['customers'] },
-    { table: 'suppliers', records: suppliersFiltered.length, current: supabaseCounts['suppliers'] },
-    { table: 'invoices',  records: invoicesRaw.length,       current: supabaseCounts['invoices'] },
+    { table: 'products',   records: productsRaw.length,       current: supabaseCounts['products'] },
+    { table: 'customers',  records: customersRaw.length,      current: supabaseCounts['customers'] },
+    { table: 'suppliers',  records: suppliersFiltered.length, current: supabaseCounts['suppliers'] },
+    { table: 'invoices',   records: invoicesRaw.length,       current: supabaseCounts['invoices'] },
+    { table: 'receipts',   records: receiptsRaw.length,       current: supabaseCounts['receipts'] },
+    { table: 'warranties', records: warrantiesRaw.length,     current: supabaseCounts['warranties'] },
+    { table: 'settings',   records: (settingsRaw ? 1 : 0) + 4, current: supabaseCounts['settings'], note: 'الإعدادات العامة + 4 لقطات نسخ احتياطي' }
   ];
   for (const p of planned) {
     const status = p.current === 'missing' ? '❌ جدول غير موجود — يحتاج SQL Migration' :
                    p.current === 'error'   ? '⚠️ خطأ في فحص الجدول' :
                    p.current === 0         ? '✅ جدول فارغ — ترحيل نظيف' :
                    `⚠️ يحتوي ${p.current} صف موجود — upsert سيحدّثها لا يحذفها`;
-    console.log(`  ${p.table}: ${p.records} سجل محلي | ${status}`);
+    const note = p.note ? ` (${p.note})` : '';
+    console.log(`  ${p.table}: ${p.records} سجل محلي${note} | ${status}`);
   }
 
   // ---- المتطلبات قبل الترحيل ----
@@ -194,13 +193,13 @@ async function runDryRun() {
   } else {
     console.log('  ✅ جميع الجداول موجودة في Supabase');
   }
-  const needsServiceKey = !conn.writeOk;
+  const needsServiceKey = !conn.readOk;
   if (needsServiceKey) {
-    console.log('  ❌ صلاحية الكتابة محجوبة');
-    console.log('     → أضف SUPABASE_SERVICE_ROLE_KEY (JWT من Dashboard → API) إلى .env و Render');
-    console.log(`     → المفتاح الحالي: مصدر=[${SUPABASE_KEY_SOURCE}] — يُرفض بـ 401`);
+    console.log('  ❌ الاتصال بقاعدة البيانات غير موثق بنجاح');
+    console.log('     → تحقق من صحة المفتاح السري المخصص لمشروع Supabase الحالي في .env و Render');
+    console.log(`     → مصدر المفتاح الحالي: [${SUPABASE_KEY_SOURCE}]`);
   } else {
-    console.log('  ✅ صلاحية الكتابة متاحة');
+    console.log('  ✅ الاتصال السحابي يعمل بنجاح');
   }
 
   console.log('\n✅ انتهى وضع المعاينة. لا كتابة حدثت.');
@@ -441,10 +440,109 @@ async function migrate() {
   }
 
   // ====================================================
+  // 5. سندات القبض → receipts
+  // ====================================================
+  console.log('\n─── [ 5/7 ] ترحيل سندات القبض ───');
+  const receiptsRaw = readJson(path.join(DATA_DIR, 'receipts.json'));
+  if (!receiptsRaw || !Array.isArray(receiptsRaw) || receiptsRaw.length === 0) {
+    console.log('ℹ️ لا سندات قبض.');
+    migrationReport.receipts = { source: 0, uploaded: 0, failed: 0, ok: true };
+  } else {
+    console.log(`💵 ${receiptsRaw.length} سند قبض`);
+    const rcpPayload = receiptsRaw.map(r => ({
+      id: String(r.id),
+      receiptNumber: r.receiptNumber ? parseInt(r.receiptNumber) : null,
+      createdAt: r.createdAt || new Date().toISOString(),
+      employeeName: String(r.employeeName || '').trim() || null,
+      customerName: String(r.customerName || '').trim() || null,
+      customerPhone: String(r.customerPhone || '').trim() || null,
+      amount: parseFloat(r.amount) || 0,
+      description: String(r.description || '').trim() || null,
+      notes: String(r.notes || '').trim() || null,
+      paymentMethod: String(r.paymentMethod || 'cash').trim()
+    }));
+    const rcpResult = await upsertInBatches('receipts', rcpPayload, { batchSize: 50 });
+    migrationReport.receipts = { source: receiptsRaw.length, uploaded: rcpResult.uploaded, failed: rcpResult.failed, ok: rcpResult.ok };
+    if (!rcpResult.ok) { console.error(`❌ فشل سندات القبض: ${rcpResult.errors[0]}`); totalErrors++; }
+    else console.log(`✅ ${rcpResult.uploaded}/${receiptsRaw.length} سند قبض`);
+  }
+
+  // ====================================================
+  // 6. الكفالات والضمانات → warranties + settings
+  // ====================================================
+  console.log('\n─── [ 6/7 ] ترحيل الكفالات والضمانات ───');
+  const warrantiesRaw = readJson(path.join(DATA_DIR, 'warranties.json'));
+  if (!warrantiesRaw || !Array.isArray(warrantiesRaw) || warrantiesRaw.length === 0) {
+    console.log('ℹ️ لا كفالات.');
+    migrationReport.warranties = { source: 0, uploaded: 0, failed: 0, ok: true };
+  } else {
+    console.log(`🛡️ ${warrantiesRaw.length} كفالة وضمان`);
+    const warPayload = warrantiesRaw.map(w => ({
+      id: String(w.id),
+      warrantyNumber: w.warrantyNumber ? parseInt(w.warrantyNumber) : null,
+      invoiceId: String(w.invoiceId || ''),
+      invoiceNumber: w.invoiceNumber ? parseInt(w.invoiceNumber) : null,
+      createdAt: w.createdAt || new Date().toISOString(),
+      purchaseDate: w.purchaseDate || null,
+      durationMonths: parseInt(w.durationMonths) || 12,
+      expiryDate: w.expiryDate || null,
+      customerName: String(w.customerName || '').trim() || null,
+      customerPhone: String(w.customerPhone || '').trim() || null,
+      customerAddress: String(w.customerAddress || '').trim() || null,
+      items: Array.isArray(w.items) ? w.items : [],
+      status: String(w.status || 'active'),
+      customerId: w.customerId ? String(w.customerId) : null,
+      customerSystemNumber: w.customerSystemNumber ? String(w.customerSystemNumber) : null,
+      durationText: w.durationText ? String(w.durationText) : null,
+      terms: Array.isArray(w.terms) ? w.terms : [],
+      companyName: w.companyName ? String(w.companyName) : null,
+      companyPhone: w.companyPhone ? String(w.companyPhone) : null,
+      companyAddress: w.companyAddress ? String(w.companyAddress) : null,
+      notes: String(w.notes || '').trim(),
+      updatedAt: w.updatedAt || new Date().toISOString()
+    }));
+    const warResult = await upsertInBatches('warranties', warPayload, { batchSize: 50 });
+    migrationReport.warranties = { source: warrantiesRaw.length, uploaded: warResult.uploaded, failed: warResult.failed, ok: warResult.ok };
+    if (!warResult.ok) { console.error(`❌ فشل الكفالات: ${warResult.errors[0]}`); totalErrors++; }
+    else console.log(`✅ ${warResult.uploaded}/${warrantiesRaw.length} كفالة وضمان`);
+
+    // حفظ نسخة احتياطية كاملة في settings (بما فيها الشروط وتفاصيل الشركة المخصصة)
+    try {
+      await supabase.from('settings').upsert({ id: 'warranties', data: warrantiesRaw });
+    } catch (e) {}
+  }
+
+  // ====================================================
+  // 7. الإعدادات العامة → settings (general)
+  // ====================================================
+  console.log('\n─── [ 7/7 ] ترحيل الإعدادات العامة ───');
+  const settingsRaw = readJson(path.join(DATA_DIR, 'settings.json'));
+  if (settingsRaw) {
+    try {
+      const { error: stErr } = await supabase.from('settings').upsert({
+        id: 'general',
+        data: settingsRaw
+      });
+      if (!stErr) {
+        console.log('✅ تم حفظ الإعدادات العامة في settings');
+        migrationReport.settings = { source: 1, uploaded: 1, failed: 0, ok: true };
+      } else {
+        console.warn('⚠️ فشل حفظ الإعدادات العامة:', stErr.message);
+        migrationReport.settings = { source: 1, uploaded: 0, failed: 1, ok: false };
+        totalErrors++;
+      }
+    } catch (e) {
+      console.warn('⚠️ استثناء الإعدادات العامة:', e.message);
+      migrationReport.settings = { source: 1, uploaded: 0, failed: 1, ok: false };
+      totalErrors++;
+    }
+  }
+
+  // ====================================================
   // تحقق عددي بعد الترحيل
   // ====================================================
   console.log('\n═══ [ التحقق العددي في Supabase بعد الترحيل ] ═══');
-  const verifyTables = ['products', 'customers', 'suppliers', 'invoices'];
+  const verifyTables = ['products', 'customers', 'suppliers', 'invoices', 'receipts', 'warranties', 'settings'];
   for (const tbl of verifyTables) {
     const r = await getTableCount(tbl);
     const sourceCount = migrationReport[tbl]?.source ?? '—';

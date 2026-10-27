@@ -16,7 +16,7 @@ if (!fs.existsSync(BACKUPS_DIR)) {
   fs.mkdirSync(BACKUPS_DIR, { recursive: true });
 }
 
-// مزامنة صنف مع قاعدة بيانات Supabase الدائمة
+// مزامنة صنف مع قاعدة بيانات Supabase الدائمة مع الحفاظ الصارم على كافة الحقول
 async function syncProductToSupabase(product) {
   if (!supabase) return { success: false, error: 'Supabase غير متصل' };
   try {
@@ -32,11 +32,18 @@ async function syncProductToSupabase(product) {
       unit: String(product.unit || 'قطعة'),
       image: String(product.image || ''),
       description: String(product.description || ''),
+      barcode: String(product.barcode || ''),
+      isSuspended: Boolean(product.isSuspended),
+      brand: String(product.brand || 'أخرى'),
+      brandAr: String(product.brandAr || 'أخرى / عام'),
+      images: Array.isArray(product.images) ? product.images : (product.images ? [product.images] : []),
       lastStockUpdate: product.lastStockUpdate || null,
       lastStockEditor: product.lastStockEditor || null,
+      updatedAt: product.updatedAt || new Date().toISOString(),
+      lastSyncAt: product.lastSyncAt || null,
       createdAt: product.createdAt || new Date().toISOString()
     };
-    const { error } = await supabase.from('products').upsert(payload);
+    const { error } = await supabase.from('products').upsert(payload, { onConflict: 'id' });
     if (error) {
       console.error('Supabase product sync error:', error.message);
       return { success: false, error: error.message };
@@ -48,41 +55,179 @@ async function syncProductToSupabase(product) {
   }
 }
 
-async function deleteProductFromSupabase(id) {
+// مزامنة زبون مع جدول customers في Supabase
+async function syncCustomerToSupabase(customer) {
+  if (!supabase) return { success: false, error: 'Supabase غير متصل' };
+  try {
+    const payload = {
+      id: String(customer.id),
+      systemNumber: String(customer.systemNumber || customer.shamelCode || '').trim() || null,
+      shamelCode: String(customer.shamelCode || customer.systemNumber || '').trim() || null,
+      name: String(customer.name || '').trim(),
+      phone: String(customer.phone || '').trim(),
+      mobile: String(customer.mobile || customer.phone || '').trim(),
+      email: String(customer.email || '').trim(),
+      address: String(customer.address || '').trim(),
+      balance: parseFloat(customer.balance) || 0,
+      shamelBalance: parseFloat(customer.shamelBalance !== undefined ? customer.shamelBalance : customer.balance) || 0,
+      isStopped: Boolean(customer.isStopped),
+      notes: String(customer.notes || '').trim(),
+      source: String(customer.source || '').trim(),
+      syncedAt: customer.syncedAt || null,
+      syncedBy: String(customer.syncedBy || '').trim() || null,
+      createdAt: customer.createdAt || new Date().toISOString(),
+      updatedAt: customer.updatedAt || new Date().toISOString(),
+      lastSyncAt: customer.lastSyncAt || null
+    };
+    const { error } = await supabase.from('customers').upsert(payload, { onConflict: 'id' });
+    if (error) {
+      console.error('Supabase customer sync error:', error.message);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err) {
+    console.error('Supabase customer sync exception:', err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+async function deleteCustomerFromSupabase(id) {
+  if (!supabase) return { success: false, error: 'Supabase غير متصل' };
+  try {
+    const { error } = await supabase.from('customers').delete().eq('id', String(id));
+    if (error) {
+      console.error('Supabase customer delete error:', error.message);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err) {
+    console.error('Supabase customer delete error:', err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+// مزامنة مورد مع جدول suppliers في Supabase (مع استبعاد مورد بضاعة قديمة)
+async function syncSupplierToSupabase(supplier) {
+  if (!supabase) return { success: false, error: 'Supabase غير متصل' };
+  const code = String(supplier.shamelCode || '').toUpperCase();
+  const name = String(supplier.name || '');
+  if (code === 'S00000003' || name.includes('بضاعة قديمة')) {
+    return { success: true, excluded: true };
+  }
+  try {
+    const payload = {
+      id: String(supplier.id),
+      shamelCode: String(supplier.shamelCode || '').trim() || null,
+      name: String(supplier.name || '').trim(),
+      phone: String(supplier.phone || '').trim(),
+      mobile: String(supplier.mobile || supplier.phone || '').trim(),
+      email: String(supplier.email || '').trim(),
+      address: String(supplier.address || '').trim(),
+      balance: parseFloat(supplier.balance) || 0,
+      shamelBalance: parseFloat(supplier.shamelBalance !== undefined ? supplier.shamelBalance : supplier.balance) || 0,
+      isStopped: Boolean(supplier.isStopped),
+      notes: String(supplier.notes || '').trim(),
+      source: String(supplier.source || '').trim(),
+      syncedAt: supplier.syncedAt || null,
+      syncedBy: String(supplier.syncedBy || '').trim() || null,
+      createdAt: supplier.createdAt || new Date().toISOString(),
+      updatedAt: supplier.updatedAt || new Date().toISOString(),
+      lastSyncAt: supplier.lastSyncAt || null
+    };
+    const { error } = await supabase.from('suppliers').upsert(payload, { onConflict: 'id' });
+    if (error) {
+      console.error('Supabase supplier sync error:', error.message);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err) {
+    console.error('Supabase supplier sync exception:', err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+async function deleteSupplierFromSupabase(id) {
   if (!supabase) return;
   try {
-    await supabase.from('products').delete().eq('id', id);
+    await supabase.from('suppliers').delete().eq('id', String(id));
+  } catch (err) {
+    console.error('Supabase supplier delete error:', err.message);
+  }
+}
+
+async function deleteProductFromSupabase(id) {
+  if (!supabase) return { success: false, error: 'Supabase غير متصل' };
+  try {
+    const { error } = await supabase.from('products').delete().eq('id', String(id));
+    if (error) {
+      console.error('Supabase product delete error:', error.message);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
   } catch (err) {
     console.error('Supabase product delete error:', err.message);
+    return { success: false, error: err.message };
   }
 }
 
 async function syncInvoiceToSupabase(invoice) {
-  if (!supabase) return;
+  if (!supabase) return { success: false, error: 'Supabase غير متصل' };
   try {
-    await supabase.from('invoices').upsert({
+    const { error } = await supabase.from('invoices').upsert({
       id: String(invoice.id),
       invoiceNumber: invoice.invoiceNumber,
+      invoiceType: invoice.invoiceType || 'sales',
+      isQuotation: Boolean(invoice.isQuotation),
       createdAt: invoice.createdAt,
+      convertedAt: invoice.convertedAt || null,
+      convertedBy: invoice.convertedBy || null,
       employeeName: invoice.employeeName,
       customerName: invoice.customerName,
       customerPhone: invoice.customerPhone,
+      customerAddress: invoice.customerAddress || null,
+      customerId: invoice.customerId || null,
+      customerSystemNumber: invoice.customerSystemNumber || null,
       notes: invoice.notes,
       items: invoice.items,
       summary: invoice.summary,
       paymentMethod: invoice.paymentMethod,
       installmentDetails: invoice.installmentDetails,
+      warrantyId: invoice.warrantyId || null,
+      warrantyNumber: invoice.warrantyNumber || null,
+      warrantyMonths: invoice.warrantyMonths || 12,
       telegramStatus: invoice.telegramStatus
-    });
+    }, { onConflict: 'id' });
+    if (error) {
+      console.error('Supabase invoice sync error:', error.message);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
   } catch (err) {
     console.error('Supabase invoice sync error:', err.message);
+    return { success: false, error: err.message };
   }
 }
 
-async function syncReceiptToSupabase(receipt) {
-  if (!supabase) return;
+async function deleteInvoiceFromSupabase(id) {
+  if (!supabase) return { success: false, error: 'Supabase غير متصل' };
   try {
-    await supabase.from('receipts').upsert({
+    const { error } = await supabase.from('invoices').delete().eq('id', String(id));
+    if (error) {
+      console.error('Supabase invoice delete error:', error.message);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err) {
+    console.error('Supabase invoice delete error:', err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+
+async function syncReceiptToSupabase(receipt) {
+  if (!supabase) return { success: false, error: 'Supabase غير متصل' };
+  try {
+    const { error } = await supabase.from('receipts').upsert({
       id: String(receipt.id),
       receiptNumber: receipt.receiptNumber,
       createdAt: receipt.createdAt,
@@ -93,25 +238,37 @@ async function syncReceiptToSupabase(receipt) {
       description: receipt.description,
       notes: receipt.notes,
       paymentMethod: receipt.paymentMethod
-    });
+    }, { onConflict: 'id' });
+    if (error) {
+      console.error('Supabase receipt sync error:', error.message);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
   } catch (err) {
     console.error('Supabase receipt sync error:', err.message);
+    return { success: false, error: err.message };
   }
 }
 
 async function deleteReceiptFromSupabase(id) {
-  if (!supabase) return;
+  if (!supabase) return { success: false, error: 'Supabase غير متصل' };
   try {
-    await supabase.from('receipts').delete().eq('id', id);
+    const { error } = await supabase.from('receipts').delete().eq('id', id);
+    if (error) {
+      console.error('Supabase receipt delete error:', error.message);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
   } catch (err) {
     console.error('Supabase receipt delete error:', err.message);
+    return { success: false, error: err.message };
   }
 }
 
 async function syncWarrantyToSupabase(warranty) {
-  if (!supabase) return;
+  if (!supabase) return { success: false, error: 'Supabase غير مهيأ' };
   try {
-    await supabase.from('warranties').upsert({
+    const { error } = await supabase.from('warranties').upsert({
       id: String(warranty.id),
       warrantyNumber: warranty.warrantyNumber,
       invoiceId: String(warranty.invoiceId || ''),
@@ -124,19 +281,40 @@ async function syncWarrantyToSupabase(warranty) {
       customerPhone: warranty.customerPhone,
       customerAddress: warranty.customerAddress,
       items: warranty.items,
-      status: warranty.status
-    });
+      status: warranty.status,
+      customerId: warranty.customerId ? String(warranty.customerId) : null,
+      customerSystemNumber: warranty.customerSystemNumber ? String(warranty.customerSystemNumber) : null,
+      durationText: warranty.durationText ? String(warranty.durationText) : null,
+      terms: Array.isArray(warranty.terms) ? warranty.terms : [],
+      companyName: warranty.companyName ? String(warranty.companyName) : null,
+      companyPhone: warranty.companyPhone ? String(warranty.companyPhone) : null,
+      companyAddress: warranty.companyAddress ? String(warranty.companyAddress) : null,
+      notes: String(warranty.notes || '').trim(),
+      updatedAt: warranty.updatedAt || new Date().toISOString()
+    }, { onConflict: 'id' });
+    if (error) {
+      console.error('Supabase warranty sync error:', error.message);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
   } catch (err) {
-    // Non-blocking notice
+    console.error('Supabase warranty sync error:', err.message);
+    return { success: false, error: err.message };
   }
 }
 
 async function deleteWarrantyFromSupabase(id) {
-  if (!supabase) return;
+  if (!supabase) return { success: false, error: 'Supabase غير مهيأ' };
   try {
-    await supabase.from('warranties').delete().eq('id', id);
+    const { error } = await supabase.from('warranties').delete().eq('id', String(id));
+    if (error) {
+      console.error('Supabase warranty delete error:', error.message);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
   } catch (err) {
-    // Non-blocking notice
+    console.error('Supabase warranty delete error:', err.message);
+    return { success: false, error: err.message };
   }
 }
 
@@ -151,14 +329,20 @@ function calculateExpiryDate(startDateInput, durationMonths = 12) {
 }
 
 async function syncSettingsToSupabase(settings) {
-  if (!supabase) return;
+  if (!supabase) return { success: false, error: 'Supabase غير مهيأ' };
   try {
-    await supabase.from('settings').upsert({
+    const { error } = await supabase.from('settings').upsert({
       id: 'general',
       data: settings
-    });
+    }, { onConflict: 'id' });
+    if (error) {
+      console.error('Supabase settings sync error:', error.message);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
   } catch (err) {
     console.error('Supabase settings sync error:', err.message);
+    return { success: false, error: err.message };
   }
 }
 
@@ -237,7 +421,7 @@ const dataStore = {
     return products.find(p => p.id === id);
   },
 
-  saveProduct(productData) {
+  async saveProduct(productData) {
     const products = this.getProducts();
     let product;
 
@@ -315,21 +499,33 @@ const dataStore = {
       products.unshift(product);
     }
 
+    if (supabase) {
+      const res = await syncProductToSupabase(product);
+      if (!res.success) {
+        throw new Error('تعذر حفظ المنتج في قاعدة البيانات الدائمة (Supabase): ' + res.error);
+      }
+    }
     writeJson(PRODUCTS_FILE, products);
-    syncProductToSupabase(product);
     return product;
   },
 
-  deleteProduct(id) {
+  async deleteProduct(id) {
     const products = this.getProducts();
+    const toDelete = products.find(p => p.id === id);
+    if (!toDelete) return false;
+    if (supabase) {
+      const res = await deleteProductFromSupabase(id);
+      if (!res.success) {
+        throw new Error('تعذر حذف المنتج من قاعدة البيانات الدائمة (Supabase): ' + res.error);
+      }
+    }
     const filtered = products.filter(p => p.id !== id);
     writeJson(PRODUCTS_FILE, filtered);
-    deleteProductFromSupabase(id);
-    return filtered.length !== products.length;
+    return true;
   },
 
   // خصم الكميات المباعة من المخزون عند إنشاء فاتورة
-  deductStockForInvoice(items, editorName) {
+  async deductStockForInvoice(items, editorName) {
     if (!Array.isArray(items) || items.length === 0) return [];
     const products = this.getProducts();
     const now = new Date().toISOString();
@@ -349,8 +545,12 @@ const dataStore = {
     });
 
     if (modifiedProducts.length > 0) {
+      if (supabase) {
+        for (const p of modifiedProducts) {
+          await syncProductToSupabase(p);
+        }
+      }
       writeJson(PRODUCTS_FILE, products);
-      modifiedProducts.forEach(p => syncProductToSupabase(p));
     }
     return modifiedProducts;
   },
@@ -396,7 +596,7 @@ const dataStore = {
     return invoices.find(inv => inv.id === id || inv.invoiceNumber === parseInt(id));
   },
 
-  createInvoice(invoiceData) {
+  async createInvoice(invoiceData) {
     const invoices = this.getInvoices();
     const nextNumber = invoices.length > 0 ? Math.max(...invoices.map(i => i.invoiceNumber || 1000)) + 1 : 1001;
 
@@ -441,9 +641,16 @@ const dataStore = {
       }
     };
 
+    // إذا كان Supabase متصلاً، نتحقق من نجاح الحفظ السحابي أولاً لمنع حفظ وهمي
+    if (supabase) {
+      const sbRes = await syncInvoiceToSupabase(invoice);
+      if (!sbRes || !sbRes.success) {
+        throw new Error('تعذر حفظ الفاتورة في قاعدة البيانات الدائمة: ' + (sbRes?.error || 'خطأ غير معروف'));
+      }
+    }
+
     invoices.unshift(invoice);
     writeJson(INVOICES_FILE, invoices);
-    syncInvoiceToSupabase(invoice);
 
     // إذا كانت فاتورة مبيعات فعلية (وليست للعرض فقط وليست مشتريات)
     if (!isQuotation && invoice.invoiceType === 'sales') {
@@ -458,16 +665,21 @@ const dataStore = {
         if (existing) {
           invoice.previousCustomerBalance = existing.balance || 0;
           if (remainingToAdd > 0) {
-            this.adjustCustomerBalance(existing.id, remainingToAdd);
+            try {
+              await this.adjustCustomerBalance(existing.id, remainingToAdd);
+            } catch (balErr) {
+              if (supabase) { await deleteInvoiceFromSupabase(invoice.id); }
+              throw new Error('تعذر تحديث رصيد العميل في قاعدة البيانات، تم التراجع عن حفظ الفاتورة: ' + balErr.message);
+            }
           }
           invoice.customerId = existing.id;
           invoice.customerSystemNumber = existing.systemNumber;
           invoice.currentCustomerBalance = (existing.balance || 0) + remainingToAdd;
           if (invoice.customerAddress && !existing.address) {
-            this.saveCustomer({ id: existing.id, address: invoice.customerAddress });
+            await this.saveCustomer({ id: existing.id, address: invoice.customerAddress });
           }
         } else {
-          const newCust = this.saveCustomer({
+          const newCust = await this.saveCustomer({
             name: invoice.customerName,
             phone: invoice.customerPhone || '',
             address: invoice.customerAddress || '',
@@ -500,7 +712,7 @@ const dataStore = {
     return invoice;
   },
 
-  convertQuotationToSalesInvoice(invoiceId, employeeName = 'مسؤول المبيعات') {
+  async convertQuotationToSalesInvoice(invoiceId, employeeName = 'مسؤول المبيعات') {
     const invoices = this.getInvoices();
     const idx = invoices.findIndex(i => i.id === invoiceId || String(i.invoiceNumber) === String(invoiceId));
     if (idx === -1) {
@@ -512,14 +724,21 @@ const dataStore = {
       throw new Error('هذه الفاتورة معتمدة مسبقاً وليست للعرض فقط');
     }
 
-    // 1. تحويل الحالة إلى مبيعات فعلية
+    // 1. التحقق من الحفظ السحابي أولاً قبل أي خصم للمخزون أو الأرصدة
     inv.isQuotation = false;
     inv.invoiceType = 'sales';
     inv.convertedAt = new Date().toISOString();
     inv.convertedBy = employeeName;
 
+    if (supabase) {
+      const sbRes = await syncInvoiceToSupabase(inv);
+      if (!sbRes || !sbRes.success) {
+        throw new Error('تعذر اعتماد الفاتورة في قاعدة البيانات الدائمة (Supabase): ' + (sbRes?.error || 'خطأ غير معروف'));
+      }
+    }
+
     // 2. خصم المخزون
-    this.deductStockForInvoice(inv.items, employeeName || inv.employeeName);
+    await this.deductStockForInvoice(inv.items, employeeName || inv.employeeName);
 
     // 3. ربط الزبون وتحديث الرصيد إذا كان هناك متبقي
     if (inv.customerName && inv.customerName !== 'زبون نقدي') {
@@ -565,7 +784,7 @@ const dataStore = {
     inv.warrantyNumber = warranty.warrantyNumber;
 
     writeJson(INVOICES_FILE, invoices);
-    syncInvoiceToSupabase(inv);
+    if (supabase) { syncInvoiceToSupabase(inv); }
 
     return { invoice: inv, warranty };
   },
@@ -632,7 +851,7 @@ const dataStore = {
     return readJson(RECEIPTS_FILE, []);
   },
 
-  createReceipt(data) {
+  async createReceipt(data) {
     const receipts = this.getReceipts();
     const nextNumber = receipts.length > 0
       ? Math.max(...receipts.map(r => r.receiptNumber || 1)) + 1
@@ -655,9 +874,13 @@ const dataStore = {
       paymentMethod: data.paymentMethod || 'cash'  // cash | transfer | check
     };
 
-    receipts.unshift(receipt);
-    writeJson(RECEIPTS_FILE, receipts);
-    syncReceiptToSupabase(receipt);
+    // التحقق من الحفظ السحابي أولاً لمنع حفظ مالي غير مؤكد
+    if (supabase) {
+      const res = await syncReceiptToSupabase(receipt);
+      if (!res || !res.success) {
+        throw new Error('تعذر حفظ سند القبض في قاعدة البيانات الدائمة (Supabase): ' + (res?.error || 'خطأ غير معروف'));
+      }
+    }
 
     // ربط الزبون وتحديث رصيده أو إضافته كزبون جديد تلقائياً
     if (receipt.customerName && receipt.customerName !== 'زبون نقدي') {
@@ -668,11 +891,16 @@ const dataStore = {
         (c.name && c.name.trim().toLowerCase() === receipt.customerName.trim().toLowerCase())
       );
       if (existing) {
-        this.adjustCustomerBalance(existing.id, -receipt.amount);
-        receipt.customerId = existing.id;
-        receipt.customerSystemNumber = existing.systemNumber;
+        try {
+          await this.adjustCustomerBalance(existing.id, -receipt.amount);
+          receipt.customerId = existing.id;
+          receipt.customerSystemNumber = existing.systemNumber;
+        } catch (balErr) {
+          if (supabase) { await deleteReceiptFromSupabase(receipt.id); }
+          throw new Error('فشل تحديث رصيد العميل بعد إصدار السند، تم التراجع عن العملية: ' + balErr.message);
+        }
       } else {
-        const newCust = this.saveCustomer({
+        const newCust = await this.saveCustomer({
           name: receipt.customerName,
           phone: receipt.customerPhone || '',
           balance: 0,
@@ -683,15 +911,35 @@ const dataStore = {
       }
     }
 
+    receipts.unshift(receipt);
+    writeJson(RECEIPTS_FILE, receipts);
     return receipt;
   },
 
-  deleteReceipt(id) {
+  async deleteReceipt(id) {
     const receipts = this.getReceipts();
+    const toDelete = receipts.find(r => r.id === id);
+    if (!toDelete) return false;
+
+    // إذا كان Supabase متصلاً، نتأكد أولاً من نجاح الحذف السحابي قبل التعديل المحلي
+    if (supabase) {
+      const res = await deleteReceiptFromSupabase(id);
+      if (!res.success) {
+        throw new Error(`فشل حذف سند القبض من قاعدة البيانات السحابية: ${res.error}`);
+      }
+    }
+
     const filtered = receipts.filter(r => r.id !== id);
     writeJson(RECEIPTS_FILE, filtered);
-    deleteReceiptFromSupabase(id);
-    return filtered.length !== receipts.length;
+
+    // إعادة عكس رصيد الزبون بحذر إذا كان السند مرتبطاً بزبون محدد
+    if (toDelete && toDelete.customerId && toDelete.amount && toDelete.customerName !== 'زبون نقدي') {
+      try {
+        this.adjustCustomerBalance(toDelete.customerId, parseFloat(toDelete.amount) || 0);
+      } catch (_) {}
+    }
+
+    return true;
   },
 
   // -----------------------------------------------------------
@@ -888,12 +1136,19 @@ const dataStore = {
     return warranties[idx];
   },
 
-  deleteWarranty(id) {
+  async deleteWarranty(id) {
     const warranties = this.getWarranties();
+    const toDelete = warranties.find(w => w.id === id);
+    if (!toDelete) return false;
+    if (supabase) {
+      const res = await deleteWarrantyFromSupabase(id);
+      if (!res.success) {
+        throw new Error('تعذر حذف الكفالة من قاعدة البيانات الدائمة (Supabase): ' + res.error);
+      }
+    }
     const filtered = warranties.filter(w => w.id !== id);
     writeJson(WARRANTIES_FILE, filtered);
-    deleteWarrantyFromSupabase(id);
-    return filtered.length !== warranties.length;
+    return true;
   },
 
   checkWarrantyStatuses() {
@@ -924,7 +1179,7 @@ const dataStore = {
     });
   },
 
-  saveCustomer(custData) {
+  async saveCustomer(custData) {
     const customers = this.getCustomers();
     let customer = null;
 
@@ -958,24 +1213,38 @@ const dataStore = {
       customers.push(customer);
     }
 
+    if (supabase) {
+      const res = await syncCustomerToSupabase(customer);
+      if (!res.success) {
+        throw new Error('تعذر حفظ بيانات العميل في قاعدة البيانات الدائمة (Supabase): ' + res.error);
+      }
+    }
     writeJson(CUSTOMERS_FILE, customers);
     return customer;
   },
 
-  deleteCustomer(id) {
+  async deleteCustomer(id) {
     const customers = this.getCustomers();
     const strId = String(id || '').trim();
-    const filtered = customers.filter(c => {
+    const toDelete = customers.find(c => {
       const matchId = String(c.id || '').trim() === strId;
       const matchSys = c.systemNumber && String(c.systemNumber).trim() === strId;
-      return !matchId && !matchSys;
+      return matchId || matchSys;
     });
+    if (!toDelete) return false;
+    if (supabase) {
+      const res = await deleteCustomerFromSupabase(toDelete.id);
+      if (!res.success) {
+        throw new Error('تعذر حذف العميل من قاعدة البيانات الدائمة (Supabase): ' + res.error);
+      }
+    }
+    const filtered = customers.filter(c => c.id !== toDelete.id);
     writeJson(CUSTOMERS_FILE, filtered);
-    return filtered.length !== customers.length;
+    return true;
   },
 
   // تعديل رصيد زبون (مثلاً عند سداد سند قبض أو إضافة دين جديد)
-  adjustCustomerBalance(idOrSysNumOrName, deltaAmount) {
+  async adjustCustomerBalance(idOrSysNumOrName, deltaAmount) {
     const customers = this.getCustomers();
     const query = String(idOrSysNumOrName).trim().toLowerCase();
     const idx = customers.findIndex(c =>
@@ -987,8 +1256,18 @@ const dataStore = {
     if (idx !== -1) {
       const current = parseFloat(customers[idx].balance) || 0;
       const updated = current + parseFloat(deltaAmount);
-      customers[idx].balance = parseFloat(updated.toFixed(2));
-      customers[idx].updatedAt = new Date().toISOString();
+      const updatedCustomer = {
+        ...customers[idx],
+        balance: parseFloat(updated.toFixed(2)),
+        updatedAt: new Date().toISOString()
+      };
+      if (supabase) {
+        const res = await syncCustomerToSupabase(updatedCustomer);
+        if (!res.success) {
+          throw new Error('تعذر تحديث رصيد العميل في قاعدة البيانات الدائمة (Supabase): ' + res.error);
+        }
+      }
+      customers[idx] = updatedCustomer;
       writeJson(CUSTOMERS_FILE, customers);
       return customers[idx];
     }
@@ -1002,6 +1281,7 @@ const dataStore = {
     let imported = 0;
     let updated = 0;
     const now = new Date().toISOString();
+    const touched = [];
 
     importedList.forEach(item => {
       const name = String(item.name || item['اسم الزبون'] || item['الاسم'] || item['اسم الحساب'] || '').trim();
@@ -1027,9 +1307,10 @@ const dataStore = {
         if (phone) customers[existingIdx].phone = phone;
         if (notes) customers[existingIdx].notes = notes;
         customers[existingIdx].updatedAt = now;
+        touched.push(customers[existingIdx]);
         updated++;
       } else {
-        customers.push({
+        const newC = {
           id: 'cust-' + Date.now() + '-' + Math.floor(Math.random() * 100000),
           systemNumber: sysNum,
           name,
@@ -1038,12 +1319,17 @@ const dataStore = {
           notes,
           createdAt: now,
           updatedAt: now
-        });
+        };
+        customers.push(newC);
+        touched.push(newC);
         imported++;
       }
     });
 
     writeJson(CUSTOMERS_FILE, customers);
+    if (supabase && touched.length > 0) {
+      touched.forEach(c => syncCustomerToSupabase(c));
+    }
     return { imported, updated, total: customers.length };
   },
 
@@ -2205,7 +2491,7 @@ const dataStore = {
     // 1. الإعدادات العامة
     try {
       const { data: stRow } = await supabase.from('settings').select('data').eq('id', 'general').maybeSingle();
-      if (stRow && stRow.data) {
+      if (stRow && stRow.data && typeof stRow.data === 'object' && Object.keys(stRow.data).length > 0) {
         writeJson(SETTINGS_FILE, stRow.data);
       }
     } catch (e) {
@@ -2214,9 +2500,10 @@ const dataStore = {
 
     // 2. الفواتير
     try {
-      const { data: invRows } = await supabase.from('invoices').select('*').order('invoiceNumber', { ascending: false });
-      if (invRows && invRows.length > 0) {
+      const { data: invRows, error: invErr } = await supabase.from('invoices').select('*').order('invoiceNumber', { ascending: false });
+      if (!invErr && Array.isArray(invRows) && invRows.length > 0) {
         writeJson(INVOICES_FILE, invRows);
+        console.log(`✅ تم استعادة ${invRows.length} فاتورة من Supabase`);
       }
     } catch (e) {
       console.warn('⚠️ تعذر استعادة الفواتير من Supabase:', e.message);
@@ -2224,15 +2511,34 @@ const dataStore = {
 
     // 3. سندات القبض
     try {
-      const { data: rcpRows } = await supabase.from('receipts').select('*').order('receiptNumber', { ascending: false });
-      if (rcpRows && rcpRows.length > 0) {
+      const { data: rcpRows, error: rcpErr } = await supabase.from('receipts').select('*').order('receiptNumber', { ascending: false });
+      if (!rcpErr && Array.isArray(rcpRows) && rcpRows.length > 0) {
         writeJson(RECEIPTS_FILE, rcpRows);
+        console.log(`✅ تم استعادة ${rcpRows.length} سند قبض من Supabase`);
       }
     } catch (e) {
       console.warn('⚠️ تعذر استعادة سندات القبض من Supabase:', e.message);
     }
 
-    // 4. استعادة المنتجات وحمايتها من الضياع
+    // 4. الكفالات والضمانات
+    try {
+      const { data: warRows, error: warErr } = await supabase.from('warranties').select('*').order('warrantyNumber', { ascending: false });
+      if (!warErr && Array.isArray(warRows) && warRows.length > 0) {
+        writeJson(WARRANTIES_FILE, warRows);
+        console.log(`✅ تم استعادة ${warRows.length} كفالة وضمان من جدول warranties في Supabase`);
+      } else {
+        // فحص لقطة الكفالات في settings كنسخة احتياطية بديلة
+        const { data: warSnap } = await supabase.from('settings').select('data').eq('id', 'warranties').maybeSingle();
+        if (warSnap && Array.isArray(warSnap.data) && warSnap.data.length > 0) {
+          writeJson(WARRANTIES_FILE, warSnap.data);
+          console.log(`✅ تم استعادة ${warSnap.data.length} كفالة من snapshot الكفالات في Supabase`);
+        }
+      }
+    } catch (e) {
+      console.warn('⚠️ تعذر استعادة الكفالات من Supabase:', e.message);
+    }
+
+    // 5. استعادة المنتجات وحمايتها من الضياع
     try {
       // أ) أولاً فحص snapshot المنتجات الكامل من جدول settings (يحفظ الصور المخصصة والماركات والتصنيفات)
       const { data: snapRow } = await supabase.from('settings').select('data').eq('id', 'products_snapshot').maybeSingle();
@@ -2303,6 +2609,7 @@ const dataStore = {
             isSuspended: loc ? Boolean(loc.isSuspended) : Boolean(p.isSuspended),
             brand: finalBrand,
             brandAr: finalBrandAr,
+            images: Array.isArray(p.images) && p.images.length > 0 ? p.images : (loc && Array.isArray(loc.images) ? loc.images : []),
             lastStockUpdate: p.lastStockUpdate || (loc ? loc.lastStockUpdate : null),
             lastStockEditor: p.lastStockEditor || (loc ? loc.lastStockEditor : null),
             createdAt: p.createdAt || (loc ? loc.createdAt : new Date().toISOString()),
@@ -2316,44 +2623,65 @@ const dataStore = {
         _productsCacheTime = Date.now();
         console.log(`✅ تم دمج وتحديث ${merged.length} صنف من Supabase مع الحفاظ على التخصيصات`);
       } else if (!snapRow || !snapRow.data || snapRow.data.length === 0) {
+        // حماية البيانات: إذا كانت الجداول السحابية فارغة، لا تمسح الملف المحلي
         const local = readJson(PRODUCTS_FILE, []);
         _productsCache = Array.isArray(local) ? local : [];
         _productsCacheTime = Date.now();
-        console.log(`ℹ️ جدول Supabase السحابي فارغ - تم تحميل ${_productsCache.length} صنف حقيقي من النسخة المتزامنة محلياً`);
+        console.log(`ℹ️ جدول Supabase السحابي فارغ - تم الحفاظ على ${_productsCache.length} صنف من النسخة المحلية المتزامنة`);
       }
     } catch (pErr) {
       console.error('❌ خطأ في استعادة المنتجات:', pErr.message);
     }
 
-    // 5. استعادة الزبائن الدائمين
+    // 6. استعادة الزبائن الدائمين (من جدول customers مباشرة مع fallback لـ settings)
     try {
-      const { data: cRow } = await supabase.from('settings').select('data').eq('id', 'customers').maybeSingle();
-      if (cRow && Array.isArray(cRow.data) && cRow.data.length > 0) {
-        writeJson(CUSTOMERS_FILE, cRow.data);
-        console.log(`✅ تم استعادة ${cRow.data.length} زبون بأرصدتهم الدائمة من Supabase`);
+      let custData = null;
+      const { data: cTable, error: cErr } = await supabase.from('customers').select('*').order('name');
+      if (!cErr && Array.isArray(cTable) && cTable.length > 0) {
+        custData = cTable;
+        console.log(`✅ تم استعادة ${custData.length} زبون من جدول customers الأساسي في Supabase`);
+      } else {
+        const { data: cRow } = await supabase.from('settings').select('data').eq('id', 'customers').maybeSingle();
+        if (cRow && Array.isArray(cRow.data) && cRow.data.length > 0) {
+          custData = cRow.data;
+          console.log(`✅ تم استعادة ${custData.length} زبون بأرصدتهم الدائمة من snapshot في settings`);
+        }
+      }
+      if (custData && custData.length > 0) {
+        writeJson(CUSTOMERS_FILE, custData);
       }
     } catch (cErr) {
       console.warn('⚠️ تعذر استعادة الزبائن من Supabase:', cErr.message);
     }
 
-    // 6. استعادة الموردين (مع الاستبعاد الصارم والنهائي لمورد بضاعة قديمة)
+    // 7. استعادة الموردين (من جدول suppliers مباشرة مع fallback لـ settings واستبعاد مورد بضاعة قديمة)
     try {
       const EXCLUDED_SUPPLIER_CODES = ['S00000003'];
-      const { data: sRow } = await supabase.from('settings').select('data').eq('id', 'suppliers').maybeSingle();
-      if (sRow && Array.isArray(sRow.data) && sRow.data.length > 0) {
-        const cleanSuppliers = sRow.data.filter(s => {
+      let suppData = null;
+      const { data: sTable, error: sErr } = await supabase.from('suppliers').select('*').order('name');
+      if (!sErr && Array.isArray(sTable) && sTable.length > 0) {
+        suppData = sTable;
+        console.log(`✅ تم استعادة ${suppData.length} مورد من جدول suppliers الأساسي في Supabase`);
+      } else {
+        const { data: sRow } = await supabase.from('settings').select('data').eq('id', 'suppliers').maybeSingle();
+        if (sRow && Array.isArray(sRow.data) && sRow.data.length > 0) {
+          suppData = sRow.data;
+          console.log(`✅ تم استعادة ${suppData.length} مورد من snapshot في settings`);
+        }
+      }
+      if (suppData && suppData.length > 0) {
+        const cleanSuppliers = suppData.filter(s => {
           const code = String(s.shamelCode || '').toUpperCase();
           const name = String(s.name || '');
           return !EXCLUDED_SUPPLIER_CODES.includes(code) && !name.includes('بضاعة قديمة');
         });
         writeJson(SUPPLIERS_FILE, cleanSuppliers);
-        console.log(`✅ تم استعادة ${cleanSuppliers.length} مورد حقيقي من Supabase (مستبعد منها مورد بضاعة قديمة نهائياً)`);
       }
     } catch (sErr) {
       console.warn('⚠️ تعذر استعادة الموردين من Supabase:', sErr.message);
     }
 
-    // 7. استعادة بيانات المزامنة الأخيرة (sync_meta)
+    // 8. استعادة بيانات المزامنة الأخيرة (sync_meta)
     try {
       const { data: mRow } = await supabase.from('settings').select('data').eq('id', 'sync_meta').maybeSingle();
       if (mRow && mRow.data) {

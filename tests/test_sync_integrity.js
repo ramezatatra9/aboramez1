@@ -121,14 +121,19 @@ async function runTests() {
     }
   });
 
-  test('أ-4: مفتاح الخدمة لا يظهر في أي سجلات الـ console عند require supabaseClient', () => {
+  test('أ-4: لا يُطبع أي محرف من المفتاح السري (لا بداية ولا نهاية ولا slice) في السجلات', () => {
     // التحقق من كود الملف مباشرة
     const clientSrc = fs.readFileSync(path.join(REPO_ROOT, 'supabaseClient.js'), 'utf8');
-    // يجب ألا يكون هناك console.log يطبع قيمة المفتاح مباشرة
+    // يجب ألا يكون هناك console.log يطبع قيمة المفتاح أو أي شريحة منه
     assert(!clientSrc.match(/console\.log.*activeKey\b/), 'activeKey يجب ألا يُطبَع في console.log');
+    assert(!clientSrc.match(/activeKey\.slice/), 'لا يجوز طباعة أي شريحة من المفتاح (slice) في السجلات');
     assert(!clientSrc.match(/console\.log.*SUPABASE_SERVICE_ROLE_KEY\b/), 'مفتاح الخدمة يجب ألا يُطبَع');
-    // التأكد من وجود slice/sanitize للمعرّف المطبوع
-    assert(clientSrc.includes('.slice('), 'يجب تقليم/إخفاء جزء من المفتاح عند الطباعة');
+  });
+
+  test('أ-5: قبول المفاتيح السرية الحديثة (sb_secret_...) ومفاتيح JWT دون قيود بادئة خاطئة', () => {
+    const clientSrc = fs.readFileSync(path.join(REPO_ROOT, 'supabaseClient.js'), 'utf8');
+    assert(!clientSrc.includes("!envKey.startsWith('eyJ')"), 'يجب عدم رفض المفاتيح التي لا تبدأ بـ eyJ');
+    assert(!clientSrc.includes("!envServiceKey.startsWith('eyJ')"), 'يجب عدم رفض مفاتيح الخدمة التي لا تبدأ بـ eyJ');
   });
 
   // ===================================================================
@@ -350,6 +355,52 @@ async function runTests() {
     // قد تكونان null إذا لم تحدث مزامنة بعد، لكنهما يجب ألا ترميا استثناءً
     assert(cm !== undefined, 'getLastCustomersSyncMeta يجب ألا ترمي استثناء');
     assert(sm !== undefined, 'getLastSuppliersSyncMeta يجب ألا ترمي استثناء');
+  });
+
+  // ===================================================================
+  // القسم و: تكامل التخزين الدائم وضمان عدم فقدان البيانات
+  // ===================================================================
+  console.log('\n[ و ] تكامل التخزين الدائم وضمان عدم فقدان البيانات\n');
+
+  test('و-1: دالة testSupabaseConnection بوضعها الافتراضي لا تنفذ أي كتابة تجريبية (allowWriteProbe: false)', async () => {
+    const sc = require('../supabaseClient');
+    assert(typeof sc.testSupabaseConnection === 'function', 'testSupabaseConnection يجب أن تكون معرفة');
+    const scSrc = fs.readFileSync(path.join(REPO_ROOT, 'supabaseClient.js'), 'utf8');
+    assert(scSrc.includes('allowWriteProbe = false'), 'يجب أن يكون allowWriteProbe false افتراضياً');
+  });
+
+  test('و-2: جميع حقول المنتجات الحيوية (barcode, brand, images, isSuspended) مضمنة في syncProductToSupabase', () => {
+    const dsSrc = fs.readFileSync(path.join(REPO_ROOT, 'dataStore.js'), 'utf8');
+    const syncFuncMatch = dsSrc.match(/async function syncProductToSupabase\(product\)[\s\S]*?payload = \{([\s\S]*?)\};/);
+    assert(syncFuncMatch, 'يجب العثور على دالة syncProductToSupabase');
+    const payloadCode = syncFuncMatch[1];
+    const fields = ['barcode', 'brand', 'brandAr', 'images', 'isSuspended', 'updatedAt', 'lastSyncAt'];
+    fields.forEach(f => {
+      assert(payloadCode.includes(f), `حقل المنتج "${f}" مفقود من حمولة syncProductToSupabase`);
+    });
+  });
+
+  test('و-3: دوال مزامنة وحذف الزبائن والموردين موجودة ومربوطة في dataStore', () => {
+    const dsSrc = fs.readFileSync(path.join(REPO_ROOT, 'dataStore.js'), 'utf8');
+    assert(dsSrc.includes('async function syncCustomerToSupabase'), 'دالة syncCustomerToSupabase يجب أن تكون معرفة');
+    assert(dsSrc.includes('async function deleteCustomerFromSupabase'), 'دالة deleteCustomerFromSupabase يجب أن تكون معرفة');
+    assert(dsSrc.includes('async function syncSupplierToSupabase'), 'دالة syncSupplierToSupabase يجب أن تكون معرفة');
+    assert(dsSrc.includes('async function deleteSupplierFromSupabase'), 'دالة deleteSupplierFromSupabase يجب أن تكون معرفة');
+  });
+
+  test('و-4: استعادة الكفالات warranties والزبائن والموردين مفعلة ومكتملة في initFromSupabase', () => {
+    const dsSrc = fs.readFileSync(path.join(REPO_ROOT, 'dataStore.js'), 'utf8');
+    assert(dsSrc.includes("from('warranties').select("), 'initFromSupabase يجب أن تسترجع الكفالات من جدول warranties');
+    assert(dsSrc.includes("from('customers').select("), 'initFromSupabase يجب أن تقرأ الزبائن من جدول customers');
+    assert(dsSrc.includes("from('suppliers').select("), 'initFromSupabase يجب أن تقرأ الموردين من جدول suppliers');
+  });
+
+  test('و-5: سكربت الترحيل يغطي الجداول السبعة كاملة (products, customers, suppliers, invoices, receipts, warranties, settings)', () => {
+    const migSrc = fs.readFileSync(path.join(REPO_ROOT, 'scripts', 'migrate_local_to_supabase.js'), 'utf8');
+    const requiredTables = ['products', 'customers', 'suppliers', 'invoices', 'receipts', 'warranties', 'settings'];
+    requiredTables.forEach(tbl => {
+      assert(migSrc.includes(`'${tbl}'`) || migSrc.includes(`"${tbl}"`), `الجدول "${tbl}" يجب أن يكون مشمولاً في سكربت الترحيل`);
+    });
   });
 
   // ===================================================================
