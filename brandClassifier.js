@@ -704,7 +704,7 @@ function analyzeProductBrand(product, dictionary) {
       const rx = buildBoundaryRegex(alias);
       if (rx.test(cleaned)) {
         // إذا كان الاسم يطابق مباشرة
-        addCandidate(b.key, 50, `ظهور اسم الماركة الصريح "${alias}" في اسم الصنف`);
+        addCandidate(b.key, 50 + (alias.length || 0), `ظهور اسم الماركة الصريح "${alias}" في اسم الصنف`);
         break;
       }
     }
@@ -1001,7 +1001,27 @@ function rollbackLastChange(productsFilePath) {
   };
 }
 
+
+/**
+ * تصنيف ذكي تلقائي لصنف محدد (بالاسم أو كائن الصنف)
+ * إذا كان الصنف يمتلك ماركة أصلية محددة بالفعل فإنه يحتفظ بها
+ * وإذا كان "أخرى" أو فارغاً، يتم كشف الماركة من اسمه وتصنيفه فوراً
+ */
+function detectBrandAuto(productOrName) {
+  const p = typeof productOrName === 'string' ? { name: productOrName } : (productOrName || {});
+  const currentBrand = String(p.brand || '').trim();
+  if (currentBrand && currentBrand !== 'أخرى' && currentBrand.toLowerCase() !== 'other') {
+    return { brand: currentBrand, brandAr: p.brandAr || currentBrand };
+  }
+  const result = analyzeProductBrand(p);
+  if (result && result.proposedBrand && result.proposedBrand !== 'أخرى' && (result.confidence === 'high' || result.confidence === 'medium')) {
+    return { brand: result.proposedBrand, brandAr: result.proposedBrandAr };
+  }
+  return { brand: 'أخرى', brandAr: 'أخرى / عام' };
+}
+
 module.exports = {
+  detectBrandAuto,
   loadDictionary,
   saveDictionary,
   analyzeProductBrand,

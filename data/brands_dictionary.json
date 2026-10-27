@@ -454,12 +454,17 @@
     "aliases": [
       "Trust",
       "ترست",
-      "تراست"
+      "تراست",
+      "trust",
+      "ترست20",
+      "ترست10",
+      "ترست30",
+      "ترست 20"
     ],
     "modelPrefixes": [
       "TR-"
     ],
-    "icon": "🛡️",
+    "icon": "🏷️",
     "categoryHint": [
       "مكانس كهربائية",
       "مراوح",
@@ -1000,11 +1005,15 @@
   },
   {
     "key": "Hisense",
-    "nameAr": "هايسنس",
+    "nameAr": "هايسنس / هايسنز",
     "aliases": [
       "Hisense",
       "هايسنس",
-      "هاي سينس"
+      "هاي سينس",
+      "هايسنز",
+      "hisense",
+      "هاي سنس",
+      "هاي سنز"
     ],
     "modelPrefixes": [
       "HS-"
@@ -1273,5 +1282,73 @@
     "categoryHint": [
       "شاشات وتلفزيونات"
     ]
+  },
+  {
+    "key": "Massimo",
+    "nameAr": "ماسيمو",
+    "aliases": [
+      "ماسيمو",
+      "massimo"
+    ],
+    "icon": "🏷️"
+  },
+  {
+    "key": "Relax",
+    "nameAr": "ريلاكس",
+    "aliases": [
+      "ريلاكس",
+      "relax"
+    ],
+    "icon": "❄️"
+  },
+  {
+    "key": "Goldi",
+    "nameAr": "جولدي",
+    "aliases": [
+      "جولدي",
+      "goldi"
+    ],
+    "icon": "🍳"
+  },
+  {
+    "key": "Top Point",
+    "nameAr": "توب بوينت",
+    "aliases": [
+      "توب بوينت",
+      "top point",
+      "top-point"
+    ],
+    "icon": "🏷️"
+  },
+  {
+    "key": "Luminarc",
+    "nameAr": "لومينارك",
+    "aliases": [
+      "لومينارك",
+      "luminarc"
+    ],
+    "icon": "🧊"
+  },
+  {
+    "key": "Lizzo",
+    "nameAr": "ليزو",
+    "aliases": [
+      "LZZO",
+      "ليزو",
+      "lzzo",
+      "lizze"
+    ],
+    "icon": "✂️"
+  },
+  {
+    "key": "Pro Media",
+    "nameAr": "برو ميديا",
+    "aliases": [
+      "برو ميديا",
+      "بروميديا",
+      "pro media",
+      "promedia"
+    ],
+    "icon": "💨"
   }
 ]

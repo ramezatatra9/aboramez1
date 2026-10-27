@@ -2698,7 +2698,80 @@ const dataStore = {
     } catch (mErr) {
       console.warn('⚠️ تعذر استعادة بيانات المزامنة الوصفية:', mErr.message);
     }
-  }
+  },
+
+  /**
+   * تحديث ماركات الأصناف بشكل مجمع وحفظها في Supabase والملف المحلي
+   */
+  async bulkUpdateBrands(updates, editorName = 'مدير النظام') {
+    const products = this.getProducts();
+    const updateMap = new Map();
+    (updates || []).forEach(u => {
+      if (u.code) updateMap.set(String(u.code).toUpperCase(), u);
+      if (u.id) updateMap.set(String(u.id), u);
+    });
+
+    let modifiedCount = 0;
+    const modifiedProducts = [];
+    const now = new Date().toISOString();
+
+    products.forEach(p => {
+      const u = (p.code && updateMap.get(String(p.code).toUpperCase())) || (p.id && updateMap.get(String(p.id)));
+      if (u && (p.brand !== u.brand || p.brandAr !== u.brandAr)) {
+        p.brand = u.brand;
+        p.brandAr = u.brandAr;
+        p.updatedAt = now;
+        modifiedCount++;
+        modifiedProducts.push(p);
+      }
+    });
+
+    if (modifiedCount > 0) {
+      writeJson(PRODUCTS_FILE, products);
+      _productsCache = products;
+      _productsCacheTime = Date.now();
+
+      if (supabase) {
+        try {
+          await supabase.from('settings').upsert({
+            id: 'products_snapshot',
+            data: products
+          });
+
+          const chunkSize = 50;
+          for (let i = 0; i < modifiedProducts.length; i += chunkSize) {
+            const chunk = modifiedProducts.slice(i, i + chunkSize);
+            const upsertRows = chunk.map(p => ({
+              id: String(p.id),
+              code: String(p.code || '').trim(),
+              name: String(p.name || '').trim(),
+              category: String(p.mainCategory || p.category || 'أجهزة كهربائية كبيرة'),
+              subcategory: String(p.category || 'عام'),
+              costPrice: Number(p.costPrice) || 0,
+              sellPrice: Number(p.sellPrice) || 0,
+              stock: parseInt(p.stock) || 0,
+              unit: String(p.unit || 'قطعة'),
+              image: String(p.image || ''),
+              description: String(p.description || ''),
+              barcode: String(p.barcode || ''),
+              isSuspended: Boolean(p.isSuspended),
+              brand: String(p.brand || 'أخرى'),
+              brandAr: String(p.brandAr || 'أخرى / عام'),
+              images: Array.isArray(p.images) ? p.images : (p.images ? [p.images] : []),
+              updatedAt: p.updatedAt || now
+            }));
+            await supabase.from('products').upsert(upsertRows, { onConflict: 'id' });
+          }
+          console.log(`✅ تم حفظ تحديث ماركات ${modifiedCount} صنف في قاعدة بيانات Supabase الدائمة بنجاح.`);
+        } catch (err) {
+          console.warn('⚠️ خطأ أثناء تحديث الماركات في Supabase:', err.message);
+        }
+      }
+    }
+
+    return { success: true, updatedCount: modifiedCount };
+  },
+
 };
 
 module.exports = dataStore;

@@ -1828,7 +1828,7 @@ app.post('/api/brands-classification/check-conflict', (req, res) => {
 });
 
 // تطبيق التغييرات المعتمدة على الماركات
-app.post('/api/brands-classification/apply', (req, res) => {
+app.post('/api/brands-classification/apply', async (req, res) => {
   try {
     const { items, allHighConfidence, editorName } = req.body;
     const productsPath = path.join(__dirname, 'data', 'products.json');
@@ -1850,10 +1850,19 @@ app.post('/api/brands-classification/apply', (req, res) => {
     }
 
     const result = brandClassifier.applyBrandChanges(productsPath, itemsToUpdate, editorName || 'مدير النظام');
+
+    // حفظ سحابي دائم ومباشر في Supabase عبر dataStore
+    const brandUpdates = itemsToUpdate.map(u => ({
+      code: u.code,
+      brand: u.proposedBrand,
+      brandAr: u.proposedBrandAr
+    }));
+    await dataStore.bulkUpdateBrands(brandUpdates, editorName || 'مدير النظام');
+
     res.json({
       success: true,
       ...result,
-      message: `تم بنجاح تحديث ماركات ${result.updatedCount} صنف وحفظ نسخة احتياطية: ${result.backupFile}`
+      message: `تم بنجاح تحديث ماركات ${result.updatedCount} صنف وحفظها في قاعدة بيانات Supabase بشكل دائم.`
     });
   } catch (err) {
     console.error('Apply brand changes error:', err);
