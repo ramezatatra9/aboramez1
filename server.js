@@ -1947,6 +1947,27 @@ function startAutoBackupSchedule() {
 }
 
 // تشغيل الخادم
+
+// ================================================================
+// معالجة الأخطاء الحرجة غير المتوقعة — إشعار فوري عبر Telegram
+// ================================================================
+process.on('uncaughtException', function(err) {
+  console.error('💥 uncaughtException:', err.message);
+  telegramService.sendSystemAlert('server_crash', {
+    errorType: 'UncaughtException',
+    error: err.message + (err.stack ? '\n' + err.stack.slice(0, 200) : '')
+  }).catch(function() {}).finally(function() { process.exit(1); });
+});
+
+process.on('unhandledRejection', function(reason) {
+  var msg = reason instanceof Error ? reason.message : String(reason);
+  console.error('💥 unhandledRejection:', msg);
+  telegramService.sendSystemAlert('server_crash', {
+    errorType: 'UnhandledRejection',
+    error: msg
+  }).catch(function() {});
+});
+
 app.listen(PORT, '0.0.0.0', async () => {
   console.log(`=======================================================`);
   console.log(`🚀 نظام المبيعات وإصدار الفواتير يعمل بنجاح على:`);
@@ -1960,9 +1981,11 @@ app.listen(PORT, '0.0.0.0', async () => {
   const readiness = await systemMode.verifyReadiness();
   if (readiness.ok) {
     console.log(`✅ وضع النظام: قراءة وكتابة (Read-Write Mode) — جميع العمليات مفعّلة`);
+    telegramService.sendSystemAlert('startup', { mode: 'read-write' }).catch(() => {});
   } else {
     console.warn(`⚠️ وضع النظام: قراءة فقط (Read-Only Degraded Mode) — سبب: ${readiness.error || 'تعذر الاتصال بـ Supabase'}`);
     console.warn(`   ستُرفض جميع عمليات الحفظ والتعديل والحذف حتى يعود الاتصال.`);
+    telegramService.sendSystemAlert('startup', { mode: 'read-only', error: readiness.error }).catch(() => {});
   }
 
   // فحص دوري كل 30 ثانية لاستعادة وضع الكتابة عند عودة الاتصال

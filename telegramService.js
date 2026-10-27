@@ -778,9 +778,111 @@ ${balDesc}
       console.error('Error sending telegram document:', err);
       return { ok: false, error: err.message };
     }
+  },
+
+  /**
+   * sendSystemAlert — إرسال تنبيه نظام حرج إلى Telegram
+   * الأنواع: supabase_down | supabase_recovered | server_crash | save_failed | startup
+   */
+  async sendSystemAlert(type, details) {
+    details = details || {};
+    var botToken = '';
+    var chatId = '';
+    var companyName = 'معرض أبو رامز';
+    try {
+      if (dataStore) {
+        var settings = await dataStore.getSettings();
+        botToken    = ((settings && settings.telegramBotToken) ? settings.telegramBotToken : '').trim();
+        chatId      = ((settings && settings.telegramChatId)   ? settings.telegramChatId   : '').trim();
+        companyName = (settings && settings.companyName) ? settings.companyName : companyName;
+      }
+    } catch (e) {
+      console.warn('[systemAlert] فشل قراءة إعدادات التيليجرام من dataStore:', e.message);
+    }
+    // دعم متغيرات البيئة كبديل احتياطي (مفيد عند انقطاع قاعدة البيانات بالكامل)
+    if (!botToken && process.env.TELEGRAM_BOT_TOKEN) botToken = process.env.TELEGRAM_BOT_TOKEN.trim();
+    if (!chatId && process.env.TELEGRAM_CHAT_ID) chatId = process.env.TELEGRAM_CHAT_ID.trim();
+    if (!botToken || !chatId) {
+      console.warn('[systemAlert] لا توجد بيانات تيليجرام — تم تخطي الإشعار');
+      return { ok: false, error: 'لا توجد بيانات تيليجرام' };
+    }
+    var now = formatDateTime(new Date());
+    var esc = function(t) { return escapeHtml(String(t || '')); };
+    var sep = '━━━━━━━━━━━━━━━━━━';
+    var message = '';
+
+    if (type === 'supabase_down') {
+      message = [
+        '🔴 <b>تنبيه حرج — انقطاع قاعدة البيانات</b>',
+        '🏪 <b>' + esc(companyName) + '</b>',
+        sep,
+        '⏰ <b>الوقت:</b> ' + now,
+        '⚠️ <b>الحالة:</b> النظام انتقل إلى وضع القراءة فقط',
+        '🚫 <b>العمليات المتوقفة:</b> الحفظ والتعديل والحذف',
+        '📋 <b>السبب:</b> <code>' + esc(details.error || 'تعذّر الاتصال بـ Supabase') + '</code>',
+        sep,
+        '<i>⚡ سيعود النظام تلقائياً عند استعادة الاتصال.</i>'
+      ].join('\n');
+    } else if (type === 'supabase_recovered') {
+      message = [
+        '✅ <b>استعادة الاتصال — النظام عاد بشكل كامل</b>',
+        '🏪 <b>' + esc(companyName) + '</b>',
+        sep,
+        '⏰ <b>الوقت:</b> ' + now,
+        '🟢 <b>الحالة:</b> وضع القراءة والكتابة (Read-Write)',
+        '💾 <b>الحفظ الدائم:</b> يعمل بشكل طبيعي',
+        sep,
+        '<i>✔️ يمكن استئناف جميع العمليات.</i>'
+      ].join('\n');
+    } else if (type === 'server_crash') {
+      message = [
+        '💥 <b>خطأ حرج في الخادم</b>',
+        '🏪 <b>' + esc(companyName) + '</b>',
+        sep,
+        '⏰ <b>الوقت:</b> ' + now,
+        '🔥 <b>نوع الخطأ:</b> <code>' + esc(details.errorType || 'UncaughtException') + '</code>',
+        '📋 <b>الرسالة:</b> <code>' + esc((details.error || '').slice(0, 300)) + '</code>',
+        sep,
+        '<i>⚙️ Render يعيد تشغيل الخادم تلقائياً.</i>'
+      ].join('\n');
+    } else if (type === 'save_failed') {
+      message = [
+        '⚠️ <b>فشل حفظ بيانات في قاعدة البيانات</b>',
+        '🏪 <b>' + esc(companyName) + '</b>',
+        sep,
+        '⏰ <b>الوقت:</b> ' + now,
+        '🗂️ <b>الجدول:</b> <code>' + esc(details.table || '—') + '</code>',
+        '⚙️ <b>العملية:</b> <code>' + esc(details.operation || '—') + '</code>',
+        '📋 <b>الخطأ:</b> <code>' + esc((details.error || '').slice(0, 300)) + '</code>',
+        sep,
+        '<i>🔍 راجع سجلات الخادم للتفاصيل.</i>'
+      ].join('\n');
+    } else if (type === 'startup') {
+      var modeEmoji = details.mode === 'read-write' ? '🟢' : '🔴';
+      var modeText  = details.mode === 'read-write' ? 'قراءة وكتابة (Read-Write)' : 'قراءة فقط (Read-Only)';
+      var statusLine = details.error
+        ? '⚠️ <b>ملاحظة:</b> <code>' + esc(details.error) + '</code>'
+        : '✔️ <b>Supabase:</b> متصل وجاهز';
+      message = [
+        '🚀 <b>بدء تشغيل النظام</b>',
+        '🏪 <b>' + esc(companyName) + '</b>',
+        sep,
+        '⏰ <b>الوقت:</b> ' + now,
+        modeEmoji + ' <b>وضع التشغيل:</b> ' + modeText,
+        statusLine,
+        sep,
+        '<i>🌐 https://aboramez1.onrender.com</i>'
+      ].join('\n');
+    } else {
+      message = [
+        'ℹ️ <b>تنبيه نظام</b>',
+        '🏪 <b>' + esc(companyName) + '</b>',
+        '⏰ ' + now,
+        '📋 <code>' + esc(details.message || type) + '</code>'
+      ].join('\n');
+    }
+    return this.sendHtmlWithFallback(botToken, chatId, message);
   }
 };
 
 module.exports = telegramService;
-
-

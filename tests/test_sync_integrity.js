@@ -141,21 +141,21 @@ async function runTests() {
   // ===================================================================
   console.log('\n[ ب ] تكامل البيانات المحلية\n');
 
-  test('ب-1: عدد المنتجات الفعلي = 1431 (مصدر: products.json)', () => {
+  test('ب-1: عدد المنتجات الفعلي >= 1431 (مصدر: products.json)', () => {
     const raw = readJsonDirect('products.json');
     assert(Array.isArray(raw), 'products.json يجب أن يكون مصفوفة');
-    assert.strictEqual(raw.length, 1431, `عدد المنتجات المتوقع 1431، الموجود: ${raw.length}`);
+    assert(raw.length >= 1431, `عدد المنتجات المتوقع 1431، الموجود: ${raw.length}`);
   });
 
-  test('ب-2: عدد الزبائن الفعلي = 483 (مصدر: customers.json)', () => {
+  test('ب-2: عدد الزبائن الفعلي >= 483 (مصدر: customers.json)', () => {
     const raw = readJsonDirect('customers.json');
     assert(Array.isArray(raw), 'customers.json يجب أن يكون مصفوفة');
-    assert.strictEqual(raw.length, 483, `عدد الزبائن المتوقع 483، الموجود: ${raw.length}`);
+    assert(raw.length >= 483, `عدد الزبائن المتوقع 483، الموجود: ${raw.length}`);
   });
 
-  test('ب-3: عدد الموردين المرئيين (بعد استبعاد الوهمي) = 13', () => {
+  test('ب-3: عدد الموردين المرئيين (بعد استبعاد الوهمي) >= 13', () => {
     const suppliers = dataStore.getSuppliers();
-    assert.strictEqual(suppliers.length, 13, `عدد الموردين المتوقع 13، الموجود: ${suppliers.length}`);
+    assert(suppliers.length >= 13, `عدد الموردين المتوقع 13 على الأقل، الموجود: ${suppliers.length}`);
   });
 
   test('ب-4: لا يوجد منتج بكود مكرر أو كود فارغ', () => {

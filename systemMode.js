@@ -4,6 +4,8 @@
 // ====================================================================
 
 const { supabase, testSupabaseConnection } = require('./supabaseClient');
+let telegramService = null;
+try { telegramService = require('./telegramService'); } catch (e) { console.warn('systemMode: telegramService unavailable'); }
 
 let systemMode = 'read-only'; // يبدأ الخادم في وضع القراءة فقط كإجراء احترازي حتى تثبت الجاهزية
 let isReady = false;
@@ -89,11 +91,13 @@ function startPeriodicHealthCheck(intervalMs = 30000, onRecover = null) {
       const prevMode = systemMode;
       const res = await verifyReadiness({ quiet: true });
       if (prevMode === 'read-only' && res.ok && res.mode === 'read-write') {
+        if (telegramService) telegramService.sendSystemAlert('supabase_recovered').catch(() => {});
         console.log('🔄 تم استعادة الاتصال بـ Supabase بنجاح — تم إعادة تفعيل وضع الكتابة والحفظ الدائم تلقائياً.');
         if (typeof onRecover === 'function') {
           try { await onRecover(); } catch (e) { console.warn('Recovery callback error:', e.message); }
         }
       } else if (prevMode === 'read-write' && !res.ok) {
+        if (telegramService) telegramService.sendSystemAlert('supabase_down', { error: res.error || lastCheckError }).catch(() => {});
         console.warn('⚠️ انقطع الاتصال بـ Supabase — تم التحويل التلقائي إلى وضع القراءة فقط لحماية البيانات المحاسبية.');
       }
     } finally {
