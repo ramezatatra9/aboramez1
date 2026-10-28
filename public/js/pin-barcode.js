@@ -15,7 +15,7 @@ const PIN_SESSION_TTL  = 45 * 60 * 1000; // 45 دقيقة
 
 // المستخدمون الافتراضيون (الأدمن والكاشير)
 const DEFAULT_SECURITY_USERS = [
-  { id: 'u-admin',   name: 'المدير العام (أبو رامز)', pin: '1234', role: 'admin' },
+  { id: 'u-admin',   name: 'المدير العام (رامز)', pin: '8802', role: 'admin' },
   { id: 'u-cashier', name: 'موظف مبيعات / كاشير',     pin: '1111', role: 'cashier' }
 ];
 
@@ -266,13 +266,11 @@ function selectPinTargetUser(role) {
 
   const hintText = document.getElementById('pinRoleHintText');
   const hintIcon = document.getElementById('pinRoleHintIcon');
-  if (role === 'admin') {
-    if (hintText) hintText.textContent = 'أدخل الرمز السري للمدير العام للدخول';
-    if (hintIcon) hintIcon.textContent = '👑';
-  } else {
-    if (hintText) hintText.textContent = 'أدخل الرمز السري لموظف المبيعات للدخول';
-    if (hintIcon) hintIcon.textContent = '💼';
+  if (hintText) {
+    hintText.textContent = '';
+    hintText.style.color = '';
   }
+  if (hintIcon) hintIcon.textContent = '';
 
   resetPinBuffer();
   if (navigator.vibrate) navigator.vibrate(20);
@@ -292,7 +290,12 @@ function resetPinBuffer() {
   pinBuffer = '';
   updatePinDots();
   const hintText = document.getElementById('pinRoleHintText');
-  if (hintText) hintText.style.color = '';
+  const hintIcon = document.getElementById('pinRoleHintIcon');
+  if (hintText) {
+    hintText.textContent = '';
+    hintText.style.color = '';
+  }
+  if (hintIcon) hintIcon.textContent = '';
 }
 
 function updatePinDots() {
@@ -372,10 +375,12 @@ function verifyEnteredPin() {
 
     const keypad = document.getElementById('pinKeypad');
     const hintText = document.getElementById('pinRoleHintText');
+    const hintIcon = document.getElementById('pinRoleHintIcon');
     if (hintText) {
       hintText.textContent = 'رمز PIN غير صحيح! حاول مرة أخرى';
       hintText.style.color = '#ef4444';
     }
+    if (hintIcon) hintIcon.textContent = '❌';
 
     // اهتزاز وتلوين أحمر
     for (let i = 0; i < 4; i++) {
@@ -439,7 +444,7 @@ async function saveUserSecuritySettings() {
   }
 
   const updatedUsers = [
-    { id: 'u-admin',   name: 'المدير العام (أبو رامز)', pin: adminPin,   role: 'admin' },
+    { id: 'u-admin',   name: 'المدير العام (رامز)', pin: adminPin,   role: 'admin' },
     { id: 'u-cashier', name: 'موظف مبيعات / كاشير',     pin: cashierPin, role: 'cashier' }
   ];
 
@@ -515,10 +520,10 @@ function getNativeBarcodeDetector() {
   return barcodeDetectorInstance;
 }
 
-// تشغيل الكاميرا الحية فوراً بدون تأخير
+// تشغيل الكاميرا الحية الموثوقة مع التكيف التلقائي للأبعاد
 async function startLiveCameraScanner(context) {
   currentActiveScannerContext = context;
-  stopLiveCameraScanner();
+  await stopLiveCameraScanner();
 
   const qrContainerId = context === 'assign' ? 'assignScannerQrContainer' : 'universalScannerQrContainer';
   const qrContainer = document.getElementById(qrContainerId);
@@ -528,17 +533,22 @@ async function startLiveCameraScanner(context) {
   qrContainer.style.display = 'block';
 
   if (typeof Html5Qrcode === 'undefined') {
-    showCameraPermissionNotice(context, 'جاري تحميل محرك الكاميرا...');
+    showCameraPermissionNotice(context, 'محرك الكاميرا غير متوفر حالياً');
     return;
   }
 
   try {
     html5QrInstance = new Html5Qrcode(qrContainerId);
 
+    // حساب أبعاد نافذة المسح ديناميكياً لتفادي أي خطأ أبعاد
     const config = {
       fps: 15,
-      qrbox: { width: 250, height: 140 },
-      aspectRatio: 1.33
+      qrbox: (viewfinderWidth, viewfinderHeight) => {
+        const w = Math.max(120, Math.min(280, Math.floor(viewfinderWidth * 0.85)));
+        const h = Math.max(80, Math.min(160, Math.floor(viewfinderHeight * 0.65)));
+        return { width: w, height: h };
+      },
+      aspectRatio: 1.333334
     };
 
     // 1. المحاولة الأولى: طلب الكاميرا الخلفية عبر facingMode
@@ -554,40 +564,52 @@ async function startLiveCameraScanner(context) {
       console.warn('facingMode start failed, trying available cameras list:', facingErr);
     }
 
-    // 2. المحاولة الثانية: جلب قائمة الكاميرات واختيار الكاميرا الخلفية يدوياً
-    const cameras = await Html5Qrcode.getCameras();
-    if (cameras && cameras.length > 0) {
-      const backCam = cameras.find(c => {
-        const lbl = (c.label || '').toLowerCase();
-        return lbl.includes('back') || lbl.includes('rear') || lbl.includes('environment') || lbl.includes('خلف');
-      });
-      const selectedCamId = backCam ? backCam.id : cameras[cameras.length - 1].id;
+    // 2. المحاولة الثانية: جلب قائمة الكاميرات واختيار الخلفية (أو الأولى المتوفرة على الكمبيوتر)
+    try {
+      const cameras = await Html5Qrcode.getCameras();
+      if (cameras && cameras.length > 0) {
+        const backCam = cameras.find(c => {
+          const lbl = (c.label || '').toLowerCase();
+          return lbl.includes('back') || lbl.includes('rear') || lbl.includes('environment') || lbl.includes('خلف');
+        });
+        const selectedCamId = backCam ? backCam.id : cameras[0].id;
 
-      await html5QrInstance.start(
-        selectedCamId,
-        config,
-        (decodedText) => onBarcodeDecoded(decodedText, context),
-        () => {}
-      );
-      return;
+        await html5QrInstance.start(
+          selectedCamId,
+          config,
+          (decodedText) => onBarcodeDecoded(decodedText, context),
+          () => {}
+        );
+        return;
+      }
+    } catch (camListErr) {
+      console.warn('Cameras list query failed:', camListErr);
     }
+
+    // 3. المحاولة الثالثة: طلب الكاميرا بأي إعداد متاح بدون قيود
+    await html5QrInstance.start(
+      {},
+      config,
+      (decodedText) => onBarcodeDecoded(decodedText, context),
+      () => {}
+    );
   } catch (err) {
     console.error('Camera open failed completely:', err);
-    showCameraPermissionNotice(context, err.message || 'يرجى السماح بالوصول للكاميرا');
+    showCameraPermissionNotice(context, err.message || 'يرجى السماح بالوصول للكاميرا في المتصفح');
   }
 }
 
-// إيقاف الكاميرا وتفريغ الموارد
-function stopLiveCameraScanner() {
+// إيقاف الكاميرا وتفريغ الموارد بأمان تام
+async function stopLiveCameraScanner() {
   if (html5QrInstance) {
     try {
-      html5QrInstance.stop().then(() => {
-        try { html5QrInstance.clear(); } catch(e) {}
-        html5QrInstance = null;
-      }).catch(() => {
-        html5QrInstance = null;
-      });
+      if (html5QrInstance.isScanning) {
+        await html5QrInstance.stop();
+      }
+      try { html5QrInstance.clear(); } catch (e) {}
     } catch (e) {
+      console.warn('Stop scanner warning:', e);
+    } finally {
       html5QrInstance = null;
     }
   }
@@ -614,12 +636,21 @@ async function toggleScannerTorch(context) {
 // ─────────────────────────────────────────────
 //  [7] المنقذ الموثوق 100%: التقاط صورة بالباركود بكاميرا الهاتف الأصلية
 // ─────────────────────────────────────────────
+function triggerNativeBarcodeCapture(context) {
+  const inputId = context === 'assign' ? 'assignNativePhotoInput' : 'universalNativePhotoInput';
+  const input = document.getElementById(inputId);
+  if (input) {
+    input.value = '';
+    input.click();
+  }
+}
+
 async function handleNativeBarcodePhoto(inputEl, context) {
   if (!inputEl || !inputEl.files || inputEl.files.length === 0) return;
   const file = inputEl.files[0];
 
   if (typeof showToast === 'function') {
-    showToast('جاري قراءة الباركود من الصورة الملتقطة...', 'info');
+    showToast('جاري فحص صورة الباركود...', 'info');
   }
 
   // 1. تجربة BarcodeDetector المدمج فائق السرعة
@@ -638,12 +669,20 @@ async function handleNativeBarcodePhoto(inputEl, context) {
     }
   }
 
-  // 2. تجربة Html5Qrcode.scanFile
+  // 2. تجربة Html5Qrcode.scanFile بحاوية مساعدة معزولة
   if (typeof Html5Qrcode !== 'undefined') {
     try {
-      const qrContainerId = context === 'assign' ? 'assignScannerQrContainer' : 'universalScannerQrContainer';
-      let scanInstance = html5QrInstance || new Html5Qrcode(qrContainerId);
-      const text = await scanInstance.scanFile(file, true);
+      const dummyId = 'qrPhotoHelperScan';
+      let dummyEl = document.getElementById(dummyId);
+      if (!dummyEl) {
+        dummyEl = document.createElement('div');
+        dummyEl.id = dummyId;
+        dummyEl.style.display = 'none';
+        document.body.appendChild(dummyEl);
+      }
+      const helper = new Html5Qrcode(dummyId);
+      const text = await helper.scanFile(file, true);
+      try { helper.clear(); } catch(e) {}
       if (text && text.trim()) {
         onBarcodeDecoded(text.trim(), context);
         inputEl.value = '';
@@ -657,7 +696,7 @@ async function handleNativeBarcodePhoto(inputEl, context) {
   // إذا لم يتم العثور على باركود في الصورة
   playErrorBuzz();
   if (typeof showToast === 'function') {
-    showToast('لم يتم العثور على باركود واضح في الصورة، يرجى إعادة التصوير بوضوح أو إدخال الرقم يدوياً', 'warning');
+    showToast('لم يتم العثور على باركود واضح في الصورة، يرجى إعادة التقاط الصورة بوضوح عن قرب', 'warning');
   }
   inputEl.value = '';
 }
@@ -730,9 +769,7 @@ function openAssignBarcodeModal(productId) {
   document.getElementById('assignScannerLiveWrapper').style.display = 'block';
 
   modal.style.display = 'flex';
-
-  // تشغيل الكاميرا فوراً في نفس سياق النقر
-  startLiveCameraScanner('assign');
+  setTimeout(() => startLiveCameraScanner('assign'), 100);
 }
 
 function closeAssignBarcodeModal() {
@@ -948,9 +985,7 @@ function openUniversalBarcodeScanner(mode = 'invoice') {
   }
 
   modal.style.display = 'flex';
-
-  // تشغيل الكاميرا فوراً في نفس سياق النقر
-  startLiveCameraScanner('universal');
+  setTimeout(() => startLiveCameraScanner('universal'), 100);
 }
 
 function openInventoryBarcodeSearchModal() {

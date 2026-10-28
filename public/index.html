@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=6.1">
+  <link rel="stylesheet" href="css/style.css?v=6.2">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💼</text></svg>">
   
   <!-- PWA & Mobile Web App Meta Tags -->
@@ -3438,10 +3438,10 @@
         </button>
       </div>
 
-      <!-- إشعار حالة الدور المكتشف تلقائياً -->
-      <div class="pin-role-hint" id="pinRoleHint">
-        <span id="pinRoleHintIcon">🔒</span>
-        <span id="pinRoleHintText">أدخل الرمز السري للدخول</span>
+      <!-- إشعار حالة الدور والخطأ (يظهر فقط عند الخطأ أو النجاح) -->
+      <div class="pin-role-hint" id="pinRoleHint" style="min-height: 22px;">
+        <span id="pinRoleHintIcon"></span>
+        <span id="pinRoleHintText"></span>
       </div>
 
       <!-- مؤشرات الأرقام (النقاط) -->
@@ -3542,12 +3542,12 @@
           <div id="barcodeSuccessMsgText">تم حفظ الباركود بنجاح!</div>
         </div>
 
-        <!-- زر تصوير الباركود بكاميرا الهاتف الأصلية (مضمون 100% بدون قيود صلاحيات) -->
-        <label class="btn-native-snap-big" title="فتح كاميرا هاتفك لتصوير الباركود فوراً">
+        <!-- زر تصوير الباركود بكاميرا الهاتف الأصلية (يعمل بنقرة مباشرة) -->
+        <button type="button" class="btn-native-snap-big" onclick="triggerNativeBarcodeCapture('assign')" title="فتح كاميرا هاتفك لتصوير الباركود فوراً">
           <span style="font-size:1.35rem;">📸</span>
-          <span>التقاط صورة للباركود بكاميرا الهاتف (سريع ومباشر)</span>
-          <input type="file" id="assignNativePhotoInput" accept="image/*" capture="environment" style="display:none;" onchange="handleNativeBarcodePhoto(this, 'assign')">
-        </label>
+          <span>تصوير الباركود بكاميرا الهاتف (سريع ومباشر)</span>
+        </button>
+        <input type="file" id="assignNativePhotoInput" accept="image/*" capture="environment" style="position:fixed; top:-9999px; left:-9999px; opacity:0; width:1px; height:1px; pointer-events:none;" onchange="handleNativeBarcodePhoto(this, 'assign')">
 
         <!-- كاميرا المسح المباشرة للصنف -->
         <div class="scanner-live-wrapper" id="assignScannerLiveWrapper">
@@ -3604,12 +3604,12 @@
           وجّه الكاميرا نحو باركود الصنف للإضافة الفورية للفاتورة
         </p>
 
-        <!-- زر تصوير الباركود بكاميرا الهاتف الأصلية -->
-        <label class="btn-native-snap-big" title="فتح كاميرا هاتفك لتصوير الباركود فوراً">
+        <!-- زر تصوير الباركود بكاميرا الهاتف الأصلية (يعمل بنقرة مباشرة) -->
+        <button type="button" class="btn-native-snap-big" onclick="triggerNativeBarcodeCapture('universal')" title="فتح كاميرا هاتفك لتصوير الباركود فوراً">
           <span style="font-size:1.35rem;">📸</span>
-          <span>التقاط صورة للباركود بكاميرا الهاتف (سريع ومباشر)</span>
-          <input type="file" id="universalNativePhotoInput" accept="image/*" capture="environment" style="display:none;" onchange="handleNativeBarcodePhoto(this, 'universal')">
-        </label>
+          <span>تصوير الباركود بكاميرا الهاتف (سريع ومباشر)</span>
+        </button>
+        <input type="file" id="universalNativePhotoInput" accept="image/*" capture="environment" style="position:fixed; top:-9999px; left:-9999px; opacity:0; width:1px; height:1px; pointer-events:none;" onchange="handleNativeBarcodePhoto(this, 'universal')">
 
         <!-- منطقة الكاميرا -->
         <div class="scanner-live-wrapper" style="margin-bottom: 0.75rem;">
@@ -3661,7 +3661,7 @@
   <script src="js/pwa.js"></script>
   <!-- مكتبة مسح الباركود المحلية السريعة -->
   <script src="js/html5-qrcode.min.js"></script>
-  <script src="js/pin-barcode.js"></script>
+  <script src="js/pin-barcode.js?v=6.2"></script>
 </body>
 </html>
 
