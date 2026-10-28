@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=5.0">
+  <link rel="stylesheet" href="css/style.css?v=5.1">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💼</text></svg>">
   
   <!-- PWA & Mobile Web App Meta Tags -->
@@ -369,6 +369,7 @@
                   <span class="search-lens-icon">🔍</span>
                   <input type="text" id="quickProductSearchInput" class="form-control visual-search-input" placeholder="ابحث باسم المنتج أو الكود أو الماركة لإظهار الصورة والبيانات والإضافة..." autocomplete="off">
                   <button type="button" class="btn-clear-search" id="btnClearQuickSearch" onclick="clearQuickSearch()" style="display: none;" title="مسح البحث">✕</button>
+                  <button type="button" class="btn-barcode-scan" id="btnOpenBarcode" onclick="openBarcodeScanner()" title="مسح الباركود بالكاميرا">📷</button>
                   <span class="search-keyboard-hint">Enter للإضافة السريعة</span>
                 </div>
 
@@ -1755,6 +1756,34 @@
               <span>بيانات الشركة والفاتورة</span>
             </h2>
           </div>
+
+        <!-- ─── بطاقة قفل PIN ─── -->
+        <div class="card" style="margin-bottom:1rem; border:1.5px solid #e2e8f0;">
+          <div class="card-header" style="background:linear-gradient(135deg,#f8fafc,#eff6ff);">
+            <h2 class="card-title"><span>🔒</span><span>قفل الموقع برمز PIN</span></h2>
+            <span class="badge" id="pinStatusBadge" style="background:#f1f5f9;color:#64748b;">غير مفعّل</span>
+          </div>
+          <div style="padding:1rem;">
+            <p style="font-size:0.88rem;color:var(--text-muted);margin-bottom:1rem;">
+              عند التفعيل سيطلب الموقع رمز PIN عند كل فتح — يحمي بياناتك من الوصول غير المصرح
+            </p>
+            <div class="grid-2" style="gap:0.75rem;margin-bottom:0.75rem;">
+              <div class="form-group" style="margin:0;">
+                <label class="form-label">رمز PIN الجديد (4 أرقام):</label>
+                <input type="password" id="newPinInput" class="form-control" placeholder="••••" maxlength="4" inputmode="numeric" pattern="[0-9]*">
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label class="form-label">تأكيد رمز PIN:</label>
+                <input type="password" id="confirmPinInput" class="form-control" placeholder="••••" maxlength="4" inputmode="numeric" pattern="[0-9]*">
+              </div>
+            </div>
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+              <button class="btn btn-primary" onclick="savePinCode()">💾 حفظ رمز PIN</button>
+              <button class="btn btn-outline-danger" onclick="disablePinCode()" id="btnDisablePin" style="display:none;">🔓 إلغاء القفل</button>
+            </div>
+            <div id="pinSettingsMsg" style="display:none;margin-top:0.75rem;padding:0.5rem 0.75rem;border-radius:8px;font-size:0.85rem;"></div>
+          </div>
+        </div>
 
           <div class="form-group">
             <label class="form-label" for="cfgCompanyName">اسم الشركة أو المتجر:</label>
@@ -3307,12 +3336,87 @@
     </div>
   </div>
 
+  <!-- ─── شاشة قفل PIN ─── -->
+  <div id="pinLockScreen" style="display:none; position:fixed; inset:0; z-index:99999; background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#0f172a 100%); display:flex; flex-direction:column; align-items:center; justify-content:center; padding:2rem;">
+    <div style="text-align:center; max-width:340px; width:100%;">
+      <div style="font-size:3.5rem; margin-bottom:0.5rem;">💼</div>
+      <h2 style="color:#ffffff; font-size:1.4rem; font-weight:800; margin-bottom:0.25rem;" id="pinLockTitle">معرض أبو رامز</h2>
+      <p style="color:#94a3b8; font-size:0.9rem; margin-bottom:2rem;" id="pinLockSubtitle">أدخل رمز PIN للدخول</p>
+
+      <!-- مؤشرات الأرقام -->
+      <div style="display:flex; gap:1rem; justify-content:center; margin-bottom:2rem;" id="pinDots">
+        <div class="pin-dot" id="pinDot0"></div>
+        <div class="pin-dot" id="pinDot1"></div>
+        <div class="pin-dot" id="pinDot2"></div>
+        <div class="pin-dot" id="pinDot3"></div>
+      </div>
+
+      <!-- لوحة الأرقام -->
+      <div class="pin-keypad" id="pinKeypad">
+        <button class="pin-key" onclick="pinKeyPress('1')">1</button>
+        <button class="pin-key" onclick="pinKeyPress('2')">2</button>
+        <button class="pin-key" onclick="pinKeyPress('3')">3</button>
+        <button class="pin-key" onclick="pinKeyPress('4')">4</button>
+        <button class="pin-key" onclick="pinKeyPress('5')">5</button>
+        <button class="pin-key" onclick="pinKeyPress('6')">6</button>
+        <button class="pin-key" onclick="pinKeyPress('7')">7</button>
+        <button class="pin-key" onclick="pinKeyPress('8')">8</button>
+        <button class="pin-key" onclick="pinKeyPress('9')">9</button>
+        <button class="pin-key pin-key-empty"></button>
+        <button class="pin-key" onclick="pinKeyPress('0')">0</button>
+        <button class="pin-key pin-key-del" onclick="pinKeyDelete()">⌫</button>
+      </div>
+
+      <p style="color:#475569; font-size:0.78rem; margin-top:1.5rem;" id="pinHintText">💡 لضبط رمز PIN لأول مرة: اذهب للإعدادات بعد الدخول</p>
+    </div>
+  </div>
+
+  <!-- ─── نافذة مسح الباركود بالكاميرا ─── -->
+  <div class="modal-overlay" id="barcodeScannerModal" style="display:none;">
+    <div class="modal-content" style="max-width:420px;">
+      <div class="modal-header">
+        <h3 class="modal-title">📷 مسح الباركود بالكاميرا</h3>
+        <button class="modal-close" onclick="closeBarcodeScanner()">✕</button>
+      </div>
+      <div class="modal-body" style="padding:1rem;">
+        <p style="font-size:0.88rem; color:var(--text-muted); margin-bottom:1rem; text-align:center;">
+          وجّه الكاميرا نحو الباركود الموجود على البضاعة — سيُضاف المنتج تلقائياً للفاتورة
+        </p>
+        <!-- منطقة الكاميرا -->
+        <div id="barcodeScannerView" style="width:100%; border-radius:14px; overflow:hidden; background:#000; min-height:250px; position:relative;">
+          <div id="barcodeScannerInner" style="width:100%;"></div>
+          <!-- إطار التأشير -->
+          <div style="position:absolute; inset:0; pointer-events:none; display:flex; align-items:center; justify-content:center;">
+            <div style="width:200px; height:120px; border:3px solid #2563eb; border-radius:12px; box-shadow:0 0 0 9999px rgba(0,0,0,0.45);"></div>
+          </div>
+        </div>
+        <!-- نتيجة المسح -->
+        <div id="barcodeScanResult" style="display:none; margin-top:1rem; padding:0.85rem; background:var(--success-light); border:1px solid #bbf7d0; border-radius:12px; text-align:center;">
+          <div style="font-size:0.82rem; color:var(--text-muted);">تم مسح الكود:</div>
+          <div id="barcodeScanResultCode" style="font-size:1.1rem; font-weight:800; color:var(--success); margin:0.25rem 0;"></div>
+          <div id="barcodeScanResultProduct" style="font-size:0.9rem; color:var(--text-main);"></div>
+        </div>
+        <!-- خيار الإدخال اليدوي -->
+        <div style="margin-top:1rem; display:flex; gap:0.5rem; align-items:center;">
+          <input type="text" id="manualBarcodeInput" class="form-control" placeholder="أو أدخل الكود يدوياً..." style="flex:1;" onkeydown="if(event.key==='Enter') searchByBarcode(this.value)">
+          <button class="btn btn-primary" onclick="searchByBarcode(document.getElementById('manualBarcodeInput').value)">بحث</button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeBarcodeScanner()">إغلاق</button>
+      </div>
+    </div>
+  </div>
+
   <!-- JavaScript -->
   <script src="js/html2pdf.bundle.min.js"></script>
   <script src="js/warranties.js"></script>
   <script src="js/brandsAudit.js"></script>
   <script src="js/app.js"></script>
   <script src="js/pwa.js"></script>
+  <!-- مكتبة مسح الباركود -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="js/pin-barcode.js"></script>
 </body>
 </html>
 
