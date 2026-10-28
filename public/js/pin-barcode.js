@@ -498,20 +498,22 @@ function toggleInputVisibility(inputId, btn) {
 }
 
 // ─────────────────────────────────────────────
-//  [6] محرك الكاميرا ومسح الباركود الموثوق المباشر
+//  [6] محرك كاميرا الموقع الذكية المباشرة للتعرف التلقائي على الباركود
 // ─────────────────────────────────────────────
-let activeStream = null;
-let currentCameraFacing = 'environment';
+let liveScannerStream = null;
+let liveScannerRafId = null;
+let isScanningActive = false;
 let barcodeDetectorInstance = null;
 let html5QrInstance = null;
-let currentActiveScannerContext = null; // 'assign' | 'universal'
+let currentCameraFacing = 'environment';
+let currentActiveScannerContext = null;
 
-// فحص توفر BarcodeDetector المدمج
+// فحص توفر BarcodeDetector المدمج فائق السرعة
 function getNativeBarcodeDetector() {
   if (!barcodeDetectorInstance && ('BarcodeDetector' in window)) {
     try {
       barcodeDetectorInstance = new window.BarcodeDetector({
-        formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'qr_code', 'upc_a', 'upc_e']
+        formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'qr_code', 'itf']
       });
     } catch (e) {
       barcodeDetectorInstance = null;
@@ -520,87 +522,172 @@ function getNativeBarcodeDetector() {
   return barcodeDetectorInstance;
 }
 
-// تشغيل الكاميرا الحية الموثوقة مع التكيف التلقائي للأبعاد
+// تشغيل كاميرا الموقع الحية المباشرة والتعرف الذكي التلقائي
 async function startLiveCameraScanner(context) {
   currentActiveScannerContext = context;
   await stopLiveCameraScanner();
 
-  const qrContainerId = context === 'assign' ? 'assignScannerQrContainer' : 'universalScannerQrContainer';
-  const qrContainer = document.getElementById(qrContainerId);
-  if (!qrContainer) return;
+  const isAssign = context === 'assign';
+  const videoEl = document.getElementById(isAssign ? 'assignScannerVideo' : 'universalScannerVideo');
+  const qrContainer = document.getElementById(isAssign ? 'assignScannerQrContainer' : 'universalScannerQrContainer');
 
-  qrContainer.innerHTML = '';
-  qrContainer.style.display = 'block';
+  if (!videoEl || !qrContainer) return;
 
-  if (typeof Html5Qrcode === 'undefined') {
-    showCameraPermissionNotice(context, 'محرك الكاميرا غير متوفر حالياً');
-    return;
+  const detector = getNativeBarcodeDetector();
+
+  // 1. المسار الأساسي الذكي: كاميرا المتصفح الحية المباشرة + BarcodeDetector بدون أي التقاط صور
+  if (detector && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    try {
+      const constraints = {
+        video: {
+          facingMode: { ideal: currentCameraFacing },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        audio: false
+      };
+
+      try {
+        liveScannerStream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (e1) {
+        liveScannerStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      }
+
+      videoEl.srcObject = liveScannerStream;
+      videoEl.style.display = 'block';
+      qrContainer.style.display = 'none';
+
+      await videoEl.play();
+      isScanningActive = true;
+      startBarcodeDetectionLoop(videoEl, context);
+      return;
+    } catch (nativeErr) {
+      console.warn('Native getUserMedia stream failed, trying Html5Qrcode fallback:', nativeErr);
+    }
   }
 
-  try {
-    html5QrInstance = new Html5Qrcode(qrContainerId);
+  // 2. المسار البديل للمتصفحات التي تفتقر لـ BarcodeDetector (مثل Safari iOS)
+  if (typeof Html5Qrcode !== 'undefined') {
+    videoEl.style.display = 'none';
+    qrContainer.style.display = 'block';
+    qrContainer.innerHTML = '';
 
-    // حساب أبعاد نافذة المسح ديناميكياً لتفادي أي خطأ أبعاد
-    const config = {
-      fps: 15,
-      qrbox: (viewfinderWidth, viewfinderHeight) => {
-        const w = Math.max(120, Math.min(280, Math.floor(viewfinderWidth * 0.85)));
-        const h = Math.max(80, Math.min(160, Math.floor(viewfinderHeight * 0.65)));
-        return { width: w, height: h };
-      },
-      aspectRatio: 1.333334
-    };
-
-    // 1. المحاولة الأولى: طلب الكاميرا الخلفية عبر facingMode
     try {
-      await html5QrInstance.start(
-        { facingMode: currentCameraFacing },
-        config,
-        (decodedText) => onBarcodeDecoded(decodedText, context),
-        () => {}
-      );
-      return;
-    } catch (facingErr) {
-      console.warn('facingMode start failed, trying available cameras list:', facingErr);
-    }
+      const qrId = isAssign ? 'assignScannerQrContainer' : 'universalScannerQrContainer';
+      html5QrInstance = new Html5Qrcode(qrId);
 
-    // 2. المحاولة الثانية: جلب قائمة الكاميرات واختيار الخلفية (أو الأولى المتوفرة على الكمبيوتر)
-    try {
-      const cameras = await Html5Qrcode.getCameras();
-      if (cameras && cameras.length > 0) {
-        const backCam = cameras.find(c => {
-          const lbl = (c.label || '').toLowerCase();
-          return lbl.includes('back') || lbl.includes('rear') || lbl.includes('environment') || lbl.includes('خلف');
-        });
-        const selectedCamId = backCam ? backCam.id : cameras[0].id;
+      const config = {
+        fps: 20,
+        qrbox: (viewfinderWidth, viewfinderHeight) => {
+          const w = Math.max(120, Math.min(280, Math.floor(viewfinderWidth * 0.85)));
+          const h = Math.max(80, Math.min(160, Math.floor(viewfinderHeight * 0.65)));
+          return { width: w, height: h };
+        },
+        aspectRatio: 1.333334
+      };
 
+      try {
         await html5QrInstance.start(
-          selectedCamId,
+          { facingMode: currentCameraFacing },
           config,
-          (decodedText) => onBarcodeDecoded(decodedText, context),
+          (decodedText) => {
+            if (isScanningActive) {
+              isScanningActive = false;
+              onBarcodeDecoded(decodedText.trim(), context);
+            }
+          },
           () => {}
         );
+        isScanningActive = true;
+        return;
+      } catch (fErr) {
+        await html5QrInstance.start(
+          {},
+          config,
+          (decodedText) => {
+            if (isScanningActive) {
+              isScanningActive = false;
+              onBarcodeDecoded(decodedText.trim(), context);
+            }
+          },
+          () => {}
+        );
+        isScanningActive = true;
         return;
       }
-    } catch (camListErr) {
-      console.warn('Cameras list query failed:', camListErr);
+    } catch (h5Err) {
+      console.error('Html5Qrcode engine failed:', h5Err);
+    }
+  }
+
+  showCameraPermissionNotice(context, 'يرجى السماح بالوصول للكاميرا في المتصفح لاستخدام المسح التلقائي');
+}
+
+// حلقة المسح التلقائي الذكي للإطارات بمعدل 15 إطار بالثانية
+function startBarcodeDetectionLoop(videoEl, context) {
+  let lastScan = 0;
+  let isScanningFrame = false;
+
+  async function checkFrame() {
+    if (!isScanningActive || !liveScannerStream) return;
+
+    const now = performance.now();
+    if (now - lastScan > 65 && !isScanningFrame && videoEl.readyState >= 2) {
+      isScanningFrame = true;
+      lastScan = now;
+      try {
+        const detector = getNativeBarcodeDetector();
+        if (detector) {
+          const barcodes = await detector.detect(videoEl);
+          if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
+            const code = barcodes[0].rawValue.trim();
+            if (code) {
+              isScanningActive = false; // إيقاف فوري لمنع التكرار
+              onBarcodeDecoded(code, context);
+              return;
+            }
+          }
+        }
+      } catch (err) {
+        // تجاهل أخطاء فحص الإطار
+      } finally {
+        isScanningFrame = false;
+      }
     }
 
-    // 3. المحاولة الثالثة: طلب الكاميرا بأي إعداد متاح بدون قيود
-    await html5QrInstance.start(
-      {},
-      config,
-      (decodedText) => onBarcodeDecoded(decodedText, context),
-      () => {}
-    );
-  } catch (err) {
-    console.error('Camera open failed completely:', err);
-    showCameraPermissionNotice(context, err.message || 'يرجى السماح بالوصول للكاميرا في المتصفح');
+    liveScannerRafId = requestAnimationFrame(checkFrame);
   }
+
+  liveScannerRafId = requestAnimationFrame(checkFrame);
 }
 
 // إيقاف الكاميرا وتفريغ الموارد بأمان تام
 async function stopLiveCameraScanner() {
+  isScanningActive = false;
+
+  if (liveScannerRafId) {
+    cancelAnimationFrame(liveScannerRafId);
+    liveScannerRafId = null;
+  }
+
+  if (liveScannerStream) {
+    try {
+      liveScannerStream.getTracks().forEach(track => track.stop());
+    } catch (e) {}
+    liveScannerStream = null;
+  }
+
+  const assignVid = document.getElementById('assignScannerVideo');
+  if (assignVid) {
+    assignVid.srcObject = null;
+    assignVid.style.display = 'none';
+  }
+  const univVid = document.getElementById('universalScannerVideo');
+  if (univVid) {
+    univVid.srcObject = null;
+    univVid.style.display = 'none';
+  }
+
   if (html5QrInstance) {
     try {
       if (html5QrInstance.isScanning) {
@@ -624,93 +711,32 @@ function toggleScannerCameraDevice(context) {
 
 // تشغيل فلاش الكاميرا (Torch) إن وجد
 async function toggleScannerTorch(context) {
-  if (html5QrInstance) {
-    try {
-      await html5QrInstance.applyVideoConstraints({
-        advanced: [{ torch: true }]
-      });
-    } catch (e) {}
-  }
-}
-
-// ─────────────────────────────────────────────
-//  [7] المنقذ الموثوق 100%: التقاط صورة بالباركود بكاميرا الهاتف الأصلية
-// ─────────────────────────────────────────────
-function triggerNativeBarcodeCapture(context) {
-  const inputId = context === 'assign' ? 'assignNativePhotoInput' : 'universalNativePhotoInput';
-  const input = document.getElementById(inputId);
-  if (input) {
-    input.value = '';
-    input.click();
-  }
-}
-
-async function handleNativeBarcodePhoto(inputEl, context) {
-  if (!inputEl || !inputEl.files || inputEl.files.length === 0) return;
-  const file = inputEl.files[0];
-
-  if (typeof showToast === 'function') {
-    showToast('جاري فحص صورة الباركود...', 'info');
-  }
-
-  // 1. تجربة BarcodeDetector المدمج فائق السرعة
-  const detector = getNativeBarcodeDetector();
-  if (detector && window.createImageBitmap) {
-    try {
-      const bitmap = await createImageBitmap(file);
-      const barcodes = await detector.detect(bitmap);
-      if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
-        onBarcodeDecoded(barcodes[0].rawValue.trim(), context);
-        inputEl.value = '';
-        return;
-      }
-    } catch (e) {
-      console.warn('Native photo detect failed:', e);
+  if (liveScannerStream) {
+    const track = liveScannerStream.getVideoTracks()[0];
+    if (track && track.applyConstraints) {
+      try {
+        await track.applyConstraints({
+          advanced: [{ torch: true }]
+        });
+      } catch (e) {}
     }
   }
-
-  // 2. تجربة Html5Qrcode.scanFile بحاوية مساعدة معزولة
-  if (typeof Html5Qrcode !== 'undefined') {
-    try {
-      const dummyId = 'qrPhotoHelperScan';
-      let dummyEl = document.getElementById(dummyId);
-      if (!dummyEl) {
-        dummyEl = document.createElement('div');
-        dummyEl.id = dummyId;
-        dummyEl.style.display = 'none';
-        document.body.appendChild(dummyEl);
-      }
-      const helper = new Html5Qrcode(dummyId);
-      const text = await helper.scanFile(file, true);
-      try { helper.clear(); } catch(e) {}
-      if (text && text.trim()) {
-        onBarcodeDecoded(text.trim(), context);
-        inputEl.value = '';
-        return;
-      }
-    } catch (e) {
-      console.warn('Html5Qrcode scanFile failed:', e);
-    }
-  }
-
-  // إذا لم يتم العثور على باركود في الصورة
-  playErrorBuzz();
-  if (typeof showToast === 'function') {
-    showToast('لم يتم العثور على باركود واضح في الصورة، يرجى إعادة التقاط الصورة بوضوح عن قرب', 'warning');
-  }
-  inputEl.value = '';
 }
 
 function showCameraPermissionNotice(context, errMsg) {
-  const containerId = context === 'assign' ? 'assignScannerQrContainer' : 'universalScannerQrContainer';
-  const container = document.getElementById(containerId);
-  if (container) {
-    container.innerHTML = `
+  const isAssign = context === 'assign';
+  const qrContainerId = isAssign ? 'assignScannerQrContainer' : 'universalScannerQrContainer';
+  const qrContainer = document.getElementById(qrContainerId);
+  const videoEl = document.getElementById(isAssign ? 'assignScannerVideo' : 'universalScannerVideo');
+  if (videoEl) videoEl.style.display = 'none';
+  if (qrContainer) {
+    qrContainer.style.display = 'block';
+    qrContainer.innerHTML = `
       <div style="padding:1.5rem 1rem; text-align:center; color:#ffffff; background:#0f172a; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center;">
         <span style="font-size:2.5rem; margin-bottom:0.4rem;">📷</span>
         <strong style="font-size:0.98rem; margin-bottom:0.35rem; color:#f87171;">الكاميرا بحاجة لإذن المتصفح</strong>
         <p style="font-size:0.8rem; color:#94a3b8; margin-bottom:1rem; max-width:250px; line-height:1.4;">
-          تأكد من السماح بصلاحية الكاميرا في Chrome أو اضغط زر "تصوير الباركود" الأصفر أدناه
+          يرجى الضغط على علامة القفل 🔒 بجانب عنوان الموقع وتفعيل خيار (الكاميرا Camera)
         </p>
         <button type="button" class="btn btn-sm btn-primary" onclick="startLiveCameraScanner('${context}')" style="font-weight:700;">
           <span>🔄</span>

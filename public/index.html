@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=6.2">
+  <link rel="stylesheet" href="css/style.css?v=6.3">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💼</text></svg>">
   
   <!-- PWA & Mobile Web App Meta Tags -->
@@ -3542,21 +3542,19 @@
           <div id="barcodeSuccessMsgText">تم حفظ الباركود بنجاح!</div>
         </div>
 
-        <!-- زر تصوير الباركود بكاميرا الهاتف الأصلية (يعمل بنقرة مباشرة) -->
-        <button type="button" class="btn-native-snap-big" onclick="triggerNativeBarcodeCapture('assign')" title="فتح كاميرا هاتفك لتصوير الباركود فوراً">
-          <span style="font-size:1.35rem;">📸</span>
-          <span>تصوير الباركود بكاميرا الهاتف (سريع ومباشر)</span>
-        </button>
-        <input type="file" id="assignNativePhotoInput" accept="image/*" capture="environment" style="position:fixed; top:-9999px; left:-9999px; opacity:0; width:1px; height:1px; pointer-events:none;" onchange="handleNativeBarcodePhoto(this, 'assign')">
-
-        <!-- كاميرا المسح المباشرة للصنف -->
+        <!-- كاميرا المسح المباشرة الذكية للصنف -->
         <div class="scanner-live-wrapper" id="assignScannerLiveWrapper">
           <div class="scanner-feed-box" id="assignScannerFeedBox">
-            <div id="assignScannerQrContainer" style="width:100%; height:100%;"></div>
+            <video id="assignScannerVideo" playsinline autoplay muted style="width:100%; height:100%; object-fit:cover; display:none;"></video>
+            <div id="assignScannerQrContainer" style="width:100%; height:100%; display:none;"></div>
             <div class="scanner-reticle" id="assignScannerReticle">
               <div class="reticle-box">
                 <div class="scan-laser-line"></div>
               </div>
+            </div>
+            <div class="scanner-live-badge">
+              <span class="live-dot"></span>
+              <span>كاميرا ذكية للتعرف المباشر</span>
             </div>
           </div>
 
@@ -3604,21 +3602,19 @@
           وجّه الكاميرا نحو باركود الصنف للإضافة الفورية للفاتورة
         </p>
 
-        <!-- زر تصوير الباركود بكاميرا الهاتف الأصلية (يعمل بنقرة مباشرة) -->
-        <button type="button" class="btn-native-snap-big" onclick="triggerNativeBarcodeCapture('universal')" title="فتح كاميرا هاتفك لتصوير الباركود فوراً">
-          <span style="font-size:1.35rem;">📸</span>
-          <span>تصوير الباركود بكاميرا الهاتف (سريع ومباشر)</span>
-        </button>
-        <input type="file" id="universalNativePhotoInput" accept="image/*" capture="environment" style="position:fixed; top:-9999px; left:-9999px; opacity:0; width:1px; height:1px; pointer-events:none;" onchange="handleNativeBarcodePhoto(this, 'universal')">
-
-        <!-- منطقة الكاميرا -->
+        <!-- منطقة الكاميرا الذكية المباشرة -->
         <div class="scanner-live-wrapper" style="margin-bottom: 0.75rem;">
           <div class="scanner-feed-box" id="universalScannerFeedBox">
-            <div id="universalScannerQrContainer" style="width:100%; height:100%;"></div>
+            <video id="universalScannerVideo" playsinline autoplay muted style="width:100%; height:100%; object-fit:cover; display:none;"></video>
+            <div id="universalScannerQrContainer" style="width:100%; height:100%; display:none;"></div>
             <div class="scanner-reticle">
               <div class="reticle-box">
                 <div class="scan-laser-line"></div>
               </div>
+            </div>
+            <div class="scanner-live-badge">
+              <span class="live-dot"></span>
+              <span>كاميرا ذكية للتعرف المباشر</span>
             </div>
           </div>
 
@@ -3661,7 +3657,7 @@
   <script src="js/pwa.js"></script>
   <!-- مكتبة مسح الباركود المحلية السريعة -->
   <script src="js/html5-qrcode.min.js"></script>
-  <script src="js/pin-barcode.js?v=6.2"></script>
+  <script src="js/pin-barcode.js?v=6.3"></script>
 </body>
 </html>
 
