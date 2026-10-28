@@ -1178,7 +1178,7 @@ function switchTab(tabId) {
 
 function actuallySwitchTab(tabId) {
   // إلغاء تفعيل الأزرار
-  document.querySelectorAll('.nav-tab-btn').forEach(btn => {
+  document.querySelectorAll('.nav-tab-btn, .mob-nav-btn').forEach(btn => {
     btn.classList.toggle('active', btn.getAttribute('data-tab') === tabId);
   });
 
@@ -1230,6 +1230,34 @@ function actuallySwitchTab(tabId) {
   if (floatingBar) {
     floatingBar.style.display = (tabId === 'inventory') ? 'flex' : 'none';
   }
+}
+
+// -------------------------------------------------------------
+// التحكم في قائمة "المزيد" السفلية للهواتف (Mobile Bottom Sheet)
+// -------------------------------------------------------------
+function toggleMobileMoreSheet() {
+  const backdrop = document.getElementById('mobMoreBackdrop');
+  const sheet = document.getElementById('mobMoreSheet');
+  if (!sheet) return;
+  const isOpen = sheet.classList.contains('active');
+  if (isOpen) {
+    closeMobileMoreSheet();
+  } else {
+    sheet.classList.add('active');
+    if (backdrop) backdrop.classList.add('active');
+  }
+}
+
+function closeMobileMoreSheet() {
+  const backdrop = document.getElementById('mobMoreBackdrop');
+  const sheet = document.getElementById('mobMoreSheet');
+  if (sheet) sheet.classList.remove('active');
+  if (backdrop) backdrop.classList.remove('active');
+}
+
+function switchTabAndCloseMore(tabId) {
+  closeMobileMoreSheet();
+  switchTab(tabId);
 }
 
 function updateDateTimeDisplay() {
@@ -3234,6 +3262,11 @@ function updateFloatingCartUI() {
   if (!floatingBar) return;
 
   const totalItemsCount = state.cart.reduce((sum, i) => sum + i.quantity, 0);
+  const mobCartBadge = document.getElementById('mobCartCountBadge');
+  if (mobCartBadge) {
+    mobCartBadge.style.display = totalItemsCount > 0 ? 'inline-flex' : 'none';
+    mobCartBadge.textContent = totalItemsCount;
+  }
   const totalAmount = state.cart.reduce((sum, i) => sum + (i.quantity * i.sellPrice), 0);
   const currency = state.settings.currency || 'شيكل';
 
@@ -3544,6 +3577,11 @@ function updateCartUI() {
   }
 
   const totalItemsCount = state.cart.reduce((sum, i) => sum + i.quantity, 0);
+  const mobCartBadge = document.getElementById('mobCartCountBadge');
+  if (mobCartBadge) {
+    mobCartBadge.style.display = totalItemsCount > 0 ? 'inline-flex' : 'none';
+    mobCartBadge.textContent = totalItemsCount;
+  }
 
   if (badge) {
     if (totalItemsCount > 0) {
@@ -5764,6 +5802,11 @@ function updateCustomerDebtsBadge() {
   }).length;
 
   const badge = document.getElementById('customerDebtsBadgeNav');
+  const mobCustBadge = document.getElementById('mobCustomerDebtsBadge');
+  if (mobCustBadge) {
+    mobCustBadge.style.display = indebtedCount > 0 ? 'inline-flex' : 'none';
+    mobCustBadge.textContent = indebtedCount;
+  }
   if (badge) {
     if (indebtedCount > 0) {
       badge.style.display = 'inline-block';

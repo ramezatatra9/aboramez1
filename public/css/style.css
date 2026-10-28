@@ -5233,55 +5233,369 @@ div[style*="overflow-x: auto"]::-webkit-scrollbar-track,
   background: transparent;
 }
 
+/* =========================================================
+   نظام التصميم الفاخر والاستجابة الكاملة للهواتف والشاشات الذكية (v4.0)
+   ========================================================= */
+
+/* شريط التنقل السفلي للهواتف (Mobile Bottom Navigation Bar) */
+.mobile-bottom-nav {
+  display: none;
+}
+
+.mobile-more-backdrop {
+  display: none;
+}
+
+.mobile-more-sheet {
+  display: none;
+}
+
+/* شبكة الإدخال السريع لصنف وماركة جديدة داخل الفاتورة */
+.quick-new-product-grid {
+  display: grid;
+  grid-template-columns: 2fr 1.3fr 1fr 1fr 0.8fr auto;
+  gap: 8px;
+  align-items: end;
+}
+
 /* 4. استجابة شاشات التابلت والجوال (أقل من 768px) */
 @media (max-width: 768px) {
+  body {
+    padding-bottom: calc(65px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
   .app-container {
-    padding: 0 0.75rem 4.5rem 0.75rem !important;
+    padding: 0 0.65rem calc(1.5rem + env(safe-area-inset-bottom, 0px)) 0.65rem !important;
   }
   
+  /* شريط التطبيق العلوي المضغوط والأنيق */
   .app-header {
-    padding: 0.75rem 0.85rem 0.35rem 0.85rem;
-    margin-bottom: 0.9rem;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    padding: 0.5rem 0.75rem 0.25rem 0.75rem;
+    margin-bottom: 0.75rem;
+    background: rgba(15, 23, 42, 0.94);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
   }
   
   .header-top {
-    flex-direction: column;
-    align-items: center;
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    align-items: center !important;
     gap: 0.5rem;
-    padding-bottom: 0.45rem;
+    padding-bottom: 0.35rem;
   }
   
   .brand-section {
-    justify-content: center;
-    text-align: center;
+    justify-content: flex-start !important;
+    text-align: right !important;
+    gap: 0.5rem;
+  }
+
+  .brand-icon {
+    width: 36px !important;
+    height: 36px !important;
+    font-size: 1.15rem !important;
+    border-radius: 10px !important;
+    flex-shrink: 0;
+  }
+  
+  .brand-title {
+    font-size: 1.05rem !important;
+    font-weight: 800;
+    white-space: nowrap;
+    line-height: 1.2;
+  }
+  
+  .brand-subtitle {
+    display: none !important;
   }
   
   .header-actions {
     display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
     align-items: center;
-    gap: 0.4rem;
-    width: 100%;
+    gap: 0.35rem;
+    width: auto !important;
   }
   
+  #currentDateDisplay {
+    display: none !important;
+  }
+
   .header-info-badge,
   .telegram-status-badge,
   .btn-install-app {
-    font-size: 0.75rem;
-    padding: 0.3rem 0.65rem;
+    font-size: 0.72rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 8px;
+    white-space: nowrap;
   }
 
+  @media (max-width: 580px) {
+    #telegramStatusText, #dbStatusText {
+      display: none;
+    }
+    .header-info-badge {
+      padding: 0.25rem 0.45rem;
+      font-size: 0.85rem;
+    }
+  }
+
+  /* تبويبات التصفح العلوية (شريط تمرير جانبي ناعم) */
   .nav-tabs {
-    padding: 0.35rem 0.15rem;
+    padding: 0.3rem 0.15rem;
     gap: 0.35rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    display: flex;
+    flex-wrap: nowrap;
+  }
+
+  .nav-tabs::-webkit-scrollbar {
+    display: none;
   }
 
   .nav-tab-btn {
-    padding: 0.45rem 0.8rem;
-    font-size: 0.8rem;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.78rem;
     white-space: nowrap;
     border-radius: 10px;
+    flex-shrink: 0;
+  }
+
+  /* شريط التنقل السفلي الفاخر للهواتف */
+  .mobile-bottom-nav {
+    display: flex !important;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: calc(58px + env(safe-area-inset-bottom, 0px));
+    padding: 0 0.25rem env(safe-area-inset-bottom, 0px) 0.25rem;
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-top: 1px solid #e2e8f0;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
+    z-index: 9999;
+    justify-content: space-around;
+    align-items: center;
+  }
+
+  .mob-nav-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    background: transparent;
+    border: none;
+    color: #64748b;
+    padding: 6px 8px;
+    border-radius: 12px;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    font-family: inherit;
+    flex: 1;
+    text-decoration: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mob-nav-btn:active {
+    transform: scale(0.92);
+  }
+
+  .mob-nav-btn.active {
+    color: #2563eb;
+  }
+
+  .mob-nav-btn.active .mob-nav-icon {
+    transform: translateY(-2px);
+    filter: drop-shadow(0 2px 6px rgba(37, 99, 235, 0.35));
+  }
+
+  .mob-nav-btn.active::after {
+    content: '';
+    position: absolute;
+    bottom: 3px;
+    width: 14px;
+    height: 3px;
+    background: #2563eb;
+    border-radius: 99px;
+  }
+
+  .mob-nav-icon-wrap {
+    position: relative;
+    display: inline-flex;
+  }
+
+  .mob-nav-icon {
+    font-size: 1.25rem;
+    line-height: 1;
+    transition: transform 0.2s ease;
+  }
+
+  .mob-nav-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .mob-cart-badge {
+    position: absolute;
+    top: -5px;
+    right: -8px;
+    background: #2563eb;
+    color: #ffffff;
+    font-size: 0.65rem;
+    font-weight: 800;
+    min-width: 17px;
+    height: 17px;
+    padding: 0 4px;
+    border-radius: 99px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid #ffffff;
+    box-shadow: 0 2px 6px rgba(37, 99, 235, 0.4);
+  }
+
+  .mob-cart-badge.warning {
+    background: #d97706;
+    box-shadow: 0 2px 6px rgba(217, 119, 6, 0.4);
+  }
+
+  /* قائمة المزيد السفلية (Bottom Sheet Drawer) */
+  .mobile-more-backdrop {
+    display: block !important;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 10000;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .mobile-more-backdrop.active {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .mobile-more-sheet {
+    display: block !important;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #ffffff;
+    border-radius: 24px 24px 0 0;
+    padding: 0.75rem 1rem calc(1.5rem + env(safe-area-inset-bottom, 0px)) 1rem;
+    z-index: 10001;
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.25);
+    transform: translateY(100%);
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    max-height: 85vh;
+    overflow-y: auto;
+  }
+
+  .mobile-more-sheet.active {
+    transform: translateY(0);
+  }
+
+  .sheet-drag-handle {
+    width: 44px;
+    height: 5px;
+    background: #cbd5e1;
+    border-radius: 99px;
+    margin: 0 auto 0.85rem auto;
+  }
+
+  .sheet-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid #f1f5f9;
+    margin-bottom: 0.85rem;
+  }
+
+  .sheet-title {
+    font-weight: 800;
+    font-size: 1.05rem;
+    color: #0f172a;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .sheet-close-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    background: #f1f5f9;
+    color: #64748b;
+    font-weight: 800;
+    font-size: 0.95rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .sheet-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.65rem;
+  }
+
+  .sheet-item-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 0.85rem;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    text-align: right;
+    font-family: inherit;
+  }
+
+  .sheet-item-btn:active {
+    background: #eff6ff;
+    border-color: #93c5fd;
+    transform: scale(0.97);
+  }
+
+  .sheet-item-icon {
+    font-size: 1.5rem;
+    margin-bottom: 0.35rem;
+  }
+
+  .sheet-item-title {
+    font-weight: 800;
+    font-size: 0.88rem;
+    color: #0f172a;
+    line-height: 1.25;
+  }
+
+  .sheet-item-desc {
+    font-size: 0.72rem;
+    color: #64748b;
+    margin-top: 2px;
   }
 
   /* Catalog Toolbar */
@@ -5310,8 +5624,9 @@ div[style*="overflow-x: auto"]::-webkit-scrollbar-track,
 
   /* Brands Hub */
   .brand-compact-hub {
-    padding: 0.75rem 0.85rem;
-    margin-bottom: 0.85rem;
+    padding: 0.65rem 0.8rem;
+    margin-bottom: 0.75rem;
+    border-radius: 14px;
   }
   
   .brand-compact-header {
@@ -5328,13 +5643,13 @@ div[style*="overflow-x: auto"]::-webkit-scrollbar-track,
   }
 
   .brands-small-grid {
-    max-height: 120px;
+    max-height: 110px;
     gap: 0.3rem;
   }
 
   .brand-mini-chip {
-    padding: 0.22rem 0.55rem;
-    font-size: 0.78rem;
+    padding: 0.25rem 0.55rem;
+    font-size: 0.76rem;
   }
 
   /* Invoice Form Layout */
@@ -5343,8 +5658,23 @@ div[style*="overflow-x: auto"]::-webkit-scrollbar-track,
     gap: 1rem;
   }
 
+  .quick-new-product-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+  .quick-new-product-grid > div:first-child {
+    grid-column: 1 / -1;
+  }
+  .quick-new-product-grid > div:last-child {
+    grid-column: 1 / -1;
+  }
+  .quick-new-product-grid > div:last-child button {
+    width: 100% !important;
+    height: 44px !important;
+  }
+
   .items-table {
-    min-width: 580px;
+    min-width: 540px;
   }
 
   .items-table th, .items-table td {
@@ -5352,28 +5682,74 @@ div[style*="overflow-x: auto"]::-webkit-scrollbar-track,
     font-size: 0.8rem;
   }
 
-  /* Modals */
+  /* Customer KPI Cards (2x2 Grid) */
+  .customers-kpi-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.6rem !important;
+  }
+  .cust-kpi-card {
+    padding: 0.75rem 0.65rem !important;
+    border-radius: 12px !important;
+  }
+  .cust-kpi-card .kpi-icon-wrap {
+    font-size: 1.25rem !important;
+    width: 32px !important;
+    height: 32px !important;
+  }
+  .cust-kpi-card .kpi-label {
+    font-size: 0.72rem !important;
+  }
+  .cust-kpi-card .kpi-value {
+    font-size: 1.05rem !important;
+  }
+  .cust-kpi-card .kpi-sub {
+    font-size: 0.66rem !important;
+  }
+
+  /* النوافذ المنبثقة على الهواتف كأسلوب Bottom Sheet */
+  .modal-overlay {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+
   .modal-content {
-    margin: 0.5rem auto;
-    width: calc(100% - 1rem) !important;
+    width: 100% !important;
     max-width: 100% !important;
-    max-height: 94vh;
-    border-radius: 16px;
+    margin: 0 !important;
+    border-radius: 22px 22px 0 0 !important;
+    max-height: 90vh !important;
+    display: flex;
+    flex-direction: column;
+    animation: slideUpModal 0.28s cubic-bezier(0.16, 1, 0.3, 1) !important;
   }
 
   .modal-body {
-    padding: 0.9rem;
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 1rem !important;
+  }
+
+  .modal-header {
+    padding: 0.9rem 1rem !important;
+    border-top-left-radius: 22px !important;
+    border-top-right-radius: 22px !important;
   }
 
   .modal-footer {
-    padding: 0.75rem 0.9rem;
+    padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom, 0px)) 1rem !important;
+    position: sticky;
+    bottom: 0;
+    background: #ffffff;
+    box-shadow: 0 -4px 12px rgba(0,0,0,0.05);
     flex-wrap: wrap;
     gap: 0.5rem;
   }
 
   .modal-footer .btn {
     flex: 1;
-    min-width: 120px;
+    min-width: 110px;
+    height: 42px;
   }
 
   /* Prevent auto zoom on iOS Safari */
@@ -5381,71 +5757,164 @@ div[style*="overflow-x: auto"]::-webkit-scrollbar-track,
   input[type="number"],
   input[type="tel"],
   input[type="search"],
+  input[type="password"],
   select,
   textarea {
     font-size: 16px !important;
+    min-height: 44px;
+    border-radius: 10px;
+  }
+
+  .btn {
+    min-height: 42px;
+    border-radius: 10px;
+  }
+
+  /* الأشرطة العائمة تعلو شريط التنقل السفلي */
+  .floating-cart-bar {
+    bottom: calc(64px + env(safe-area-inset-bottom, 0px) + 8px) !important;
+    right: 0.5rem !important;
+    left: 0.5rem !important;
+    width: calc(100% - 1rem) !important;
+    border-radius: 14px !important;
+    padding: 0.65rem 0.9rem !important;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25) !important;
+    z-index: 9998 !important;
+  }
+
+  .inventory-floating-pill {
+    bottom: calc(64px + env(safe-area-inset-bottom, 0px) + 8px) !important;
+    right: 0.5rem !important;
+    left: 0.5rem !important;
+    width: calc(100% - 1rem) !important;
+    z-index: 9998 !important;
   }
 }
 
-/* 5. استجابة شاشات الهواتف المحمولة (أقل من 520px) */
-@media (max-width: 520px) {
-  .brand-title {
-    font-size: 1.15rem;
+@keyframes slideUpModal {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
   }
-  
-  .brand-subtitle {
-    font-size: 0.72rem;
+  to {
+    transform: translateY(0);
+    opacity: 1;
   }
+}
 
-  /* كروت المنتجات عمود واحد مريح وواضح */
+/* 5. استجابة شاشات الهواتف المحمولة (أقل من 640px) */
+@media (max-width: 640px) {
+  /* كروت المنتجات: شبكة ثنائية الأعمدة غاية في الأناقة والتنظيم */
   .products-grid {
-    grid-template-columns: 1fr !important;
-    gap: 0.85rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.65rem !important;
   }
 
   .product-card {
-    border-radius: var(--radius-lg);
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    border-radius: 14px !important;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04) !important;
+    border: 1px solid #e2e8f0;
+    display: flex;
+    flex-direction: column;
+    background: #ffffff;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .product-card:active {
+    transform: scale(0.98);
   }
 
   .product-img-wrapper {
-    height: 195px;
+    height: 135px !important;
+    position: relative;
+    background: #f8fafc;
+    overflow: hidden;
+  }
+
+  .product-img-wrapper img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain !important;
+    padding: 6px;
   }
 
   .product-content {
-    padding: 0.85rem 1rem;
+    padding: 0.6rem !important;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    justify-content: space-between;
   }
 
   .product-title {
-    font-size: 0.95rem;
-    height: auto;
-    margin-bottom: 0.6rem;
+    font-size: 0.82rem !important;
+    font-weight: 700 !important;
+    line-height: 1.35 !important;
+    height: 2.7em !important;
+    margin-bottom: 0.35rem !important;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
   }
 
-  .employee-pricing-box {
-    padding: 0.65rem 0.85rem;
-    margin-bottom: 0.75rem;
+  .product-category-tag,
+  .product-brand-tag,
+  .product-stock-tag {
+    font-size: 0.65rem !important;
+    padding: 2px 5px !important;
+    border-radius: 5px !important;
   }
 
-  .price-row {
-    font-size: 0.84rem;
+  .employee-pricing-box {
+    padding: 0.35rem 0.5rem !important;
+    margin-bottom: 0.45rem !important;
+    border-radius: 8px !important;
   }
 
   .sell-val {
-    font-size: 1.05rem;
+    font-size: 0.95rem !important;
+    font-weight: 800 !important;
+    color: #1e40af !important;
+  }
+
+  .price-row {
+    font-size: 0.72rem !important;
   }
 
   .product-actions {
-    display: flex;
+    display: flex !important;
     flex-direction: row !important;
-    gap: 0.5rem;
+    gap: 0.35rem !important;
   }
 
   .product-actions .btn {
-    flex: 1;
-    padding: 0.65rem 0.8rem;
-    font-size: 0.86rem;
+    padding: 0.45rem 0.5rem !important;
+    font-size: 0.78rem !important;
+    border-radius: 8px !important;
+    white-space: nowrap;
+  }
+
+  .product-actions .btn-add-to-cart {
+    flex: 2;
+  }
+
+  /* الأقسام الرئيسية في الكتالوج */
+  .main-categories-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 0.45rem !important;
+  }
+
+  .main-category-card {
+    padding: 0.6rem 0.4rem !important;
+    border-radius: 12px !important;
+    font-size: 0.76rem !important;
+  }
+
+  .main-cat-icon {
+    font-size: 1.3rem !important;
+    margin-bottom: 2px !important;
   }
 
   /* البطاقات والإحصائيات */
@@ -5459,6 +5928,7 @@ div[style*="overflow-x: auto"]::-webkit-scrollbar-track,
 
   .card {
     padding: 0.85rem;
+    border-radius: 14px;
   }
 
   /* الفلاتر السريعة */
@@ -5470,45 +5940,30 @@ div[style*="overflow-x: auto"]::-webkit-scrollbar-track,
   .chip {
     padding: 0.35rem 0.7rem;
     font-size: 0.78rem;
-  }
-
-  /* الشريط العائم للسلة */
-  .floating-cart-bar {
-    width: calc(100% - 1rem);
-    bottom: 8px;
-    right: 0.5rem;
-    left: 0.5rem;
-    padding: 0.65rem 0.9rem;
-    border-radius: 14px;
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
-  }
-
-  .floating-cart-details .floating-cart-title {
-    font-size: 0.82rem;
-  }
-
-  .floating-cart-total {
-    font-size: 0.98rem;
+    border-radius: 20px;
   }
 }
 
-/* 6. شاشات الهواتف شديدة الصغر (أقل من 375px مثل iPhone SE القديم) */
-@media (max-width: 375px) {
+/* 6. شاشات الهواتف شديدة الصغر (أقل من 380px) */
+@media (max-width: 380px) {
   .app-container {
-    padding: 0 0.5rem 4rem 0.5rem !important;
+    padding: 0 0.4rem calc(1.5rem + env(safe-area-inset-bottom, 0px)) 0.4rem !important;
   }
 
   .brand-title {
-    font-size: 1rem;
+    font-size: 0.95rem !important;
   }
 
-  .nav-tab-btn {
-    padding: 0.4rem 0.6rem;
-    font-size: 0.74rem;
+  .main-categories-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
   }
 
   .product-img-wrapper {
-    height: 175px;
+    height: 120px !important;
+  }
+
+  .product-title {
+    font-size: 0.78rem !important;
   }
 }
 

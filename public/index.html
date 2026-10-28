@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=3.1">
+  <link rel="stylesheet" href="css/style.css?v=4.0">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💼</text></svg>">
   
   <!-- PWA & Mobile Web App Meta Tags -->
@@ -407,7 +407,7 @@
                 </div>
               </div>
 
-              <form id="formQuickNewProduct" onsubmit="event.preventDefault(); submitQuickNewProductForInvoice();" style="display: grid; grid-template-columns: 2fr 1.3fr 1fr 1fr 0.8fr auto; gap: 8px; align-items: end;">
+              <form id="formQuickNewProduct" class="quick-new-product-grid" onsubmit="event.preventDefault(); submitQuickNewProductForInvoice();">
                 <div>
                   <label style="font-size: 0.78rem; font-weight: 700; color: #065f46; display: block; margin-bottom: 4px;">اسم الصنف الجديد <span class="req">*</span></label>
                   <input type="text" id="qnpName" class="form-control" placeholder="مثال: غسالة بيكو 8 كجم ديجيتال..." required style="padding: 7px 10px; font-size: 0.88rem; background: #fff; border: 1.5px solid #a7f3d0;" oninput="handleQnpNameInput(this.value)">
@@ -3222,6 +3222,83 @@
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" onclick="closeBrandAuditLogsModal()">إغلاق</button>
       </div>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       Mobile Bottom Navigation Bar (شريط التنقل السفلي الفاخر للهواتف)
+       ========================================================= -->
+  <nav class="mobile-bottom-nav" id="mobileBottomNav" aria-label="التنقل الرئيسي للجوال">
+    <button type="button" class="mob-nav-btn active" data-tab="catalog" onclick="switchTab('catalog')">
+      <span class="mob-nav-icon">📦</span>
+      <span class="mob-nav-label">الكتالوج</span>
+    </button>
+    <button type="button" class="mob-nav-btn" data-tab="create-invoice" onclick="switchTab('create-invoice')">
+      <span class="mob-nav-icon-wrap">
+        <span class="mob-nav-icon">🧾</span>
+        <span class="mob-cart-badge" id="mobCartCountBadge" style="display:none;">0</span>
+      </span>
+      <span class="mob-nav-label">فاتورة</span>
+    </button>
+    <button type="button" class="mob-nav-btn" data-tab="receipts" onclick="switchTab('receipts')">
+      <span class="mob-nav-icon">💰</span>
+      <span class="mob-nav-label">سند قبض</span>
+    </button>
+    <button type="button" class="mob-nav-btn" data-tab="customers" onclick="switchTab('customers')">
+      <span class="mob-nav-icon-wrap">
+        <span class="mob-nav-icon">👥</span>
+        <span class="mob-cart-badge warning" id="mobCustomerDebtsBadge" style="display:none;">0</span>
+      </span>
+      <span class="mob-nav-label">الزبائن</span>
+    </button>
+    <button type="button" class="mob-nav-btn" id="btnOpenMobMoreSheet" onclick="toggleMobileMoreSheet()">
+      <span class="mob-nav-icon">☰</span>
+      <span class="mob-nav-label">المزيد</span>
+    </button>
+  </nav>
+
+  <!-- Mobile "More" Drawer / Bottom Sheet -->
+  <div class="mobile-more-backdrop" id="mobMoreBackdrop" onclick="closeMobileMoreSheet()"></div>
+  <div class="mobile-more-sheet" id="mobMoreSheet">
+    <div class="sheet-drag-handle"></div>
+    <div class="sheet-header">
+      <div class="sheet-title">
+        <span>⚙️</span>
+        <span>الأقسام والخدمات الإضافية</span>
+      </div>
+      <button type="button" class="sheet-close-btn" onclick="closeMobileMoreSheet()">✕</button>
+    </div>
+    <div class="sheet-grid">
+      <button type="button" class="sheet-item-btn" onclick="switchTabAndCloseMore('inventory')">
+        <span class="sheet-item-icon">📋</span>
+        <span class="sheet-item-title">الجرد والمخزون</span>
+        <span class="sheet-item-desc">تعديل الأرصدة والمستودع</span>
+      </button>
+      <button type="button" class="sheet-item-btn" onclick="switchTabAndCloseMore('brands-audit')">
+        <span class="sheet-item-icon">🏷️</span>
+        <span class="sheet-item-title">مراجعة الماركات</span>
+        <span class="sheet-item-desc">تصنيف وتدقيق الشركات</span>
+      </button>
+      <button type="button" class="sheet-item-btn" onclick="switchTabAndCloseMore('invoices-list')">
+        <span class="sheet-item-icon">📑</span>
+        <span class="sheet-item-title">سجل الفواتير</span>
+        <span class="sheet-item-desc">أرشيف الفواتير الصادرة</span>
+      </button>
+      <button type="button" class="sheet-item-btn" onclick="switchTabAndCloseMore('warranties')">
+        <span class="sheet-item-icon">🛡️</span>
+        <span class="sheet-item-title">سجل الكفالات</span>
+        <span class="sheet-item-desc">كفالات الأجهزة المعتمدة</span>
+      </button>
+      <button type="button" class="sheet-item-btn" onclick="switchTabAndCloseMore('dashboard')">
+        <span class="sheet-item-icon">📊</span>
+        <span class="sheet-item-title">الإحصائيات والأرباح</span>
+        <span class="sheet-item-desc">تقارير المبيعات والأداء</span>
+      </button>
+      <button type="button" class="sheet-item-btn" onclick="switchTabAndCloseMore('settings')">
+        <span class="sheet-item-icon">⚙️</span>
+        <span class="sheet-item-title">الإعدادات العامة</span>
+        <span class="sheet-item-desc">تيليجرام، النسخ الاحتياطي</span>
+      </button>
     </div>
   </div>
 
