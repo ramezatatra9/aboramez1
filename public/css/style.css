@@ -5789,6 +5789,469 @@ div[style*="overflow-x: auto"]::-webkit-scrollbar-track,
     width: calc(100% - 1rem) !important;
     z-index: 9998 !important;
   }
+
+  /* =========================================================
+     [1] تحسين تجربة فاتورة جديدة (tab-create-invoice) على الجوال
+     ========================================================= */
+  .invoice-type-toggle-bar {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 0.5rem !important;
+  }
+  .invoice-type-tab-btn {
+    padding: 0.65rem 0.5rem !important;
+    border-radius: 12px !important;
+    flex-direction: column !important;
+    text-align: center !important;
+    gap: 0.35rem !important;
+  }
+  .type-btn-icon {
+    font-size: 1.45rem !important;
+    margin: 0 !important;
+  }
+  .type-btn-title {
+    font-size: 0.84rem !important;
+    font-weight: 800 !important;
+    line-height: 1.25;
+  }
+  .type-btn-sub {
+    display: none !important;
+  }
+  .type-active-indicator {
+    display: none !important;
+  }
+
+  /* جدول الأصناف المختارة يتحول إلى كروت منتجات تطبيق فاخرة */
+  #selectedItemsTable {
+    display: block !important;
+    min-width: unset !important;
+    width: 100% !important;
+    border: none !important;
+  }
+  #selectedItemsTableHead {
+    display: none !important;
+  }
+  #selectedItemsTableBody {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.65rem !important;
+  }
+  #selectedItemsTableBody tr {
+    display: flex !important;
+    flex-direction: column !important;
+    background: #ffffff !important;
+    border: 1.5px solid #e2e8f0 !important;
+    border-radius: 14px !important;
+    padding: 0.75rem !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+    gap: 0.5rem !important;
+    position: relative !important;
+  }
+
+  #selectedItemsTableBody tr td:first-child {
+    padding: 0 !important;
+    border: none !important;
+    display: flex !important;
+    align-items: center !important;
+    padding-left: 2.4rem !important;
+  }
+  #selectedItemsTableBody tr td:first-child img.item-thumb {
+    width: 48px !important;
+    height: 48px !important;
+    border-radius: 10px !important;
+    object-fit: cover !important;
+    flex-shrink: 0 !important;
+  }
+
+  #selectedItemsTableBody tr td:last-child {
+    position: absolute !important;
+    top: 8px !important;
+    left: 8px !important;
+    padding: 0 !important;
+    border: none !important;
+  }
+  #selectedItemsTableBody tr td:last-child .btn-danger {
+    width: 32px !important;
+    height: 32px !important;
+    padding: 0 !important;
+    border-radius: 50% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 0.85rem !important;
+  }
+
+  #selectedItemsTableBody tr td:not(:first-child):not(:last-child) {
+    padding: 0.35rem 0 !important;
+    border: none !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    border-top: 1px dashed #f1f5f9 !important;
+    font-size: 0.84rem !important;
+  }
+
+  #selectedItemsTableBody tr td.col-sell-price::before {
+    content: 'سعر البيع للقطعة:';
+    font-weight: 700;
+    color: #64748b;
+  }
+  #selectedItemsTableBody tr td:nth-child(2)::before {
+    content: 'سعر التكلفة:';
+    font-weight: 700;
+    color: #64748b;
+  }
+  #selectedItemsTableBody tr td.col-profit::before {
+    content: 'صافي الربح:';
+    font-weight: 700;
+    color: #059669;
+  }
+
+  .quantity-control {
+    background: #f1f5f9 !important;
+    border-radius: 10px !important;
+    padding: 2px !important;
+    gap: 4px !important;
+  }
+  .quantity-btn {
+    width: 36px !important;
+    height: 36px !important;
+    font-size: 1.15rem !important;
+    font-weight: 800 !important;
+    border-radius: 8px !important;
+    background: #ffffff !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08) !important;
+  }
+  .quantity-input {
+    width: 44px !important;
+    font-size: 1rem !important;
+    font-weight: 800 !important;
+    text-align: center !important;
+  }
+
+  .payment-selector {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 0.5rem !important;
+  }
+  .payment-option {
+    padding: 0.65rem 0.5rem !important;
+    border-radius: 12px !important;
+    text-align: center !important;
+  }
+  .payment-option .icon {
+    font-size: 1.45rem !important;
+    margin-bottom: 0.2rem !important;
+  }
+  .payment-option .title {
+    font-size: 0.85rem !important;
+    font-weight: 800 !important;
+  }
+  .payment-option > div:last-child {
+    display: none !important;
+  }
+
+  .invoice-summary-card {
+    position: static !important;
+  }
+  .invoice-summary-card .card {
+    border-radius: 16px !important;
+    padding: 1rem !important;
+  }
+  .summary-row {
+    padding: 0.4rem 0 !important;
+    font-size: 0.88rem !important;
+  }
+  .summary-row.total-final {
+    font-size: 1.25rem !important;
+    margin-top: 0.5rem !important;
+    padding-top: 0.75rem !important;
+  }
+  #btnSubmitInvoice {
+    height: 48px !important;
+    font-size: 1rem !important;
+    font-weight: 800 !important;
+    border-radius: 12px !important;
+  }
+  #btnSubmitQuotation {
+    height: 44px !important;
+    font-size: 0.86rem !important;
+    border-radius: 12px !important;
+  }
+
+  /* =========================================================
+     [2] تحسين تجربة سند قبض (tab-receipts) على الجوال
+     ========================================================= */
+  .receipts-top-actions-bar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.6rem !important;
+    padding: 0.75rem 0.85rem !important;
+  }
+  .receipts-top-actions-bar > div:last-child {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 0.45rem !important;
+  }
+  .receipts-top-actions-bar button {
+    width: 100% !important;
+    justify-content: center !important;
+    font-size: 0.8rem !important;
+  }
+
+  .rcp-quick-amounts {
+    display: flex !important;
+    gap: 0.35rem !important;
+    flex-wrap: wrap !important;
+    margin-top: 0.5rem !important;
+  }
+  .btn-amt-preset {
+    background: #f1f5f9 !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #0f172a !important;
+    font-weight: 800 !important;
+    padding: 6px 12px !important;
+    border-radius: 99px !important;
+    font-size: 0.82rem !important;
+    min-height: 36px !important;
+    transition: all 0.15s ease !important;
+  }
+  .btn-amt-preset:active {
+    background: #059669 !important;
+    color: #ffffff !important;
+    border-color: #059669 !important;
+    transform: scale(0.94) !important;
+  }
+
+  .receipts-kpi-row {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 0.5rem !important;
+  }
+  .receipt-kpi-item {
+    padding: 0.6rem 0.5rem !important;
+    border-radius: 10px !important;
+  }
+  .receipt-kpi-item .label {
+    font-size: 0.72rem !important;
+  }
+  .receipt-kpi-item .value {
+    font-size: 1.1rem !important;
+  }
+
+  /* سجل سندات القبض يتحول لكروت معاملات مالية سهلة القراءة */
+  #receiptsTableBody {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.65rem !important;
+  }
+  #receiptsTableBody tr {
+    display: flex !important;
+    flex-direction: column !important;
+    background: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 14px !important;
+    padding: 0.85rem !important;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.03) !important;
+    gap: 0.45rem !important;
+  }
+  #receiptsTableBody tr td {
+    padding: 0 !important;
+    border: none !important;
+  }
+  #receiptsTableBody tr td:first-child {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    font-weight: 800 !important;
+    font-size: 0.9rem !important;
+    color: #2563eb !important;
+  }
+  #receiptsTableBody tr td:nth-child(2) {
+    font-size: 0.74rem !important;
+    color: #64748b !important;
+  }
+  #receiptsTableBody tr td:nth-child(3) {
+    font-size: 0.98rem !important;
+    color: #0f172a !important;
+    padding-top: 0.25rem !important;
+    border-top: 1px solid #f1f5f9 !important;
+  }
+  #receiptsTableBody tr td:nth-child(4) {
+    font-size: 1.25rem !important;
+    font-weight: 900 !important;
+    color: #059669 !important;
+  }
+  #receiptsTableBody tr td:nth-child(5) {
+    display: flex !important;
+    gap: 0.5rem !important;
+    align-items: center !important;
+  }
+  #receiptsTableBody tr td:nth-child(6) {
+    font-size: 0.78rem !important;
+    color: #64748b !important;
+  }
+  #receiptsTableBody tr td:last-child {
+    padding-top: 0.5rem !important;
+    border-top: 1px solid #f1f5f9 !important;
+    display: flex !important;
+    justify-content: flex-end !important;
+  }
+  #receiptsTableBody tr td:last-child .btn {
+    min-height: 36px !important;
+    padding: 0.35rem 0.75rem !important;
+    font-size: 0.82rem !important;
+  }
+
+  /* =========================================================
+     [3] تحسين تجربة الزبائن والديون (tab-customers) على الجوال
+     ========================================================= */
+  .customers-section-container .card {
+    padding: 0.75rem 0.65rem !important;
+  }
+  .customers-section-container .search-box {
+    width: 100% !important;
+    min-width: unset !important;
+  }
+  
+  .customers-section-container > .card:nth-of-type(2) > div > div:last-child {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 0.4rem !important;
+    width: 100% !important;
+    margin-top: 0.5rem !important;
+  }
+  .customers-section-container > .card:nth-of-type(2) > div > div:last-child button {
+    width: 100% !important;
+    justify-content: center !important;
+    font-size: 0.78rem !important;
+    padding: 0.5rem 0.4rem !important;
+  }
+
+  /* جدول الزبائن يتحول إلى كروت عملاء منظمة وفاخرة جداً */
+  #customersMainTable {
+    display: block !important;
+    min-width: unset !important;
+    width: 100% !important;
+    border: none !important;
+  }
+  #customersMainTable thead {
+    display: none !important;
+  }
+  #customersMainTableBody {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.75rem !important;
+  }
+  #customersMainTableBody tr {
+    display: flex !important;
+    flex-direction: column !important;
+    background: #ffffff !important;
+    border: 1.5px solid #e2e8f0 !important;
+    border-radius: 16px !important;
+    padding: 0.85rem !important;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04) !important;
+    gap: 0.5rem !important;
+    transition: transform 0.15s ease !important;
+  }
+  #customersMainTableBody tr:active {
+    transform: scale(0.99) !important;
+  }
+
+  #customersMainTableBody tr.urgent-debt-row {
+    border-color: #ef4444 !important;
+    background: #fffbfa !important;
+  }
+
+  #customersMainTableBody tr td {
+    padding: 0 !important;
+    border: none !important;
+  }
+
+  /* الاسم والتصنيف */
+  #customersMainTableBody tr td:nth-child(2) {
+    order: 1 !important;
+  }
+  #customersMainTableBody tr td:nth-child(2) strong {
+    font-size: 1.05rem !important;
+    color: #0f172a !important;
+  }
+
+  /* كود العميل والهاتف */
+  #customersMainTableBody tr td:first-child {
+    order: 2 !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    font-size: 0.78rem !important;
+    color: #64748b !important;
+    padding-bottom: 0.35rem !important;
+    border-bottom: 1px dashed #f1f5f9 !important;
+  }
+  #customersMainTableBody tr td:nth-child(3) {
+    order: 2 !important;
+    font-size: 0.85rem !important;
+  }
+
+  /* الرصيد والدين */
+  #customersMainTableBody tr td:nth-child(4) {
+    order: 3 !important;
+    padding: 0.45rem 0.65rem !important;
+    background: #f8fafc !important;
+    border-radius: 10px !important;
+    text-align: right !important;
+  }
+  #customersMainTableBody tr td:nth-child(4) .debt-badge {
+    font-size: 1.15rem !important;
+    font-weight: 900 !important;
+    padding: 0.35rem 0.75rem !important;
+    display: block !important;
+    text-align: center !important;
+    border-radius: 8px !important;
+  }
+
+  /* مؤقت وتاريخ آخر حركة */
+  #customersMainTableBody tr td:nth-child(5) {
+    order: 4 !important;
+  }
+  #customersMainTableBody tr td:nth-child(5) .cust-timer-badge {
+    padding: 0.4rem 0.6rem !important;
+    border-radius: 10px !important;
+  }
+
+  /* الملاحظات */
+  #customersMainTableBody tr td:nth-child(6) {
+    order: 5 !important;
+    font-size: 0.78rem !important;
+    color: #64748b !important;
+  }
+
+  /* أزرار العمليات السريعة بأزرار لمس كبيرة وسلسة */
+  #customersMainTableBody tr td:last-child {
+    order: 6 !important;
+    padding-top: 0.65rem !important;
+    border-top: 1px solid #f1f5f9 !important;
+  }
+  #customersMainTableBody tr td:last-child > div {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 0.35rem !important;
+    flex-wrap: wrap !important;
+  }
+  #customersMainTableBody tr td:last-child .btn,
+  #customersMainTableBody tr td:last-child .btn-statement {
+    width: 100% !important;
+    min-height: 38px !important;
+    padding: 0.4rem 0.25rem !important;
+    font-size: 0.76rem !important;
+    font-weight: 800 !important;
+    justify-content: center !important;
+    border-radius: 8px !important;
+    white-space: nowrap !important;
+    text-align: center !important;
+  }
+  #customersMainTableBody tr td:last-child .btn-secondary,
+  #customersMainTableBody tr td:last-child .btn-danger,
+  #customersMainTableBody tr td:last-child .btn-cust-reminder {
+    grid-column: span 1 !important;
+  }
 }
 
 @keyframes slideUpModal {
