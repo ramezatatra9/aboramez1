@@ -1,4 +1,4 @@
-/* =========================================================
+﻿/* =========================================================
    pin-barcode.js
    نظام الصلاحيات وقفل PIN متعدد المستخدمين
    + محرك مسح الباركود بالكاميرا (حي ومحلي ومزدوج المحرك)
@@ -877,6 +877,7 @@ async function processBarcodeAssignment(scannedBarcode) {
     if (dupBcEl)    dupBcEl.textContent    = cleanBarcode;
 
     if (goToBtn) {
+      goToBtn._dupProductId = duplicate.id;
       goToBtn.onclick = () => locateProductInInventory(duplicate.id);
     }
 
@@ -964,6 +965,28 @@ async function processBarcodeAssignment(scannedBarcode) {
 }
 
 // الانتقال للصنف المكرر بالجرد
+// ─────────────────────────────────────────────
+// دالة مساعدة: الانتقال للصنف المكرر (تُستدعى من HTML بدون معامل)
+// ─────────────────────────────────────────────
+function locateDuplicateItemInInventory() {
+  const btn = document.getElementById('btnGoToDupItem');
+  if (btn && btn._dupProductId) {
+    locateProductInInventory(btn._dupProductId);
+    return;
+  }
+  // احتياطي: البحث عن الصنف بالباركود المكتوب
+  const manualInp = document.getElementById('assignManualBarcodeInput');
+  const scannedCode = (manualInp ? manualInp.value : '').trim();
+  if (scannedCode && typeof state !== 'undefined' && state.products) {
+    const dup = state.products.find(function(p) {
+      return p.barcode && p.barcode.trim().toLowerCase() === scannedCode.toLowerCase() &&
+        (!assignTargetProduct || p.id !== assignTargetProduct.id);
+    });
+    if (dup) { locateProductInInventory(dup.id); return; }
+  }
+  closeAssignBarcodeModal();
+  if (typeof switchTab === 'function') switchTab('inventory');
+}
 function locateProductInInventory(productId) {
   closeAssignBarcodeModal();
   if (typeof switchTab === 'function') {
@@ -1127,6 +1150,23 @@ function onBarcodeDecoded(decodedText, context) {
 // ─────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   initSecuritySettingsForm();
+});
+
+// إيقاف الكاميرا تلقائياً عند مغادرة الصفحة أو إخفائها (تحرير الموارد وعدم تشغيل الكاميرا في الخلفية)
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden' && isScanningActive) {
+    stopLiveCameraScanner();
+  }
+});
+
+window.addEventListener('beforeunload', () => {
+  if (liveScannerStream) {
+    try { liveScannerStream.getTracks().forEach(t => t.stop()); } catch(e) {}
+  }
+});
+
+window.addEventListener('pagehide', () => {
+  stopLiveCameraScanner();
 });
 
 // دعم لوحة المفاتيح لشاشة القفل
@@ -1696,3 +1736,6 @@ function copyBatchDetectedBarcode() {
     });
   }
 }
+
+
+
