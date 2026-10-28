@@ -858,6 +858,10 @@ ${balDesc}
         '<i>🔍 راجع سجلات الخادم للتفاصيل.</i>'
       ].join('\n');
     } else if (type === 'startup') {
+      // إرسال إشعارات الفشل فقط — تخطي إشعار النجاح عند بدء التشغيل الطبيعي
+      if (details.mode === 'read-write' && !details.error) {
+        return { ok: true, skipped: true, reason: 'تم تخطي إشعار النجاح — إرسال إشعارات الفشل فقط' };
+      }
       var modeEmoji = details.mode === 'read-write' ? '🟢' : '🔴';
       var modeText  = details.mode === 'read-write' ? 'قراءة وكتابة (Read-Write)' : 'قراءة فقط (Read-Only)';
       var statusLine = details.error

@@ -1990,7 +1990,7 @@ app.listen(PORT, '0.0.0.0', async () => {
   const readiness = await systemMode.verifyReadiness();
   if (readiness.ok) {
     console.log(`✅ وضع النظام: قراءة وكتابة (Read-Write Mode) — جميع العمليات مفعّلة`);
-    telegramService.sendSystemAlert('startup', { mode: 'read-write' }).catch(() => {});
+    // تم إلغاء إرسال إشعار النجاح — يتم إرسال إشعارات الفشل فقط
   } else {
     console.warn(`⚠️ وضع النظام: قراءة فقط (Read-Only Degraded Mode) — سبب: ${readiness.error || 'تعذر الاتصال بـ Supabase'}`);
     console.warn(`   ستُرفض جميع عمليات الحفظ والتعديل والحذف حتى يعود الاتصال.`);
