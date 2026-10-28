@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=5.1">
+  <link rel="stylesheet" href="css/style.css?v=6.0">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💼</text></svg>">
   
   <!-- PWA & Mobile Web App Meta Tags -->
@@ -45,6 +45,16 @@
         </div>
 
         <div class="header-actions">
+          <!-- زر المستخدم الحالي وقفل الشاشة الفوري -->
+          <button type="button" class="header-user-badge" id="headerUserLockBtn" onclick="lockAppScreen()" title="المستخدم الحالي - انقر للقفل وتبديل المستخدم">
+            <span class="h-user-role-icon" id="headerUserEmoji">👑</span>
+            <div class="h-user-info">
+              <span class="h-user-name" id="headerUserLabel">المدير العام</span>
+              <span class="h-user-sub" id="headerUserSub">صلاحيات كاملة</span>
+            </div>
+            <span class="h-user-lock-icon">🔒</span>
+          </button>
+
           <button class="btn-pwa-header" id="headerPwaInstallBtn" style="display: none;" onclick="window.promptPwaInstall()">
             <span>📲</span>
             <span>تثبيت التطبيق</span>
@@ -369,7 +379,7 @@
                   <span class="search-lens-icon">🔍</span>
                   <input type="text" id="quickProductSearchInput" class="form-control visual-search-input" placeholder="ابحث باسم المنتج أو الكود أو الماركة لإظهار الصورة والبيانات والإضافة..." autocomplete="off">
                   <button type="button" class="btn-clear-search" id="btnClearQuickSearch" onclick="clearQuickSearch()" style="display: none;" title="مسح البحث">✕</button>
-                  <button type="button" class="btn-barcode-scan" id="btnOpenBarcode" onclick="openBarcodeScanner()" title="مسح الباركود بالكاميرا">📷</button>
+                  <button type="button" class="btn-barcode-scan" id="btnOpenBarcode" onclick="openUniversalBarcodeScanner('invoice')" title="مسح الباركود بالكاميرا">📷</button>
                   <span class="search-keyboard-hint">Enter للإضافة السريعة</span>
                 </div>
 
@@ -1048,6 +1058,12 @@
           <!-- Inventory Action Toolbar (تقرير PDF، إرسال تيليجرام، حفظ التعديلات) -->
           <div class="inventory-actions-row" style="display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center; justify-content: space-between; padding-top: 0.5rem; border-top: 1px solid var(--border-color);">
             <div style="display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center;">
+              <!-- زر مسح الباركود السريع في الجرد للبحث أو التحقق -->
+              <button type="button" class="btn btn-sm btn-outline-primary" id="btnScanInventoryBarcode" onclick="openInventoryBarcodeSearchModal()" style="white-space: nowrap; font-weight: 700;">
+                <span>📷</span>
+                <span>مسح باركود صنف</span>
+              </button>
+
               <!-- زر طباعة كشف الجرد للموظفين (تعبئة يدوية بدون أسعار) -->
               <button type="button" class="btn btn-sm btn-success" id="btnOpenStocktakeSheet" onclick="openStocktakeSheetModal()" style="white-space: nowrap; background: linear-gradient(135deg, #059669 0%, #047857 100%); border-color: #047857; color: white; font-weight: 700; box-shadow: 0 2px 4px rgba(5, 150, 105, 0.2);">
                 <span>📋</span>
@@ -1748,6 +1764,98 @@
           </div>
         </div>
 
+        <!-- ─── بطاقة إدارة المستخدمين والصلاحيات وقفل PIN ─── -->
+        <div class="card" style="margin-bottom:1.5rem; border:1.5px solid #cbd5e1; border-radius: 14px; overflow: hidden;">
+          <div class="card-header" style="background:linear-gradient(135deg, #1e293b, #0f172a); color: white;">
+            <div style="display:flex; align-items:center; gap:0.6rem;">
+              <span style="font-size:1.3rem;">🔐</span>
+              <div>
+                <h2 class="card-title" style="color: white; margin:0;">إدارة المستخدمين ورموز PIN والصلاحيات</h2>
+                <div style="font-size:0.78rem; color:#94a3b8;">تحديد الرموز السرية لكل مستخدم والتحكم في ظهور الأرباح والإحصائيات</div>
+              </div>
+            </div>
+            <span class="badge" id="pinSettingsStatusBadge" style="background:#059669; color:white;">قفل PIN مفعّل</span>
+          </div>
+
+          <div style="padding:1.25rem;">
+            <!-- تفعيل / تعطيل القفل العام -->
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 1.25rem;">
+              <div>
+                <strong>طلب رمز PIN عند فتح الموقع</strong>
+                <div style="font-size: 0.8rem; color: var(--text-muted);">يقفل الشاشة عند الفتح لحماية بيانات المعرض</div>
+              </div>
+              <label class="switch-toggle-wrap">
+                <input type="checkbox" id="chkPinLockEnabled" checked onchange="handlePinLockToggle(this.checked)">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; margin-bottom: 1.25rem;">
+              <!-- مستخدم 1: المدير العام -->
+              <div class="user-role-card admin" style="background: #ffffff; border: 2px solid #2563eb; border-radius: 12px; padding: 1rem; box-shadow: 0 2px 8px rgba(37,99,235,0.08);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+                  <div style="display:flex; align-items:center; gap:0.4rem;">
+                    <span style="font-size:1.4rem;">👑</span>
+                    <strong>المدير العام (أبو رامز)</strong>
+                  </div>
+                  <span class="badge badge-primary">أدمن</span>
+                </div>
+                <div style="font-size:0.8rem; color:#64748b; margin-bottom:0.75rem;">
+                  صلاحيات كاملة: الأرباح، التكلفة، الإحصائيات، الإعدادات، تعديل وحذف الأصناف.
+                </div>
+                <div class="form-group" style="margin-bottom:0.5rem;">
+                  <label class="form-label" style="font-size:0.82rem;">الرمز السري (PIN):</label>
+                  <div style="position:relative;">
+                    <input type="password" id="adminPinInput" class="form-control" value="1234" maxlength="4" inputmode="numeric" style="letter-spacing: 4px; font-weight:800; font-size:1.1rem;">
+                    <button type="button" class="btn-toggle-eye" onclick="toggleInputVisibility('adminPinInput', this)" style="position:absolute; left:8px; top:50%; transform:translateY(-50%); border:none; background:none; cursor:pointer;">👁️</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- مستخدم 2: موظف مبيعات / كاشير -->
+              <div class="user-role-card cashier" style="background: #ffffff; border: 2px solid #059669; border-radius: 12px; padding: 1rem; box-shadow: 0 2px 8px rgba(5,150,105,0.08);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+                  <div style="display:flex; align-items:center; gap:0.4rem;">
+                    <span style="font-size:1.4rem;">💼</span>
+                    <strong>موظف مبيعات / كاشير</strong>
+                  </div>
+                  <span class="badge badge-success">كاشير</span>
+                </div>
+                <div style="font-size:0.8rem; color:#64748b; margin-bottom:0.75rem;">
+                  صلاحيات بيع فقط: فواتير وسندات. <strong>محجوب عنه:</strong> أسعار التكلفة والأرباح والإحصائيات والإعدادات.
+                </div>
+                <div class="form-group" style="margin-bottom:0.5rem;">
+                  <label class="form-label" style="font-size:0.82rem;">الرمز السري (PIN):</label>
+                  <div style="position:relative;">
+                    <input type="password" id="cashierPinInput" class="form-control" value="1111" maxlength="4" inputmode="numeric" style="letter-spacing: 4px; font-weight:800; font-size:1.1rem;">
+                    <button type="button" class="btn-toggle-eye" onclick="toggleInputVisibility('cashierPinInput', this)" style="position:absolute; left:8px; top:50%; transform:translateY(-50%); border:none; background:none; cursor:pointer;">👁️</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- خيار إخفاء الأرباح عن الكاشير -->
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1.25rem; background: #eff6ff; padding: 0.75rem 1rem; border-radius: 10px; border: 1px solid #bfdbfe;">
+              <input type="checkbox" id="chkHideCostsFromCashier" checked style="width: 18px; height: 18px;">
+              <label for="chkHideCostsFromCashier" style="margin: 0; font-size: 0.88rem; font-weight: 700; color: #1e40af; cursor: pointer;">
+                إخفاء رأس المال وأسعار التكلفة وصافي الأرباح والإحصائيات تلقائياً عند دخول الموظف (1111)
+              </label>
+            </div>
+
+            <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+              <button type="button" class="btn btn-primary" onclick="saveUserSecuritySettings()">
+                <span>💾</span>
+                <span>حفظ الرموز وإعدادات الصلاحيات</span>
+              </button>
+              <button type="button" class="btn btn-secondary" onclick="lockAppScreen()">
+                <span>🔒</span>
+                <span>قفل الشاشة وتجربة الرموز الآن</span>
+              </button>
+            </div>
+            <div id="pinSettingsAlertMsg" style="display:none; margin-top:0.85rem; padding:0.65rem 1rem; border-radius:8px; font-size:0.86rem; font-weight:700;"></div>
+          </div>
+        </div>
+
         <!-- Store & Company Settings Card -->
         <div class="card">
           <div class="card-header">
@@ -1756,34 +1864,6 @@
               <span>بيانات الشركة والفاتورة</span>
             </h2>
           </div>
-
-        <!-- ─── بطاقة قفل PIN ─── -->
-        <div class="card" style="margin-bottom:1rem; border:1.5px solid #e2e8f0;">
-          <div class="card-header" style="background:linear-gradient(135deg,#f8fafc,#eff6ff);">
-            <h2 class="card-title"><span>🔒</span><span>قفل الموقع برمز PIN</span></h2>
-            <span class="badge" id="pinStatusBadge" style="background:#f1f5f9;color:#64748b;">غير مفعّل</span>
-          </div>
-          <div style="padding:1rem;">
-            <p style="font-size:0.88rem;color:var(--text-muted);margin-bottom:1rem;">
-              عند التفعيل سيطلب الموقع رمز PIN عند كل فتح — يحمي بياناتك من الوصول غير المصرح
-            </p>
-            <div class="grid-2" style="gap:0.75rem;margin-bottom:0.75rem;">
-              <div class="form-group" style="margin:0;">
-                <label class="form-label">رمز PIN الجديد (4 أرقام):</label>
-                <input type="password" id="newPinInput" class="form-control" placeholder="••••" maxlength="4" inputmode="numeric" pattern="[0-9]*">
-              </div>
-              <div class="form-group" style="margin:0;">
-                <label class="form-label">تأكيد رمز PIN:</label>
-                <input type="password" id="confirmPinInput" class="form-control" placeholder="••••" maxlength="4" inputmode="numeric" pattern="[0-9]*">
-              </div>
-            </div>
-            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
-              <button class="btn btn-primary" onclick="savePinCode()">💾 حفظ رمز PIN</button>
-              <button class="btn btn-outline-danger" onclick="disablePinCode()" id="btnDisablePin" style="display:none;">🔓 إلغاء القفل</button>
-            </div>
-            <div id="pinSettingsMsg" style="display:none;margin-top:0.75rem;padding:0.5rem 0.75rem;border-radius:8px;font-size:0.85rem;"></div>
-          </div>
-        </div>
 
           <div class="form-group">
             <label class="form-label" for="cfgCompanyName">اسم الشركة أو المتجر:</label>
@@ -3336,74 +3416,245 @@
     </div>
   </div>
 
-  <!-- ─── شاشة قفل PIN ─── -->
-  <div id="pinLockScreen" style="display:none; position:fixed; inset:0; z-index:99999; background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#0f172a 100%); display:flex; flex-direction:column; align-items:center; justify-content:center; padding:2rem;">
-    <div style="text-align:center; max-width:340px; width:100%;">
-      <div style="font-size:3.5rem; margin-bottom:0.5rem;">💼</div>
-      <h2 style="color:#ffffff; font-size:1.4rem; font-weight:800; margin-bottom:0.25rem;" id="pinLockTitle">معرض أبو رامز</h2>
-      <p style="color:#94a3b8; font-size:0.9rem; margin-bottom:2rem;" id="pinLockSubtitle">أدخل رمز PIN للدخول</p>
+  <!-- ─── شاشة قفل وتحديد صلاحيات المستخدمين الحديثة ─── -->
+  <div id="pinLockScreen" class="pin-lock-overlay" style="display:none;">
+    <div class="pin-lock-container">
+      <!-- الشعار والعنوان -->
+      <div class="pin-brand-header">
+        <div class="pin-brand-icon">💼</div>
+        <h2 class="pin-brand-title" id="pinLockTitle">معرض أبو رامز</h2>
+        <p class="pin-brand-sub" id="pinLockSubtitle">نظام المبيعات وإدارة المخزون</p>
+      </div>
 
-      <!-- مؤشرات الأرقام -->
-      <div style="display:flex; gap:1rem; justify-content:center; margin-bottom:2rem;" id="pinDots">
+      <!-- تبديل سريع بين المستخدمين (أو إدخال الرمز مباشرة) -->
+      <div class="pin-user-pills" id="pinUserPills">
+        <button type="button" class="pin-user-pill active" id="pillUserAdmin" onclick="selectPinTargetUser('admin')">
+          <span class="user-pill-icon">👑</span>
+          <span class="user-pill-text">المدير العام</span>
+        </button>
+        <button type="button" class="pin-user-pill" id="pillUserCashier" onclick="selectPinTargetUser('cashier')">
+          <span class="user-pill-icon">💼</span>
+          <span class="user-pill-text">موظف مبيعات</span>
+        </button>
+      </div>
+
+      <!-- إشعار حالة الدور المكتشف تلقائياً -->
+      <div class="pin-role-hint" id="pinRoleHint">
+        <span id="pinRoleHintIcon">🔒</span>
+        <span id="pinRoleHintText">أدخل الرمز السري للدخول</span>
+      </div>
+
+      <!-- مؤشرات الأرقام (النقاط) -->
+      <div class="pin-dots-row" id="pinDots">
         <div class="pin-dot" id="pinDot0"></div>
         <div class="pin-dot" id="pinDot1"></div>
         <div class="pin-dot" id="pinDot2"></div>
         <div class="pin-dot" id="pinDot3"></div>
       </div>
 
-      <!-- لوحة الأرقام -->
+      <!-- لوحة الأرقام الفاخرة (iOS / Modern Glassmorphism style) -->
       <div class="pin-keypad" id="pinKeypad">
-        <button class="pin-key" onclick="pinKeyPress('1')">1</button>
-        <button class="pin-key" onclick="pinKeyPress('2')">2</button>
-        <button class="pin-key" onclick="pinKeyPress('3')">3</button>
-        <button class="pin-key" onclick="pinKeyPress('4')">4</button>
-        <button class="pin-key" onclick="pinKeyPress('5')">5</button>
-        <button class="pin-key" onclick="pinKeyPress('6')">6</button>
-        <button class="pin-key" onclick="pinKeyPress('7')">7</button>
-        <button class="pin-key" onclick="pinKeyPress('8')">8</button>
-        <button class="pin-key" onclick="pinKeyPress('9')">9</button>
-        <button class="pin-key pin-key-empty"></button>
-        <button class="pin-key" onclick="pinKeyPress('0')">0</button>
-        <button class="pin-key pin-key-del" onclick="pinKeyDelete()">⌫</button>
+        <button type="button" class="pin-key" onclick="pinKeyPress('1')"><span class="k-num">1</span></button>
+        <button type="button" class="pin-key" onclick="pinKeyPress('2')"><span class="k-num">2</span><span class="k-sub">ABC</span></button>
+        <button type="button" class="pin-key" onclick="pinKeyPress('3')"><span class="k-num">3</span><span class="k-sub">DEF</span></button>
+        <button type="button" class="pin-key" onclick="pinKeyPress('4')"><span class="k-num">4</span><span class="k-sub">GHI</span></button>
+        <button type="button" class="pin-key" onclick="pinKeyPress('5')"><span class="k-num">5</span><span class="k-sub">JKL</span></button>
+        <button type="button" class="pin-key" onclick="pinKeyPress('6')"><span class="k-num">6</span><span class="k-sub">MNO</span></button>
+        <button type="button" class="pin-key" onclick="pinKeyPress('7')"><span class="k-num">7</span><span class="k-sub">PQRS</span></button>
+        <button type="button" class="pin-key" onclick="pinKeyPress('8')"><span class="k-num">8</span><span class="k-sub">TUV</span></button>
+        <button type="button" class="pin-key" onclick="pinKeyPress('9')"><span class="k-num">9</span><span class="k-sub">WXYZ</span></button>
+        <button type="button" class="pin-key pin-key-empty"></button>
+        <button type="button" class="pin-key" onclick="pinKeyPress('0')"><span class="k-num">0</span></button>
+        <button type="button" class="pin-key pin-key-del" onclick="pinKeyDelete()">⌫</button>
       </div>
 
-      <p style="color:#475569; font-size:0.78rem; margin-top:1.5rem;" id="pinHintText">💡 لضبط رمز PIN لأول مرة: اذهب للإعدادات بعد الدخول</p>
+      <!-- تلميح توضيحي سريع للرموز الافتراضية -->
+      <div class="pin-footer-hints">
+        <div class="hint-chip" onclick="quickFillPin('1234')">👑 رمز المدير: <strong>1234</strong></div>
+        <div class="hint-chip" onclick="quickFillPin('1111')">💼 رمز الموظف: <strong>1111</strong></div>
+      </div>
     </div>
   </div>
 
-  <!-- ─── نافذة مسح الباركود بالكاميرا ─── -->
-  <div class="modal-overlay" id="barcodeScannerModal" style="display:none;">
-    <div class="modal-content" style="max-width:420px;">
-      <div class="modal-header">
-        <h3 class="modal-title">📷 مسح الباركود بالكاميرا</h3>
-        <button class="modal-close" onclick="closeBarcodeScanner()">✕</button>
+  <!-- ─── نافذة تعريف وربط باركود لصنف في الجرد ─── -->
+  <div class="modal-overlay" id="assignBarcodeModal" style="display:none;">
+    <div class="modal-content" style="max-width:520px;">
+      <div class="modal-header" style="background: linear-gradient(135deg, #1e3a8a, #2563eb); color: white;">
+        <h3 class="modal-title" style="color: white; display: flex; align-items: center; gap: 0.5rem;">
+          <span>🏷️</span>
+          <span>تعريف وربط باركود لصنف في الجرد</span>
+        </h3>
+        <button class="modal-close" style="color: white;" onclick="closeAssignBarcodeModal()">✕</button>
       </div>
-      <div class="modal-body" style="padding:1rem;">
-        <p style="font-size:0.88rem; color:var(--text-muted); margin-bottom:1rem; text-align:center;">
-          وجّه الكاميرا نحو الباركود الموجود على البضاعة — سيُضاف المنتج تلقائياً للفاتورة
-        </p>
-        <!-- منطقة الكاميرا -->
-        <div id="barcodeScannerView" style="width:100%; border-radius:14px; overflow:hidden; background:#000; min-height:250px; position:relative;">
-          <div id="barcodeScannerInner" style="width:100%;"></div>
-          <!-- إطار التأشير -->
-          <div style="position:absolute; inset:0; pointer-events:none; display:flex; align-items:center; justify-content:center;">
-            <div style="width:200px; height:120px; border:3px solid #2563eb; border-radius:12px; box-shadow:0 0 0 9999px rgba(0,0,0,0.45);"></div>
+
+      <div class="modal-body" style="padding: 1rem;">
+        <!-- تفاصيل الصنف المستهدف -->
+        <div class="assign-prod-preview" id="assignProdPreviewBox">
+          <img id="assignProdImg" src="" alt="" class="assign-prod-thumb" onerror="this.src='https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80'">
+          <div class="assign-prod-details">
+            <input type="hidden" id="assignTargetProdId" value="">
+            <div class="assign-prod-code-badge" id="assignProdCodeBadge">PRD-000</div>
+            <strong class="assign-prod-name" id="assignProdName">اسم الصنف</strong>
+            <div class="assign-prod-meta" id="assignProdMeta">الماركة: عام • القسم: عام</div>
+            <div class="assign-prod-current-bc">
+              <span>الباركود الحالي:</span>
+              <strong id="assignProdCurrentBarcodeText" class="current-bc-tag">غير معرّف</strong>
+            </div>
           </div>
         </div>
-        <!-- نتيجة المسح -->
-        <div id="barcodeScanResult" style="display:none; margin-top:1rem; padding:0.85rem; background:var(--success-light); border:1px solid #bbf7d0; border-radius:12px; text-align:center;">
-          <div style="font-size:0.82rem; color:var(--text-muted);">تم مسح الكود:</div>
-          <div id="barcodeScanResultCode" style="font-size:1.1rem; font-weight:800; color:var(--success); margin:0.25rem 0;"></div>
-          <div id="barcodeScanResultProduct" style="font-size:0.9rem; color:var(--text-main);"></div>
+
+        <!-- ⛔ منطقة التنبيه الصارم عند محاولة استخدام باركود مكرر ومسجل لصنف آخر -->
+        <div id="barcodeDuplicateAlertBox" class="barcode-dup-alert" style="display:none;">
+          <div class="dup-alert-title">
+            <span style="font-size: 1.6rem;">⛔</span>
+            <div>
+              <strong>تم تعريف هذا الباركود مسبقاً لصنف آخر!</strong>
+              <div style="font-size: 0.8rem; font-weight: normal; opacity: 0.9;">النظام يرفض التكرار منعاً للتضارب أثناء الفوترة والبيع</div>
+            </div>
+          </div>
+          <div class="dup-card-body">
+            <div class="dup-info-row">
+              <span class="dup-lbl">رقم / كود الصنف:</span>
+              <strong id="dupItemCode" class="dup-val highlight"></strong>
+            </div>
+            <div class="dup-info-row">
+              <span class="dup-lbl">اسم الصنف المعرّف عليه:</span>
+              <strong id="dupItemName" class="dup-val"></strong>
+            </div>
+            <div class="dup-info-row">
+              <span class="dup-lbl">الماركة والقسم:</span>
+              <span id="dupItemBrand" class="dup-val"></span>
+            </div>
+            <div class="dup-info-row">
+              <span class="dup-lbl">رمز الباركود:</span>
+              <code id="dupBarcodeVal" class="dup-barcode-badge"></code>
+            </div>
+          </div>
+          <div class="dup-actions-bar">
+            <button type="button" class="btn btn-sm btn-outline-primary" id="btnGoToDupItem" onclick="locateDuplicateItemInInventory()">
+              <span>👁️</span>
+              <span>الانتقال للصنف السابق في الجرد</span>
+            </button>
+            <button type="button" class="btn btn-sm btn-secondary" onclick="resetAssignScannerForRetry()">
+              <span>🔄</span>
+              <span>مسح باركود آخر</span>
+            </button>
+          </div>
         </div>
-        <!-- خيار الإدخال اليدوي -->
-        <div style="margin-top:1rem; display:flex; gap:0.5rem; align-items:center;">
-          <input type="text" id="manualBarcodeInput" class="form-control" placeholder="أو أدخل الكود يدوياً..." style="flex:1;" onkeydown="if(event.key==='Enter') searchByBarcode(this.value)">
-          <button class="btn btn-primary" onclick="searchByBarcode(document.getElementById('manualBarcodeInput').value)">بحث</button>
+
+        <!-- ✅ منطقة إشعار النجاح -->
+        <div id="barcodeSuccessAlertBox" class="barcode-success-alert" style="display:none;">
+          <span style="font-size: 1.4rem;">✅</span>
+          <div id="barcodeSuccessMsgText">تم حفظ الباركود بنجاح!</div>
+        </div>
+
+        <!-- كاميرا المسح المباشرة للصنف -->
+        <div class="scanner-live-wrapper" id="assignScannerLiveWrapper">
+          <div class="scanner-feed-box" id="assignScannerFeedBox">
+            <video id="assignScannerVideo" playsinline autoplay muted style="width:100%; height:100%; object-fit:cover; display:none;"></video>
+            <div id="assignScannerQrContainer" style="width:100%; height:100%;"></div>
+            <div class="scanner-reticle" id="assignScannerReticle">
+              <div class="reticle-box">
+                <div class="scan-laser-line"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- أدوات التحكم بالكاميرا -->
+          <div class="scanner-tools-bar">
+            <button type="button" class="btn btn-xs btn-outline-light" onclick="toggleScannerCameraDevice('assign')">
+              <span>🔄</span>
+              <span>تبديل الكاميرا</span>
+            </button>
+            <button type="button" class="btn btn-xs btn-outline-light" id="btnToggleAssignTorch" onclick="toggleScannerTorch('assign')" style="display:none;">
+              <span>🔦</span>
+              <span>فلاش</span>
+            </button>
+            <!-- زر التقاط صورة فوري بكاميرا الهاتف (يعمل 100% على كافة أجهزة الأندرويد والآيفون) -->
+            <label class="btn btn-xs btn-warning btn-native-cam" title="التقاط صورة للباركود بكاميرا الهاتف">
+              <span>📸</span>
+              <span>تصوير الباركود</span>
+              <input type="file" id="assignNativePhotoInput" accept="image/*" capture="environment" style="display:none;" onchange="handleNativeBarcodePhoto(this, 'assign')">
+            </label>
+          </div>
+        </div>
+
+        <!-- خيار الإدخال والكتابة اليدوية للباركود -->
+        <div class="barcode-manual-card">
+          <label class="form-label" style="font-size: 0.84rem; font-weight: 700;">أو أدخل رقم الباركود يدوياً:</label>
+          <div style="display: flex; gap: 0.5rem;">
+            <input type="text" id="assignManualBarcodeInput" class="form-control" placeholder="اكتب أو الصق رقم الباركود هنا..." onkeydown="if(event.key==='Enter') saveManualAssignedBarcode()">
+            <button type="button" class="btn btn-primary" onclick="saveManualAssignedBarcode()" style="white-space:nowrap;">
+              <span>💾</span>
+              <span>حفظ</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeAssignBarcodeModal()">إغلاق</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── نافذة مسح الباركود العامة (للفاتورة والجرد) ─── -->
+  <div class="modal-overlay" id="appBarcodeScannerModal" style="display:none;">
+    <div class="modal-content" style="max-width:440px;">
+      <div class="modal-header">
+        <h3 class="modal-title" id="universalScannerTitle">📷 مسح الباركود بالكاميرا</h3>
+        <button class="modal-close" onclick="closeUniversalBarcodeScanner()">✕</button>
+      </div>
+      <div class="modal-body" style="padding:1rem;">
+        <p style="font-size:0.86rem; color:var(--text-muted); margin-bottom:0.75rem; text-align:center;" id="universalScannerSubtitle">
+          وجّه الكاميرا نحو باركود الصنف للإضافة الفورية للفاتورة
+        </p>
+
+        <!-- منطقة الكاميرا -->
+        <div class="scanner-live-wrapper" style="margin-bottom: 0.75rem;">
+          <div class="scanner-feed-box" id="universalScannerFeedBox">
+            <video id="universalScannerVideo" playsinline autoplay muted style="width:100%; height:100%; object-fit:cover; display:none;"></video>
+            <div id="universalScannerQrContainer" style="width:100%; height:100%;"></div>
+            <div class="scanner-reticle">
+              <div class="reticle-box">
+                <div class="scan-laser-line"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="scanner-tools-bar">
+            <button type="button" class="btn btn-xs btn-outline-light" onclick="toggleScannerCameraDevice('universal')">
+              <span>🔄</span>
+              <span>تبديل الكاميرا</span>
+            </button>
+            <button type="button" class="btn btn-xs btn-outline-light" id="btnToggleUniversalTorch" onclick="toggleScannerTorch('universal')" style="display:none;">
+              <span>🔦</span>
+              <span>فلاش</span>
+            </button>
+            <!-- التقاط صورة بالكاميرا الأصلية للهاتف -->
+            <label class="btn btn-xs btn-warning btn-native-cam" title="التقاط صورة للباركود بكاميرا الهاتف">
+              <span>📸</span>
+              <span>تصوير الباركود</span>
+              <input type="file" id="universalNativePhotoInput" accept="image/*" capture="environment" style="display:none;" onchange="handleNativeBarcodePhoto(this, 'universal')">
+            </label>
+          </div>
+        </div>
+
+        <!-- نتيجة المسح -->
+        <div id="universalScanResultBox" style="display:none; margin-bottom:0.75rem; padding:0.75rem; border-radius:12px; text-align:center;">
+          <div style="font-size:0.8rem; color:var(--text-muted);">الباركود المكتشف:</div>
+          <div id="universalScanResultCode" style="font-size:1.15rem; font-weight:800; margin:0.2rem 0;"></div>
+          <div id="universalScanResultProduct" style="font-size:0.9rem; font-weight:700;"></div>
+        </div>
+
+        <!-- خيار الإدخال والبحث اليدوي -->
+        <div style="display:flex; gap:0.5rem; align-items:center;">
+          <input type="text" id="universalManualBarcodeInput" class="form-control" placeholder="أو أدخل الكود يدوياً..." style="flex:1;" onkeydown="if(event.key==='Enter') executeUniversalBarcodeScan(this.value)">
+          <button class="btn btn-primary" onclick="executeUniversalBarcodeScan(document.getElementById('universalManualBarcodeInput').value)">بحث</button>
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeBarcodeScanner()">إغلاق</button>
+        <button class="btn btn-secondary" onclick="closeUniversalBarcodeScanner()">إغلاق</button>
       </div>
     </div>
   </div>

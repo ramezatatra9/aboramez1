@@ -385,7 +385,12 @@ const defaultSettings = {
   currency: "شيكل",
   telegramBotToken: "",
   telegramChatId: "",
-  invoiceFooterText: "شكراً لتعاملكم معنا - بضاعة الشركة مكفولة حسب شروط الضمان"
+  invoiceFooterText: "شكراً لتعاملكم معنا - بضاعة الشركة مكفولة حسب شروط الضمان",
+  pinLockEnabled: true,
+  securityUsers: [
+    { id: 'u-admin', name: 'المدير العام (أبو رامز)', pin: '1234', role: 'admin' },
+    { id: 'u-cashier', name: 'موظف مبيعات / كاشير', pin: '1111', role: 'cashier' }
+  ]
 };
 
 // تم إلغاء استخدام أي منتجات تجريبية أو مثبتة داخل الكود نهائياً
@@ -483,6 +488,7 @@ const dataStore = {
       product = {
         id: "prod-" + Date.now(),
         code: productData.code || "PRD-" + Math.floor(100 + Math.random() * 900),
+        barcode: productData.barcode ? String(productData.barcode).trim() : "",
         name: productData.name,
         brand: finalBrand,
         brandAr: finalBrandAr,
@@ -1442,7 +1448,12 @@ const dataStore = {
 
   // الإعدادات
   getSettings() {
-    return readJson(SETTINGS_FILE, defaultSettings);
+    const s = readJson(SETTINGS_FILE, defaultSettings);
+    return {
+      ...defaultSettings,
+      ...s,
+      securityUsers: (s && Array.isArray(s.securityUsers) && s.securityUsers.length > 0) ? s.securityUsers : defaultSettings.securityUsers
+    };
   },
 
   saveSettings(newSettings) {

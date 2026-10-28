@@ -1168,6 +1168,13 @@ function setupNavigation() {
 }
 
 function switchTab(tabId) {
+  // فحص صلاحيات الكاشير والموظفين
+  if (window.currentUser && window.currentUser.role === 'cashier') {
+    if (tabId === 'dashboard' || tabId === 'settings' || tabId === 'brands-audit') {
+      showToast('عذراً، هذا القسم متاح للمدير العام فقط 🔒', 'warning');
+      return;
+    }
+  }
   // فحص حماية تبويب الإعدادات بكلمة السر 99199
   if (tabId === 'settings' && !state.settingsUnlocked) {
     openSettingsPasswordModal();
@@ -5267,6 +5274,11 @@ function renderInventoryList() {
             <span class="inv-prod-category">${escapeHtml(p.mainCategory || 'عام')} ${p.category && p.category !== p.mainCategory ? `> ${escapeHtml(p.category)}` : ''}</span>
             <span class="inv-prod-brand">🏢 ${escapeHtml(p.brand || 'عام')}</span>
             ${isModified ? `<span class="inv-delta-badge ${delta >= 0 ? 'pos' : 'neg'}">${delta > 0 ? '+' + delta : delta}</span>` : ''}
+            <!-- زر باركود الصنف في الجرد -->
+            <button type="button" class="inv-barcode-tag-btn ${p.barcode ? 'has-barcode' : 'no-barcode'}" onclick="openAssignBarcodeModal('${p.id}')" title="${p.barcode ? 'تعديل أو فحص الباركود' : 'إضافة وربط باركود لهذا الصنف'}">
+              <span class="bc-icon">🏷️</span>
+              <span class="bc-code">${p.barcode ? escapeHtml(p.barcode) : '+ ربط باركود'}</span>
+            </button>
           </div>
           <div class="inv-prod-name">${escapeHtml(p.name)}</div>
           <div class="inv-prod-prices">

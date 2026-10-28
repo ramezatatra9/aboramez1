@@ -7033,3 +7033,608 @@ html, body {
   }
 }
 
+/* =========================================================
+   [NEW] نظام قفل PIN التفاعلي الحديث والمستخدمين والصلاحيات
+   ========================================================= */
+
+/* الشاشة الزجاجية الكاملة للقفل */
+.pin-lock-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  background: radial-gradient(circle at 50% 20%, #1e3a5f 0%, #0f172a 75%, #020617 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  user-select: none;
+  transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pin-lock-container {
+  width: 100%;
+  max-width: 330px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.pin-brand-header {
+  margin-bottom: 1.25rem;
+}
+.pin-brand-icon {
+  font-size: 3.2rem;
+  line-height: 1;
+  margin-bottom: 0.4rem;
+  filter: drop-shadow(0 4px 12px rgba(37, 99, 235, 0.4));
+  animation: floatBrandIcon 3s ease-in-out infinite alternate;
+}
+@keyframes floatBrandIcon {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-6px); }
+}
+
+.pin-brand-title {
+  color: #ffffff;
+  font-size: 1.45rem;
+  font-weight: 800;
+  margin-bottom: 0.2rem;
+  letter-spacing: -0.3px;
+}
+.pin-brand-sub {
+  color: #94a3b8;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+/* أزرار التبديل السريع للمستخدمين */
+.pin-user-pills {
+  display: flex;
+  gap: 0.5rem;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 4px;
+  border-radius: 99px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  margin-bottom: 1.1rem;
+  width: 100%;
+}
+.pin-user-pill {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 99px;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.22s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.pin-user-pill.active {
+  background: #2563eb;
+  color: #ffffff;
+  box-shadow: 0 2px 10px rgba(37, 99, 235, 0.5);
+}
+.pin-user-pill:not(.active):active {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+/* تلميح الدور والدخول */
+.pin-role-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #cbd5e1;
+  min-height: 24px;
+  margin-bottom: 1.25rem;
+  transition: color 0.2s ease;
+}
+
+/* صف نقاط الأرقام */
+.pin-dots-row {
+  display: flex;
+  gap: 1.1rem;
+  justify-content: center;
+  margin-bottom: 1.75rem;
+}
+.pin-dot {
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+  border: 2px solid rgba(255, 255, 255, 0.38);
+  transition: all 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.pin-dot-filled {
+  background: #3b82f6 !important;
+  border-color: #60a5fa !important;
+  transform: scale(1.22);
+  box-shadow: 0 0 16px rgba(59, 130, 246, 0.85);
+}
+.pin-dot-error {
+  background: #ef4444 !important;
+  border-color: #f87171 !important;
+  transform: scale(1.15);
+  box-shadow: 0 0 16px rgba(239, 68, 68, 0.85);
+}
+
+/* لوحة المفاتيح الرقمية */
+.pin-keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.85rem;
+  width: 100%;
+  max-width: 285px;
+  margin: 0 auto 1.25rem auto;
+}
+.pin-key {
+  aspect-ratio: 1;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1.5px solid rgba(255, 255, 255, 0.14);
+  border-radius: 50%;
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.12s cubic-bezier(0.16, 1, 0.3, 1);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  min-height: 64px;
+  padding: 0;
+}
+.pin-key .k-num {
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.pin-key .k-sub {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+.pin-key:active {
+  background: rgba(37, 99, 235, 0.45);
+  border-color: #60a5fa;
+  transform: scale(0.9);
+}
+.pin-key-empty {
+  background: transparent !important;
+  border-color: transparent !important;
+  cursor: default;
+  pointer-events: none;
+}
+.pin-key-del {
+  font-size: 1.45rem;
+}
+
+/* بطاقات التلميحات السفلية */
+.pin-footer-hints {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: center;
+  width: 100%;
+}
+.hint-chip {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 99px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.74rem;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.hint-chip strong {
+  color: #60a5fa;
+}
+.hint-chip:active {
+  background: rgba(37, 99, 235, 0.25);
+  border-color: #3b82f6;
+  transform: scale(0.95);
+}
+
+/* =========================================================
+   شارة المستخدم وقفل الشاشة في الهيدر
+   ========================================================= */
+.header-user-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 99px;
+  padding: 0.3rem 0.75rem;
+  color: #ffffff;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.header-user-badge:active {
+  transform: scale(0.94);
+  background: rgba(37, 99, 235, 0.3);
+}
+.h-user-role-icon {
+  font-size: 1.15rem;
+}
+.h-user-info {
+  display: flex;
+  flex-direction: column;
+  text-align: right;
+  line-height: 1.1;
+}
+.h-user-name {
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+.h-user-sub {
+  font-size: 0.65rem;
+  color: #94a3b8;
+}
+.h-user-lock-icon {
+  font-size: 0.85rem;
+  opacity: 0.8;
+  margin-right: 2px;
+}
+
+@media (max-width: 580px) {
+  .h-user-sub { display: none; }
+  .header-user-badge { padding: 0.25rem 0.55rem; }
+}
+
+/* =========================================================
+   قواعد الصلاحيات المطبقة على الكاشير (role-cashier)
+   ========================================================= */
+body.role-cashier .col-profit,
+body.role-cashier .live-item-profit,
+body.role-cashier .prod-cost-field,
+body.role-cashier .capital-card,
+body.role-cashier .inventory-capital-banner,
+body.role-cashier #invBrandSummaryBanner,
+body.role-cashier .inv-prod-prices span:nth-child(2),
+body.role-cashier #tab-create-invoice .summary-row:has(.col-profit),
+body.role-cashier button[onclick*="openProductModalForEdit"],
+body.role-cashier button[onclick*="confirmDeleteProduct"] {
+  display: none !important;
+}
+
+/* =========================================================
+   أزرار الباركود في بطاقات الجرد
+   ========================================================= */
+.inv-barcode-tag-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.22rem 0.55rem;
+  border-radius: 8px;
+  font-size: 0.76rem;
+  font-weight: 800;
+  border: 1.5px solid;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.inv-barcode-tag-btn.has-barcode {
+  background: #f0fdf4;
+  color: #15803d;
+  border-color: #86efac;
+}
+.inv-barcode-tag-btn.has-barcode:hover {
+  background: #dcfce7;
+  border-color: #22c55e;
+}
+.inv-barcode-tag-btn.no-barcode {
+  background: #f8fafc;
+  color: #64748b;
+  border-color: #cbd5e1;
+  border-style: dashed;
+}
+.inv-barcode-tag-btn.no-barcode:hover {
+  background: #eff6ff;
+  color: #2563eb;
+  border-color: #93c5fd;
+  border-style: solid;
+}
+.inv-barcode-tag-btn:active {
+  transform: scale(0.92);
+}
+
+/* وميض الصنف بالجرد عند البحث */
+@keyframes flashYellowPulse {
+  0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.8); background: #fef3c7; }
+  50% { box-shadow: 0 0 25px 5px rgba(245, 158, 11, 0.4); background: #fef08a; }
+  100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+}
+.flash-highlight {
+  animation: flashYellowPulse 1.2s ease 2 !important;
+  border-color: #f59e0b !important;
+}
+
+/* =========================================================
+   نافذة تعريف الباركود للصنف (Assign Barcode Modal)
+   ========================================================= */
+.assign-prod-preview {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+.assign-prod-thumb {
+  width: 58px;
+  height: 58px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 1px solid #cbd5e1;
+  flex-shrink: 0;
+}
+.assign-prod-details {
+  flex: 1;
+  min-width: 0;
+  text-align: right;
+}
+.assign-prod-code-badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #2563eb;
+  background: #eff6ff;
+  padding: 1px 6px;
+  border-radius: 6px;
+  margin-bottom: 2px;
+}
+.assign-prod-name {
+  display: block;
+  font-size: 0.95rem;
+  color: #0f172a;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.assign-prod-meta {
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-top: 2px;
+}
+.assign-prod-current-bc {
+  font-size: 0.76rem;
+  color: #475569;
+  margin-top: 4px;
+}
+.current-bc-tag {
+  font-weight: 800;
+  color: #64748b;
+  background: #e2e8f0;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+.current-bc-tag.has-val {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+/* ⛔ تنبيه الباركود المكرر الصارم */
+.barcode-dup-alert {
+  background: #fef2f2;
+  border: 2px solid #ef4444;
+  border-radius: 14px;
+  padding: 1rem;
+  margin-bottom: 0.85rem;
+  animation: dupAlertPop 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 18px rgba(239, 68, 68, 0.15);
+}
+@keyframes dupAlertPop {
+  0% { transform: scale(0.92); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.dup-alert-title {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: #dc2626;
+  font-size: 1.05rem;
+  border-bottom: 1.5px dashed #fca5a5;
+  padding-bottom: 0.6rem;
+  margin-bottom: 0.75rem;
+}
+
+.dup-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  background: #ffffff;
+  border-radius: 10px;
+  padding: 0.75rem;
+  border: 1px solid #fee2e2;
+  margin-bottom: 0.85rem;
+}
+.dup-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+}
+.dup-lbl {
+  color: #64748b;
+  font-weight: 600;
+}
+.dup-val {
+  color: #0f172a;
+}
+.dup-val.highlight {
+  color: #dc2626;
+  font-weight: 800;
+}
+.dup-barcode-badge {
+  background: #fee2e2;
+  color: #991b1b;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-weight: 800;
+  font-size: 0.95rem;
+}
+
+.dup-actions-bar {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.dup-actions-bar .btn {
+  flex: 1;
+  min-width: 140px;
+}
+
+/* إشعار النجاح */
+.barcode-success-alert {
+  background: #ecfdf5;
+  border: 2px solid #10b981;
+  border-radius: 14px;
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+  color: #065f46;
+  font-weight: 700;
+  animation: dupAlertPop 0.3s ease;
+}
+
+/* =========================================================
+   منطقة تغذية الكاميرا وشبكة الليزر
+   ========================================================= */
+.scanner-live-wrapper {
+  border-radius: 14px;
+  overflow: hidden;
+  background: #020617;
+  border: 1.5px solid #334155;
+  position: relative;
+  margin-bottom: 0.85rem;
+}
+.scanner-feed-box {
+  width: 100%;
+  height: 240px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.scanner-reticle {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.reticle-box {
+  width: 220px;
+  height: 120px;
+  border: 2.5px solid #3b82f6;
+  border-radius: 14px;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
+  position: relative;
+  overflow: hidden;
+}
+.scan-laser-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2.5px;
+  background: linear-gradient(90deg, transparent, #ef4444, #f87171, #ef4444, transparent);
+  box-shadow: 0 0 8px #ef4444;
+  animation: laserScanLine 1.8s ease-in-out infinite alternate;
+}
+@keyframes laserScanLine {
+  0% { top: 5%; }
+  100% { top: 95%; }
+}
+
+.scanner-tools-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  background: rgba(15, 23, 42, 0.95);
+  padding: 0.45rem 0.65rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+.btn-native-cam {
+  font-weight: 800 !important;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.barcode-manual-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0.75rem;
+}
+
+/* مفتاح الـ Toggle في الإعدادات */
+.switch-toggle-wrap {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 26px;
+}
+.switch-toggle-wrap input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background-color: #cbd5e1;
+  transition: 0.25s;
+  border-radius: 34px;
+}
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 20px;
+  width: 20px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.25s;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+}
+.switch-toggle-wrap input:checked + .toggle-slider {
+  background-color: #2563eb;
+}
+.switch-toggle-wrap input:checked + .toggle-slider:before {
+  transform: translateX(22px);
+}
+
+

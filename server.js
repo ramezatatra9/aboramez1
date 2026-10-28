@@ -119,7 +119,7 @@ app.get('/api/products', (req, res) => {
 // إضافة أو تعديل منتج
 app.post('/api/products', async (req, res) => {
   try {
-    const { id, code, name, brand, brandAr, mainCategory, category, costPrice, sellPrice, stock, image, images, description } = req.body;
+    const { id, code, barcode, name, brand, brandAr, mainCategory, category, costPrice, sellPrice, stock, image, images, description } = req.body;
     if (!name || name.trim() === '') {
       return res.status(400).json({ success: false, error: 'اسم المنتج مطلوب' });
     }
@@ -127,6 +127,7 @@ app.post('/api/products', async (req, res) => {
     const saved = await dataStore.saveProduct({
       id,
       code,
+      barcode: barcode ? String(barcode).trim() : undefined,
       name: name.trim(),
       brand: (brand && brand.trim()) || 'أخرى',
       brandAr: (brandAr && brandAr.trim()) || (brand && brand.trim()) || 'أخرى / عام',
@@ -142,6 +143,63 @@ app.post('/api/products', async (req, res) => {
 
     res.json({ success: true, product: saved });
   } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// تعيين باركود لصنف مع فحص ومنع التكرار
+app.post('/api/products/:id/barcode', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { barcode } = req.body;
+    const cleanBarcode = (barcode || '').trim();
+
+    if (!cleanBarcode) {
+      return res.status(400).json({ success: false, error: 'رمز الباركود مطلوب' });
+    }
+
+    const products = dataStore.getProducts();
+    // فحص هل الباركود مستخدم لصنف آخر؟
+    const duplicate = products.find(p => 
+      p.barcode && 
+      p.barcode.trim().toLowerCase() === cleanBarcode.toLowerCase() && 
+      p.id !== id
+    );
+
+    if (duplicate) {
+      return res.status(409).json({
+        success: false,
+        error: 'duplicate',
+        message: 'تم تعريف هذا الباركود مسبقاً لصنف آخر',
+        existingProduct: {
+          id: duplicate.id,
+          code: duplicate.code || 'بدون كود',
+          name: duplicate.name || 'بدون اسم',
+          brand: duplicate.brand || 'عام',
+          category: duplicate.category || 'عام',
+          barcode: duplicate.barcode
+        }
+      });
+    }
+
+    // الصنف المستهدف
+    const target = products.find(p => p.id === id);
+    if (!target) {
+      return res.status(404).json({ success: false, error: 'الصنف المستهدف غير موجود' });
+    }
+
+    // تحديث الباركود
+    target.barcode = cleanBarcode;
+    target.updatedAt = new Date().toISOString();
+
+    const saved = await dataStore.saveProduct(target);
+    res.json({ 
+      success: true, 
+      product: saved,
+      message: `تم ربط الباركود (${cleanBarcode}) بالصنف بنجاح`
+    });
+  } catch (err) {
+    console.error('Barcode assignment error:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });

@@ -1,70 +1,298 @@
 /* =========================================================
    pin-barcode.js
-   ─ قفل الموقع برمز PIN
-   ─ مسح الباركود بكاميرا الهاتف
+   نظام الصلاحيات وقفل PIN متعدد المستخدمين
+   + محرك مسح الباركود بالكاميرا (حي ومحلي ومزدوج المحرك)
+   + فحص ومنع تكرار الباركود في الجرد والفوترة
    ========================================================= */
 
 'use strict';
 
 // ─────────────────────────────────────────────
-//  الثوابت
+//  [1] الثوابت ونظام المستخدمين والصلاحيات
 // ─────────────────────────────────────────────
-const PIN_STORAGE_KEY   = 'aboramez_pin_hash';
-const PIN_UNLOCKED_KEY  = 'aboramez_pin_unlocked';
-const PIN_UNLOCK_TTL    = 30 * 60 * 1000;   // 30 دقيقة بالمللي ثانية
+const PIN_SESSION_KEY  = 'aboramez_auth_session';
+const PIN_SESSION_TTL  = 45 * 60 * 1000; // 45 دقيقة
+
+// المستخدمون الافتراضيون (الأدمن والكاشير)
+const DEFAULT_SECURITY_USERS = [
+  { id: 'u-admin',   name: 'المدير العام (أبو رامز)', pin: '1234', role: 'admin' },
+  { id: 'u-cashier', name: 'موظف مبيعات / كاشير',     pin: '1111', role: 'cashier' }
+];
+
+let appSecurityUsers = [...DEFAULT_SECURITY_USERS];
+let isPinLockActive = true;
+let hideCostsForCashier = true;
+
+// المستخدم الحالي المسجل دخوله
+window.currentUser = null;
 
 // ─────────────────────────────────────────────
-//  مساعد: تشفير بسيط (XOR + base64)
+//  [2] توليد أصوات تفاعلية (Web Audio API Synth)
 // ─────────────────────────────────────────────
-function simpleHash(pin) {
-  const salt = 'aboramez2025';
-  let result = '';
-  for (let i = 0; i < pin.length; i++) {
-    result += String.fromCharCode(pin.charCodeAt(i) ^ salt.charCodeAt(i % salt.length));
+let audioCtx = null;
+function getAudioContext() {
+  if (!audioCtx) {
+    const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+    if (AudioCtxClass) {
+      audioCtx = new AudioCtxClass();
+    }
   }
-  return btoa(result);
+  if (audioCtx && audioCtx.state === 'suspended') {
+    audioCtx.resume().catch(() => {});
+  }
+  return audioCtx;
+}
+
+// صوت نقرة أرقام خفيفة
+function playPinKeyTone() {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(420, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(320, ctx.currentTime + 0.04);
+    gain.gain.setValueAtTime(0.08, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.04);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.04);
+  } catch (e) {}
+}
+
+// صوت نجاح مميز (لحن ثنائي مبهج)
+function playSuccessChime() {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    [587.33, 880, 1174.66].forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, now + idx * 0.07);
+      gain.gain.setValueAtTime(0.12, now + idx * 0.07);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.07 + 0.16);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + idx * 0.07);
+      osc.stop(now + idx * 0.07 + 0.16);
+    });
+  } catch (e) {}
+}
+
+// صوت تنبيه خطأ أو تكرار باركود (نغمة تحذيرية منخفضة)
+function playErrorBuzz() {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(160, now);
+    osc.frequency.setValueAtTime(120, now + 0.12);
+    gain.gain.setValueAtTime(0.18, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.28);
+  } catch (e) {}
 }
 
 // ─────────────────────────────────────────────
-//  تهيئة PIN عند فتح الصفحة
+//  [3] تهيئة قفل PIN وفحص الجلسة عند بدء التشغيل
 // ─────────────────────────────────────────────
-(function initPinLock() {
-  const storedPin = localStorage.getItem(PIN_STORAGE_KEY);
-  if (!storedPin) return; // لا يوجد PIN → دخول مباشر
+async function loadSecuritySettings() {
+  try {
+    const res = await fetch('/api/settings');
+    const data = await res.json();
+    if (data.success && data.settings) {
+      const s = data.settings;
+      if (Array.isArray(s.securityUsers) && s.securityUsers.length > 0) {
+        appSecurityUsers = s.securityUsers;
+      }
+      if (s.pinLockEnabled !== undefined) {
+        isPinLockActive = Boolean(s.pinLockEnabled);
+      }
+      if (s.hideCostsFromCashier !== undefined) {
+        hideCostsForCashier = Boolean(s.hideCostsFromCashier);
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to fetch settings from API, using defaults:', e);
+  }
+}
 
-  // هل تم الفتح مؤخراً؟
-  const unlockedAt = parseInt(localStorage.getItem(PIN_UNLOCKED_KEY) || '0');
-  if (Date.now() - unlockedAt < PIN_UNLOCK_TTL) return; // لا يزال مفتوحاً
+// بدء فحص القفل
+(async function initSecuritySystem() {
+  await loadSecuritySettings();
 
-  // أظهر شاشة القفل
-  showPinLockScreen();
+  // فحص الجلسة المحفوظة مسبقاً
+  try {
+    const sessionRaw = localStorage.getItem(PIN_SESSION_KEY);
+    if (sessionRaw) {
+      const session = JSON.parse(sessionRaw);
+      const isExpired = Date.now() - (session.timestamp || 0) > PIN_SESSION_TTL;
+      if (!isExpired && session.user) {
+        // جلسة صالحة
+        applyUserRole(session.user);
+        return;
+      }
+    }
+  } catch (e) {}
+
+  // إذا كان القفل مفعلاً، افتح شاشة القفل فوراً
+  if (isPinLockActive) {
+    showPinLockScreen();
+  } else {
+    // إذا كان القفل معطلاً، ادخل افتراضياً كأدمن
+    applyUserRole(appSecurityUsers[0] || DEFAULT_SECURITY_USERS[0]);
+  }
 })();
+
+// تطبيق صلاحيات المستخدم على كامل واجهة الموقع
+function applyUserRole(user) {
+  window.currentUser = user;
+
+  // حفظ الجلسة
+  try {
+    localStorage.setItem(PIN_SESSION_KEY, JSON.stringify({
+      user,
+      timestamp: Date.now()
+    }));
+  } catch (e) {}
+
+  // تحديث كلاسات الـ body للتحكم بالصلاحيات
+  document.body.classList.remove('role-admin', 'role-cashier');
+  document.body.classList.add(`role-${user.role}`);
+
+  // تحديث شارة الهيدر
+  const userEmoji = document.getElementById('headerUserEmoji');
+  const userLabel = document.getElementById('headerUserLabel');
+  const userSub   = document.getElementById('headerUserSub');
+
+  if (user.role === 'admin') {
+    if (userEmoji) userEmoji.textContent = '👑';
+    if (userLabel) userLabel.textContent = user.name || 'المدير العام';
+    if (userSub)   userSub.textContent   = 'صلاحيات كاملة';
+    // فتح جميع الأقسام المحمية
+    if (typeof state !== 'undefined') state.settingsUnlocked = true;
+  } else {
+    if (userEmoji) userEmoji.textContent = '💼';
+    if (userLabel) userLabel.textContent = user.name || 'موظف مبيعات';
+    if (userSub)   userSub.textContent   = 'وضع الكاشير';
+    if (typeof state !== 'undefined') state.settingsUnlocked = false;
+
+    // تعيين اسم الموظف تلقائياً في الفاتورة وسند القبض
+    const invEmp = document.getElementById('invEmployeeName');
+    if (invEmp && !invEmp.value) invEmp.value = user.name || 'موظف مبيعات';
+    const rcpEmp = document.getElementById('rcpEmployeeName');
+    if (rcpEmp && !rcpEmp.value) rcpEmp.value = user.name || 'موظف مبيعات';
+  }
+
+  // تحديث ظهور الأقسام في القوائم
+  updateRoleRestrictedNavigation(user.role);
+
+  // إخفاء شاشة القفل
+  const screen = document.getElementById('pinLockScreen');
+  if (screen) {
+    screen.style.opacity = '0';
+    setTimeout(() => {
+      screen.style.display = 'none';
+      screen.style.opacity = '1';
+      document.body.style.overflow = '';
+    }, 280);
+  }
+}
+
+// إخفاء أو إظهار التبويبات حسب الصلاحية
+function updateRoleRestrictedNavigation(role) {
+  const isCashier = role === 'cashier';
+  const restrictedTabs = ['dashboard', 'settings', 'brands-audit'];
+
+  restrictedTabs.forEach(tabKey => {
+    // الأزرار العلوية
+    const upperBtn = document.querySelector(`.nav-tab-btn[data-tab="${tabKey}"]`);
+    if (upperBtn) upperBtn.style.display = isCashier ? 'none' : '';
+
+    // عناصر القائمة السفلية "المزيد"
+    const moreBtn = document.querySelector(`.sheet-item-btn[onclick*="'${tabKey}'"]`);
+    if (moreBtn) moreBtn.style.display = isCashier ? 'none' : '';
+  });
+
+  // إذا كان الكاشير واقفاً على صفحة ممنوعة، تحويله فوراً للكتالوج
+  if (isCashier && typeof actuallySwitchTab === 'function') {
+    const activeTab = document.querySelector('.tab-content.active');
+    if (activeTab && (activeTab.id === 'tab-dashboard' || activeTab.id === 'tab-settings' || activeTab.id === 'tab-brands-audit')) {
+      actuallySwitchTab('catalog');
+    }
+  }
+}
+
+// ─────────────────────────────────────────────
+//  [4] شاشة القفل التفاعلية (Lock Screen)
+// ─────────────────────────────────────────────
+let pinBuffer = '';
+let targetRoleFilter = 'admin'; // 'admin' | 'cashier'
 
 function showPinLockScreen() {
   const screen = document.getElementById('pinLockScreen');
   if (!screen) return;
   screen.style.display = 'flex';
-  // أخفِ كل محتوى الصفحة خلف الشاشة
+  screen.style.opacity = '1';
   document.body.style.overflow = 'hidden';
-  resetPinDots();
+  resetPinBuffer();
+  updatePinScreenUserHints();
 }
 
-function hidePinLockScreen() {
-  const screen = document.getElementById('pinLockScreen');
-  if (!screen) return;
-  screen.style.display = 'none';
-  document.body.style.overflow = '';
-  localStorage.setItem(PIN_UNLOCKED_KEY, Date.now().toString());
+// قفل الشاشة السريع
+function lockAppScreen() {
+  window.currentUser = null;
+  try { localStorage.removeItem(PIN_SESSION_KEY); } catch (e) {}
+  showPinLockScreen();
+  if (typeof showToast === 'function') {
+    showToast('تم قفل الشاشة 🔒 أدخل رمز PIN للدخول', 'info');
+  }
 }
 
-// ─────────────────────────────────────────────
-//  لوحة الأرقام
-// ─────────────────────────────────────────────
-let pinBuffer = '';
+function selectPinTargetUser(role) {
+  targetRoleFilter = role;
+  document.getElementById('pillUserAdmin')?.classList.toggle('active', role === 'admin');
+  document.getElementById('pillUserCashier')?.classList.toggle('active', role === 'cashier');
 
-function resetPinDots() {
+  const hintText = document.getElementById('pinRoleHintText');
+  const hintIcon = document.getElementById('pinRoleHintIcon');
+  if (role === 'admin') {
+    if (hintText) hintText.textContent = 'أدخل رمز المدير العام (الافتراضي: 1234)';
+    if (hintIcon) hintIcon.textContent = '👑';
+  } else {
+    if (hintText) hintText.textContent = 'أدخل رمز موظف المبيعات (الافتراضي: 1111)';
+    if (hintIcon) hintIcon.textContent = '💼';
+  }
+
+  resetPinBuffer();
+  if (navigator.vibrate) navigator.vibrate(20);
+}
+
+function updatePinScreenUserHints() {
+  const adminUser   = appSecurityUsers.find(u => u.role === 'admin') || DEFAULT_SECURITY_USERS[0];
+  const cashierUser = appSecurityUsers.find(u => u.role === 'cashier') || DEFAULT_SECURITY_USERS[1];
+
+  const adminPill   = document.querySelector('#pillUserAdmin .user-pill-text');
+  const cashierPill = document.querySelector('#pillUserCashier .user-pill-text');
+  if (adminPill)   adminPill.textContent   = adminUser.name || 'المدير العام';
+  if (cashierPill) cashierPill.textContent = cashierUser.name || 'موظف مبيعات';
+}
+
+function resetPinBuffer() {
   pinBuffer = '';
   updatePinDots();
+  const hintText = document.getElementById('pinRoleHintText');
+  if (hintText) hintText.style.color = '';
 }
 
 function updatePinDots() {
@@ -72,6 +300,7 @@ function updatePinDots() {
     const dot = document.getElementById('pinDot' + i);
     if (!dot) continue;
     dot.classList.toggle('pin-dot-filled', i < pinBuffer.length);
+    dot.classList.remove('pin-dot-error');
   }
 }
 
@@ -80,273 +309,820 @@ function pinKeyPress(digit) {
   pinBuffer += digit;
   updatePinDots();
 
-  // اهتزاز خفيف (Haptic)
-  if (navigator.vibrate) navigator.vibrate(30);
+  // تأثير صوتي ولمسي
+  playPinKeyTone();
+  if (navigator.vibrate) navigator.vibrate(25);
 
+  // فحص تلقائي فوري بمجرد إدخال 4 أرقام
   if (pinBuffer.length === 4) {
-    setTimeout(checkPin, 120);
+    setTimeout(verifyEnteredPin, 100);
   }
 }
 
 function pinKeyDelete() {
-  pinBuffer = pinBuffer.slice(0, -1);
-  updatePinDots();
+  if (pinBuffer.length > 0) {
+    pinBuffer = pinBuffer.slice(0, -1);
+    updatePinDots();
+    playPinKeyTone();
+    if (navigator.vibrate) navigator.vibrate(18);
+  }
 }
 
-function checkPin() {
-  const storedHash = localStorage.getItem(PIN_STORAGE_KEY);
-  if (!storedHash) { hidePinLockScreen(); return; }
+function quickFillPin(code) {
+  resetPinBuffer();
+  for (let i = 0; i < code.length; i++) {
+    pinKeyPress(code[i]);
+  }
+}
 
-  if (simpleHash(pinBuffer) === storedHash) {
-    // PIN صحيح ✅
-    const screen = document.getElementById('pinLockScreen');
-    if (screen) {
-      screen.style.transition = 'opacity 0.35s ease';
-      screen.style.opacity = '0';
-      setTimeout(hidePinLockScreen, 350);
+function verifyEnteredPin() {
+  // البحث عن مستخدم يطابق الرمز المدخل
+  const matchedUser = appSecurityUsers.find(u => String(u.pin).trim() === pinBuffer);
+
+  if (matchedUser) {
+    // رمز صحيح ✅
+    playSuccessChime();
+    if (navigator.vibrate) navigator.vibrate([30, 40, 70]);
+
+    const hintText = document.getElementById('pinRoleHintText');
+    const hintIcon = document.getElementById('pinRoleHintIcon');
+    if (hintText) {
+      hintText.textContent = `مرحباً بك: ${matchedUser.name} ${matchedUser.role === 'admin' ? '👑' : '💼'}`;
+      hintText.style.color = '#10b981';
     }
-    if (navigator.vibrate) navigator.vibrate([30, 30, 60]);
-  } else {
-    // PIN خطأ ❌
-    shakePin();
-    if (navigator.vibrate) navigator.vibrate([80, 50, 80]);
-    setTimeout(resetPinDots, 600);
-  }
-}
+    if (hintIcon) hintIcon.textContent = '✅';
 
-function shakePin() {
-  const keypad = document.getElementById('pinKeypad');
-  const dots   = document.getElementById('pinDots');
-  // لون أحمر على النقاط
-  for (let i = 0; i < 4; i++) {
-    const dot = document.getElementById('pinDot' + i);
-    if (dot) dot.classList.add('pin-dot-error');
-  }
-  if (keypad) keypad.classList.add('pin-shake');
-  setTimeout(() => {
-    if (keypad) keypad.classList.remove('pin-shake');
+    // إضاءة خضراء على النقاط
     for (let i = 0; i < 4; i++) {
       const dot = document.getElementById('pinDot' + i);
-      if (dot) dot.classList.remove('pin-dot-error');
+      if (dot) dot.style.background = '#10b981';
     }
-  }, 600);
+
+    setTimeout(() => {
+      applyUserRole(matchedUser);
+      if (typeof showToast === 'function') {
+        showToast(`أهلاً بك، تم تسجيل الدخول بنجاح كـ (${matchedUser.name})`, 'success');
+      }
+    }, 320);
+
+  } else {
+    // رمز غير صحيح ❌
+    playErrorBuzz();
+    if (navigator.vibrate) navigator.vibrate([80, 50, 90]);
+
+    const keypad = document.getElementById('pinKeypad');
+    const hintText = document.getElementById('pinRoleHintText');
+    if (hintText) {
+      hintText.textContent = 'رمز PIN غير صحيح! حاول مرة أخرى';
+      hintText.style.color = '#ef4444';
+    }
+
+    // اهتزاز وتلوين أحمر
+    for (let i = 0; i < 4; i++) {
+      const dot = document.getElementById('pinDot' + i);
+      if (dot) dot.classList.add('pin-dot-error');
+    }
+    if (keypad) keypad.classList.add('pin-shake');
+
+    setTimeout(() => {
+      if (keypad) keypad.classList.remove('pin-shake');
+      resetPinBuffer();
+    }, 600);
+  }
 }
 
 // ─────────────────────────────────────────────
-//  إعدادات PIN (من صفحة الإعدادات)
+//  [5] إعدادات الأمان وإدارة الرموز من صفحة الإعدادات
 // ─────────────────────────────────────────────
-function savePinCode() {
-  const newPin     = document.getElementById('newPinInput')?.value?.trim();
-  const confirmPin = document.getElementById('confirmPinInput')?.value?.trim();
-  const msgEl      = document.getElementById('pinSettingsMsg');
+function initSecuritySettingsForm() {
+  const adminUser   = appSecurityUsers.find(u => u.role === 'admin') || DEFAULT_SECURITY_USERS[0];
+  const cashierUser = appSecurityUsers.find(u => u.role === 'cashier') || DEFAULT_SECURITY_USERS[1];
 
-  function showMsg(text, type) {
-    if (!msgEl) return;
-    msgEl.style.display = 'block';
-    msgEl.style.background = type === 'success' ? '#ecfdf5' : '#fef2f2';
-    msgEl.style.color       = type === 'success' ? '#059669' : '#dc2626';
-    msgEl.style.border      = `1px solid ${type === 'success' ? '#bbf7d0' : '#fecaca'}`;
-    msgEl.textContent = text;
-  }
+  const adminInput   = document.getElementById('adminPinInput');
+  const cashierInput = document.getElementById('cashierPinInput');
+  const lockCheckbox = document.getElementById('chkPinLockEnabled');
+  const hideCheckbox = document.getElementById('chkHideCostsFromCashier');
 
-  if (!newPin || newPin.length !== 4 || !/^\d{4}$/.test(newPin)) {
-    showMsg('❌ يجب أن يكون رمز PIN 4 أرقام فقط', 'error'); return;
-  }
-  if (newPin !== confirmPin) {
-    showMsg('❌ الرمزان غير متطابقَين، تأكد من الإدخال', 'error'); return;
-  }
-
-  localStorage.setItem(PIN_STORAGE_KEY, simpleHash(newPin));
-  localStorage.setItem(PIN_UNLOCKED_KEY, Date.now().toString());
-
-  document.getElementById('newPinInput').value     = '';
-  document.getElementById('confirmPinInput').value = '';
-  updatePinSettingsUI();
-  showMsg('✅ تم حفظ رمز PIN بنجاح! سيُطلب منك عند الفتح التالي', 'success');
+  if (adminInput)   adminInput.value   = adminUser.pin   || '1234';
+  if (cashierInput) cashierInput.value = cashierUser.pin || '1111';
+  if (lockCheckbox) lockCheckbox.checked = isPinLockActive;
+  if (hideCheckbox) hideCheckbox.checked = hideCostsForCashier;
 }
 
-function disablePinCode() {
-  if (!confirm('هل تريد إلغاء قفل PIN؟ لن يتم طلب رمز عند فتح الموقع.')) return;
-  localStorage.removeItem(PIN_STORAGE_KEY);
-  localStorage.removeItem(PIN_UNLOCKED_KEY);
-  updatePinSettingsUI();
-  const msgEl = document.getElementById('pinSettingsMsg');
-  if (msgEl) {
-    msgEl.style.display  = 'block';
-    msgEl.style.background = '#fff7ed';
-    msgEl.style.color      = '#d97706';
-    msgEl.style.border     = '1px solid #fed7aa';
-    msgEl.textContent = '🔓 تم إلغاء قفل PIN بنجاح';
+async function saveUserSecuritySettings() {
+  const adminPin   = document.getElementById('adminPinInput')?.value?.trim();
+  const cashierPin = document.getElementById('cashierPinInput')?.value?.trim();
+  const lockActive = document.getElementById('chkPinLockEnabled')?.checked ?? true;
+  const hideCosts  = document.getElementById('chkHideCostsFromCashier')?.checked ?? true;
+  const alertMsg   = document.getElementById('pinSettingsAlertMsg');
+
+  function showMsg(text, isError = false) {
+    if (!alertMsg) return;
+    alertMsg.style.display = 'block';
+    alertMsg.style.background = isError ? '#fef2f2' : '#ecfdf5';
+    alertMsg.style.color      = isError ? '#dc2626' : '#059669';
+    alertMsg.style.border     = `1.5px solid ${isError ? '#fca5a5' : '#86efac'}`;
+    alertMsg.textContent     = text;
   }
-}
 
-function updatePinSettingsUI() {
-  const badge     = document.getElementById('pinStatusBadge');
-  const disableBtn = document.getElementById('btnDisablePin');
-  const hasPIN    = !!localStorage.getItem(PIN_STORAGE_KEY);
-
-  if (badge) {
-    badge.textContent        = hasPIN ? 'مفعّل ✅' : 'غير مفعّل';
-    badge.style.background   = hasPIN ? '#dcfce7' : '#f1f5f9';
-    badge.style.color        = hasPIN ? '#059669' : '#64748b';
+  if (!adminPin || adminPin.length !== 4 || !/^\d{4}$/.test(adminPin)) {
+    showMsg('❌ رمز المدير العام يجب أن يتكون من 4 أرقام بالضبط', true);
+    return;
   }
-  if (disableBtn) disableBtn.style.display = hasPIN ? 'inline-flex' : 'none';
-}
-
-// تحديث واجهة الإعدادات عند تحميل الصفحة
-document.addEventListener('DOMContentLoaded', () => {
-  updatePinSettingsUI();
-});
-
-// ─────────────────────────────────────────────
-//  مسح الباركود بالكاميرا
-// ─────────────────────────────────────────────
-let html5QrScanner = null;
-let scannerActive  = false;
-
-function openBarcodeScanner() {
-  const modal = document.getElementById('barcodeScannerModal');
-  if (!modal) return;
-  modal.style.display = 'flex';
-
-  // إخفاء نتيجة سابقة
-  const resultBox = document.getElementById('barcodeScanResult');
-  if (resultBox) resultBox.style.display = 'none';
-
-  // تأخير قصير ثم تشغيل الكاميرا
-  setTimeout(startScanner, 300);
-}
-
-function closeBarcodeScanner() {
-  stopScanner();
-  const modal = document.getElementById('barcodeScannerModal');
-  if (modal) modal.style.display = 'none';
-  const input = document.getElementById('manualBarcodeInput');
-  if (input) input.value = '';
-}
-
-function startScanner() {
-  if (scannerActive) return;
-  if (typeof Html5Qrcode === 'undefined') {
-    showScannerFallback();
+  if (!cashierPin || cashierPin.length !== 4 || !/^\d{4}$/.test(cashierPin)) {
+    showMsg('❌ رمز موظف المبيعات يجب أن يتكون من 4 أرقام بالضبط', true);
+    return;
+  }
+  if (adminPin === cashierPin) {
+    showMsg('❌ لا يمكن استخدام نفس الرمز للمدير والموظف! يرجى اختيار رمز مختلف لكل منهما', true);
     return;
   }
 
-  const containerId = 'barcodeScannerInner';
-  html5QrScanner = new Html5Qrcode(containerId);
+  const updatedUsers = [
+    { id: 'u-admin',   name: 'المدير العام (أبو رامز)', pin: adminPin,   role: 'admin' },
+    { id: 'u-cashier', name: 'موظف مبيعات / كاشير',     pin: cashierPin, role: 'cashier' }
+  ];
 
-  const config = {
-    fps: 12,
-    qrbox: { width: 200, height: 120 },
-    formatsToSupport: [
-      Html5QrcodeSupportedFormats.EAN_13,
-      Html5QrcodeSupportedFormats.EAN_8,
-      Html5QrcodeSupportedFormats.CODE_128,
-      Html5QrcodeSupportedFormats.CODE_39,
-      Html5QrcodeSupportedFormats.QR_CODE,
-      Html5QrcodeSupportedFormats.UPC_A,
-      Html5QrcodeSupportedFormats.UPC_E,
-    ]
-  };
+  try {
+    const res = await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        securityUsers: updatedUsers,
+        pinLockEnabled: lockActive,
+        hideCostsFromCashier: hideCosts
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      appSecurityUsers    = updatedUsers;
+      isPinLockActive     = lockActive;
+      hideCostsForCashier = hideCosts;
+      updatePinScreenUserHints();
+      showMsg('✅ تم حفظ رموز المستخدمين وإعدادات الصلاحيات بنجاح!', false);
+      if (typeof showToast === 'function') {
+        showToast('تم تحديث رموز الدخول بنجاح! المدير: ' + adminPin + ' | الموظف: ' + cashierPin, 'success');
+      }
+    } else {
+      showMsg('❌ فشل الحفظ على الخادم: ' + (data.error || 'خطأ غير معروف'), true);
+    }
+  } catch (err) {
+    showMsg('❌ حدث خطأ أثناء الاتصال بالخادم: ' + err.message, true);
+  }
+}
 
-  html5QrScanner.start(
-    { facingMode: 'environment' },
-    config,
-    onBarcodeSuccess,
-    () => {} // أخطاء المسح الجزئي نتجاهلها
-  ).then(() => {
-    scannerActive = true;
-  }).catch(err => {
-    console.warn('Camera error:', err);
-    showScannerFallback();
+function handlePinLockToggle(enabled) {
+  isPinLockActive = enabled;
+  const badge = document.getElementById('pinSettingsStatusBadge');
+  if (badge) {
+    badge.textContent = enabled ? 'قفل PIN مفعّل' : 'قفل PIN معطّل';
+    badge.style.background = enabled ? '#059669' : '#64748b';
+  }
+}
+
+function toggleInputVisibility(inputId, btn) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  if (input.type === 'password') {
+    input.type = 'text';
+    if (btn) btn.textContent = '🙈';
+  } else {
+    input.type = 'password';
+    if (btn) btn.textContent = '👁️';
+  }
+}
+
+// ─────────────────────────────────────────────
+//  [6] محرك الكاميرا ومسح الباركود المزدوج
+//  (Native BarcodeDetector + Html5Qrcode fallback + Photo Capture)
+// ─────────────────────────────────────────────
+let activeStream = null;
+let currentCameraFacing = 'environment';
+let barcodeDetectorInstance = null;
+let html5QrInstance = null;
+let scannerLoopRunning = false;
+let currentActiveScannerContext = null; // 'assign' | 'universal'
+
+// فحص توفر BarcodeDetector المدمج فائق السرعة
+function getNativeBarcodeDetector() {
+  if (!barcodeDetectorInstance && ('BarcodeDetector' in window)) {
+    try {
+      barcodeDetectorInstance = new window.BarcodeDetector({
+        formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'qr_code', 'upc_a', 'upc_e']
+      });
+    } catch (e) {
+      barcodeDetectorInstance = null;
+    }
+  }
+  return barcodeDetectorInstance;
+}
+
+// تشغيل الكاميرا الحية
+async function startLiveCameraScanner(context) {
+  currentActiveScannerContext = context;
+  const videoEl = document.getElementById(context === 'assign' ? 'assignScannerVideo' : 'universalScannerVideo');
+  const qrContainerId = context === 'assign' ? 'assignScannerQrContainer' : 'universalScannerQrContainer';
+  const qrContainer = document.getElementById(qrContainerId);
+
+  stopLiveCameraScanner();
+
+  // 1. تجربة BarcodeDetector المدمج عبر MediaDevices أولاً
+  const detector = getNativeBarcodeDetector();
+  if (detector && navigator.mediaDevices && navigator.mediaDevices.getUserMedia && videoEl) {
+    try {
+      const constraints = {
+        video: {
+          facingMode: { ideal: currentCameraFacing },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        audio: false
+      };
+
+      activeStream = await navigator.mediaDevices.getUserMedia(constraints);
+      videoEl.srcObject = activeStream;
+      videoEl.style.display = 'block';
+      if (qrContainer) qrContainer.style.display = 'none';
+
+      await videoEl.play();
+      startNativeBarcodeDetectionLoop(videoEl, context);
+      return;
+    } catch (err) {
+      console.warn('Native getUserMedia stream failed, trying Html5Qrcode fallback:', err);
+    }
+  }
+
+  // 2. استخدام مكتبة Html5Qrcode كـ fallback موثوق
+  if (typeof Html5Qrcode !== 'undefined' && qrContainer) {
+    if (videoEl) videoEl.style.display = 'none';
+    qrContainer.style.display = 'block';
+
+    try {
+      html5QrInstance = new Html5Qrcode(qrContainerId);
+      const cameras = await Html5Qrcode.getCameras();
+      let selectedCamId = null;
+
+      if (cameras && cameras.length > 0) {
+        // تفضيل الكاميرا الخلفية
+        const backCam = cameras.find(c => c.label.toLowerCase().includes('back') || c.label.toLowerCase().includes('rear') || c.label.toLowerCase().includes('environment'));
+        selectedCamId = backCam ? backCam.id : cameras[cameras.length - 1].id;
+      }
+
+      const cameraParam = selectedCamId ? selectedCamId : { facingMode: currentCameraFacing };
+
+      await html5QrInstance.start(
+        cameraParam,
+        {
+          fps: 15,
+          qrbox: { width: 220, height: 140 },
+          aspectRatio: 1.33
+        },
+        (decodedText) => {
+          onBarcodeDecoded(decodedText, context);
+        },
+        () => {} // تجاهل أخطاء الإطارات الفارغة
+      );
+      return;
+    } catch (err) {
+      console.warn('Html5Qrcode live scan failed:', err);
+    }
+  }
+
+  // 3. إذا تعذر فتح الفيديو الحي، إرشاد المستخدم لالتقاط صورة بالكاميرا
+  showCameraPermissionNotice(context);
+}
+
+// حلقة الكشف بالـ BarcodeDetector الأصلي
+function startNativeBarcodeDetectionLoop(videoEl, context) {
+  scannerLoopRunning = true;
+  const detector = getNativeBarcodeDetector();
+  if (!detector) return;
+
+  async function scanFrame() {
+    if (!scannerLoopRunning || !videoEl || videoEl.paused || videoEl.ended) return;
+
+    try {
+      const barcodes = await detector.detect(videoEl);
+      if (barcodes && barcodes.length > 0) {
+        const rawCode = barcodes[0].rawValue;
+        if (rawCode && rawCode.trim()) {
+          onBarcodeDecoded(rawCode.trim(), context);
+          return; // إيقاف الحلقة عند النجاح
+        }
+      }
+    } catch (e) {}
+
+    if (scannerLoopRunning) {
+      requestAnimationFrame(scanFrame);
+    }
+  }
+
+  requestAnimationFrame(scanFrame);
+}
+
+// إيقاف الكاميرا وتفريغ الموارد
+function stopLiveCameraScanner() {
+  scannerLoopRunning = false;
+
+  if (activeStream) {
+    activeStream.getTracks().forEach(track => {
+      try { track.stop(); } catch (e) {}
+    });
+    activeStream = null;
+  }
+
+  if (html5QrInstance) {
+    try {
+      html5QrInstance.stop().then(() => {
+        html5QrInstance.clear();
+        html5QrInstance = null;
+      }).catch(() => { html5QrInstance = null; });
+    } catch (e) {
+      html5QrInstance = null;
+    }
+  }
+
+  ['assignScannerVideo', 'universalScannerVideo'].forEach(id => {
+    const v = document.getElementById(id);
+    if (v) {
+      v.pause();
+      v.srcObject = null;
+      v.style.display = 'none';
+    }
   });
 }
 
-function stopScanner() {
-  if (html5QrScanner && scannerActive) {
-    html5QrScanner.stop().catch(() => {});
-    html5QrScanner = null;
-    scannerActive  = false;
+// تبديل الكاميرا (أمامية / خلفية)
+function toggleScannerCameraDevice(context) {
+  currentCameraFacing = currentCameraFacing === 'environment' ? 'user' : 'environment';
+  startLiveCameraScanner(context);
+  if (navigator.vibrate) navigator.vibrate(20);
+}
+
+// تشغيل فلاش الكاميرا (Torch) إن وجد
+async function toggleScannerTorch(context) {
+  if (activeStream) {
+    const track = activeStream.getVideoTracks()[0];
+    if (track && track.applyConstraints) {
+      try {
+        const capabilities = track.getCapabilities ? track.getCapabilities() : {};
+        if (capabilities.torch) {
+          const settings = track.getSettings ? track.getSettings() : {};
+          await track.applyConstraints({
+            advanced: [{ torch: !settings.torch }]
+          });
+        }
+      } catch (e) {}
+    }
   }
 }
 
-function onBarcodeSuccess(decodedText) {
-  // توقف عن المسح فوراً
-  stopScanner();
+// ─────────────────────────────────────────────
+//  [7] المنقذ الموثوق 100%: التقاط صورة بالباركود بكاميرا الهاتف
+// ─────────────────────────────────────────────
+async function handleNativeBarcodePhoto(inputEl, context) {
+  if (!inputEl || !inputEl.files || inputEl.files.length === 0) return;
+  const file = inputEl.files[0];
 
-  if (navigator.vibrate) navigator.vibrate([40, 30, 80]);
+  if (typeof showToast === 'function') {
+    showToast('جاري قراءة الباركود من الصورة الملتقطة...', 'info');
+  }
 
-  // ابحث عن المنتج
-  searchByBarcode(decodedText, true);
+  // 1. تجربة BarcodeDetector المدمج
+  const detector = getNativeBarcodeDetector();
+  if (detector && window.createImageBitmap) {
+    try {
+      const bitmap = await createImageBitmap(file);
+      const barcodes = await detector.detect(bitmap);
+      if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
+        onBarcodeDecoded(barcodes[0].rawValue.trim(), context);
+        inputEl.value = '';
+        return;
+      }
+    } catch (e) {
+      console.warn('Native photo detect failed:', e);
+    }
+  }
+
+  // 2. تجربة Html5Qrcode.scanFile
+  if (typeof Html5Qrcode !== 'undefined') {
+    try {
+      const qrScan = new Html5Qrcode('assignScannerQrContainer');
+      const text = await qrScan.scanFile(file, true);
+      if (text && text.trim()) {
+        onBarcodeDecoded(text.trim(), context);
+        inputEl.value = '';
+        return;
+      }
+    } catch (e) {
+      console.warn('Html5Qrcode scanFile failed:', e);
+    }
+  }
+
+  // إذا لم يتم العثور على باركود في الصورة
+  playErrorBuzz();
+  if (typeof showToast === 'function') {
+    showToast('لم يتم العثور على باركود واضح في الصورة، يرجى إعادة التصوير عن قرب أو إدخال الرقم يدوياً', 'warning');
+  }
+  inputEl.value = '';
 }
 
-function searchByBarcode(code, fromCamera = false) {
-  code = (code || '').trim();
-  if (!code) return;
+function showCameraPermissionNotice(context) {
+  const containerId = context === 'assign' ? 'assignScannerFeedBox' : 'universalScannerFeedBox';
+  const container = document.getElementById(containerId);
+  if (container) {
+    container.innerHTML = `
+      <div style="padding:1.5rem; text-align:center; color:#ffffff; background:#1e293b; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+        <span style="font-size:2.4rem; margin-bottom:0.5rem;">📸</span>
+        <strong style="font-size:0.95rem; margin-bottom:0.35rem;">تعذر البث المباشر للكاميرا</strong>
+        <p style="font-size:0.78rem; color:#94a3b8; margin-bottom:1rem; max-width:240px;">
+          اضغط زر "تصوير الباركود" الأصفر بالأسفل لالتقاط صورة فورية بكاميرا هاتفك
+        </p>
+      </div>
+    `;
+  }
+}
 
-  // ابحث في المنتجات بالكود (p.code) أو الاسم
+// ─────────────────────────────────────────────
+//  [8] نافذة تعريف باركود لصنف بالجرد (مع فحص ومنع التكرار الصارم)
+// ─────────────────────────────────────────────
+let assignTargetProduct = null;
+
+function openAssignBarcodeModal(productId) {
   const products = (typeof state !== 'undefined' && state.products) ? state.products : [];
-  const found = products.find(p =>
-    (p.code || '').toLowerCase() === code.toLowerCase() ||
-    (p.barcode || '').toLowerCase() === code.toLowerCase() ||
-    (p.name || '').toLowerCase() === code.toLowerCase()
+  assignTargetProduct = products.find(p => p.id === productId);
+  if (!assignTargetProduct) {
+    if (typeof showToast === 'function') showToast('لم يتم العثور على الصنف المحدد', 'error');
+    return;
+  }
+
+  const modal = document.getElementById('assignBarcodeModal');
+  if (!modal) return;
+
+  // تعبئة بيانات الصنف المستهدف
+  const imgEl   = document.getElementById('assignProdImg');
+  const nameEl  = document.getElementById('assignProdName');
+  const codeEl  = document.getElementById('assignProdCodeBadge');
+  const metaEl  = document.getElementById('assignProdMeta');
+  const bcTagEl = document.getElementById('assignProdCurrentBarcodeText');
+  const idEl    = document.getElementById('assignTargetProdId');
+  const manualInp = document.getElementById('assignManualBarcodeInput');
+
+  if (imgEl)   imgEl.src = assignTargetProduct.image || 'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80';
+  if (nameEl)  nameEl.textContent = assignTargetProduct.name || 'بدون اسم';
+  if (codeEl)  codeEl.textContent = `كود: [${assignTargetProduct.code || 'PRD'}]`;
+  if (metaEl)  metaEl.textContent = `الماركة: ${assignTargetProduct.brand || 'عام'} • القسم: ${assignTargetProduct.category || 'عام'}`;
+  if (idEl)    idEl.value = assignTargetProduct.id;
+  if (manualInp) manualInp.value = assignTargetProduct.barcode || '';
+
+  if (bcTagEl) {
+    if (assignTargetProduct.barcode) {
+      bcTagEl.textContent = assignTargetProduct.barcode;
+      bcTagEl.className = 'current-bc-tag has-val';
+    } else {
+      bcTagEl.textContent = 'غير معرّف بعد';
+      bcTagEl.className = 'current-bc-tag';
+    }
+  }
+
+  // إخفاء التنبيهات
+  document.getElementById('barcodeDuplicateAlertBox').style.display = 'none';
+  document.getElementById('barcodeSuccessAlertBox').style.display = 'none';
+  document.getElementById('assignScannerLiveWrapper').style.display = 'block';
+
+  modal.style.display = 'flex';
+
+  // بدء تشغيل الكاميرا
+  setTimeout(() => startLiveCameraScanner('assign'), 250);
+}
+
+function closeAssignBarcodeModal() {
+  stopLiveCameraScanner();
+  const modal = document.getElementById('assignBarcodeModal');
+  if (modal) modal.style.display = 'none';
+  assignTargetProduct = null;
+}
+
+// إعادة تشغيل الكاميرا لمسح كود آخر بعد ظهور التنبيه
+function resetAssignScannerForRetry() {
+  document.getElementById('barcodeDuplicateAlertBox').style.display = 'none';
+  document.getElementById('assignScannerLiveWrapper').style.display = 'block';
+  const manualInp = document.getElementById('assignManualBarcodeInput');
+  if (manualInp) manualInp.value = '';
+  startLiveCameraScanner('assign');
+}
+
+// حفظ الباركود المدخل يدوياً
+function saveManualAssignedBarcode() {
+  const manualInp = document.getElementById('assignManualBarcodeInput');
+  if (!manualInp) return;
+  const val = manualInp.value.trim();
+  if (!val) {
+    if (typeof showToast === 'function') showToast('يرجى كتابة رقم الباركود أولاً', 'warning');
+    return;
+  }
+  processBarcodeAssignment(val);
+}
+
+// المعالجة المركزية لربط الباركود وفحص منع التكرار
+async function processBarcodeAssignment(scannedBarcode) {
+  if (!assignTargetProduct) return;
+  const cleanBarcode = scannedBarcode.trim();
+
+  // فحص هل الباركود مطابق للباركود الحالي لنفس هذا الصنف؟
+  if (assignTargetProduct.barcode && assignTargetProduct.barcode.trim().toLowerCase() === cleanBarcode.toLowerCase()) {
+    playSuccessChime();
+    if (typeof showToast === 'function') {
+      showToast('هذا الباركود معرّف بالفعل لهذا الصنف مسبقاً ✅', 'info');
+    }
+    return;
+  }
+
+  // 1. فحص التكرار محلياً في قاعدة الأصناف state.products
+  const products = (typeof state !== 'undefined' && state.products) ? state.products : [];
+  const duplicate = products.find(p => 
+    p.barcode && 
+    p.barcode.trim().toLowerCase() === cleanBarcode.toLowerCase() && 
+    p.id !== assignTargetProduct.id
   );
 
-  const resultBox     = document.getElementById('barcodeScanResult');
-  const resultCode    = document.getElementById('barcodeScanResultCode');
-  const resultProduct = document.getElementById('barcodeScanResultProduct');
+  // ⛔ في حال وجود تكرار: الرفض الصارم وإظهار كارت التنبيه الأحمر بالأرقام والأسماء
+  if (duplicate) {
+    stopLiveCameraScanner();
+    playErrorBuzz();
+    if (navigator.vibrate) navigator.vibrate([100, 60, 120]);
+
+    // تعبئة تفاصيل الصنف المكرر
+    const dupBox    = document.getElementById('barcodeDuplicateAlertBox');
+    const dupCodeEl = document.getElementById('dupItemCode');
+    const dupNameEl = document.getElementById('dupItemName');
+    const dupBrandEl = document.getElementById('dupItemBrand');
+    const dupBcEl   = document.getElementById('dupBarcodeVal');
+    const goToBtn   = document.getElementById('btnGoToDupItem');
+
+    if (dupCodeEl)  dupCodeEl.textContent  = `[${duplicate.code || 'بدون كود'}] (رقم المعرّف: ${duplicate.id})`;
+    if (dupNameEl)  dupNameEl.textContent  = duplicate.name || 'بدون اسم';
+    if (dupBrandEl) dupBrandEl.textContent = `${duplicate.brand || 'عام'} - ${duplicate.category || 'عام'}`;
+    if (dupBcEl)    dupBcEl.textContent    = cleanBarcode;
+
+    if (goToBtn) {
+      goToBtn.onclick = () => locateProductInInventory(duplicate.id);
+    }
+
+    // إخفاء الكاميرا وإظهار رسالة التكرار
+    document.getElementById('assignScannerLiveWrapper').style.display = 'none';
+    if (dupBox) dupBox.style.display = 'block';
+
+    if (typeof showToast === 'function') {
+      showToast(`⛔ مرفوض! هذا الباركود معرف مسبقاً للصنف: "${duplicate.name}"`, 'error');
+    }
+    return;
+  }
+
+  // 2. إذا لم يكن هناك تكرار: إرسال الطلب وحفظه في السيرفر وSupabase
+  stopLiveCameraScanner();
+  const successBox = document.getElementById('barcodeSuccessAlertBox');
+  const successMsg = document.getElementById('barcodeSuccessMsgText');
+
+  try {
+    const res = await fetch(`/api/products/${assignTargetProduct.id}/barcode`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ barcode: cleanBarcode })
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      // حفظ ناجح ✅
+      playSuccessChime();
+      if (navigator.vibrate) navigator.vibrate([40, 40, 80]);
+
+      // تحديث الصنف محلياً في الـ state
+      assignTargetProduct.barcode = cleanBarcode;
+      const localProd = products.find(p => p.id === assignTargetProduct.id);
+      if (localProd) localProd.barcode = cleanBarcode;
+
+      // تحديث شارة الصنف بالنافذة
+      const bcTagEl = document.getElementById('assignProdCurrentBarcodeText');
+      if (bcTagEl) {
+        bcTagEl.textContent = cleanBarcode;
+        bcTagEl.className = 'current-bc-tag has-val';
+      }
+
+      // إظهار رسالة النجاح
+      if (successMsg) {
+        successMsg.innerHTML = `تم ربط الباركود <strong>(${escapeHtml(cleanBarcode)})</strong> بنجاح بالصنف: <br><strong>${escapeHtml(assignTargetProduct.name)}</strong>`;
+      }
+      if (successBox) successBox.style.display = 'flex';
+      document.getElementById('assignScannerLiveWrapper').style.display = 'none';
+
+      // تحديث قائمة الجرد إن كانت مفتوحة
+      if (typeof renderInventoryList === 'function') {
+        renderInventoryList();
+      }
+
+      if (typeof showToast === 'function') {
+        showToast(`✅ تم ربط الباركود (${cleanBarcode}) بنجاح`, 'success');
+      }
+
+      // إغلاق النافذة تلقائياً بعد 1.8 ثانية
+      setTimeout(closeAssignBarcodeModal, 1800);
+
+    } else if (data.error === 'duplicate' && data.existingProduct) {
+      // رفض من السيرفر بسبب التكرار
+      playErrorBuzz();
+      const dup = data.existingProduct;
+      document.getElementById('dupItemCode').textContent  = `[${dup.code}] (معرّف: ${dup.id})`;
+      document.getElementById('dupItemName').textContent  = dup.name;
+      document.getElementById('dupItemBrand').textContent = `${dup.brand} - ${dup.category}`;
+      document.getElementById('dupBarcodeVal').textContent= cleanBarcode;
+      document.getElementById('assignScannerLiveWrapper').style.display = 'none';
+      document.getElementById('barcodeDuplicateAlertBox').style.display = 'block';
+    } else {
+      playErrorBuzz();
+      if (typeof showToast === 'function') {
+        showToast(data.error || 'فشل حفظ الباركود', 'error');
+      }
+    }
+  } catch (err) {
+    playErrorBuzz();
+    if (typeof showToast === 'function') {
+      showToast('حدث خطأ أثناء الاتصال بالخادم لحفظ الباركود', 'error');
+    }
+  }
+}
+
+// الانتقال للصنف المكرر بالجرد
+function locateProductInInventory(productId) {
+  closeAssignBarcodeModal();
+  if (typeof switchTab === 'function') {
+    switchTab('inventory');
+  }
+
+  setTimeout(() => {
+    // تصفير البحث والفلتر
+    if (typeof setInventoryQuickFilter === 'function') setInventoryQuickFilter('all');
+    const searchInp = document.getElementById('inventorySearchInput');
+    const targetProd = (typeof state !== 'undefined' && state.products) ? state.products.find(p => p.id === productId) : null;
+
+    if (searchInp && targetProd) {
+      searchInp.value = targetProd.code || targetProd.name;
+      if (typeof handleInventorySearch === 'function') handleInventorySearch(searchInp.value);
+    }
+
+    // التمرير والتركيز بالوميض الذهبي
+    setTimeout(() => {
+      const card = document.getElementById(`invCard-${productId}`);
+      if (card) {
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        card.classList.add('flash-highlight');
+        setTimeout(() => card.classList.remove('flash-highlight'), 2500);
+      }
+    }, 350);
+  }, 200);
+}
+
+// ─────────────────────────────────────────────
+//  [9] النافذة العامة لمسح الباركود (للفاتورة والجرد)
+// ─────────────────────────────────────────────
+let universalScannerMode = 'invoice'; // 'invoice' | 'inventory'
+
+function openUniversalBarcodeScanner(mode = 'invoice') {
+  universalScannerMode = mode;
+  const modal = document.getElementById('appBarcodeScannerModal');
+  if (!modal) return;
+
+  const titleEl = document.getElementById('universalScannerTitle');
+  const subEl   = document.getElementById('universalScannerSubtitle');
+  const resBox  = document.getElementById('universalScanResultBox');
+  const inpEl   = document.getElementById('universalManualBarcodeInput');
+
+  if (resBox) resBox.style.display = 'none';
+  if (inpEl) inpEl.value = '';
+
+  if (mode === 'inventory') {
+    if (titleEl) titleEl.textContent = '🔍 مسح باركود للبحث السريع في الجرد';
+    if (subEl)   subEl.textContent   = 'وجّه الكاميرا نحو باركود الصنف للوصول إليه مباشرة في المخزن';
+  } else {
+    if (titleEl) titleEl.textContent = '📷 مسح الباركود لإضافته للفاتورة';
+    if (subEl)   subEl.textContent   = 'وجّه الكاميرا نحو باركود الصنف وسيُضاف تلقائياً للفاتورة الحالية';
+  }
+
+  modal.style.display = 'flex';
+  setTimeout(() => startLiveCameraScanner('universal'), 250);
+}
+
+function openInventoryBarcodeSearchModal() {
+  openUniversalBarcodeScanner('inventory');
+}
+
+function closeUniversalBarcodeScanner() {
+  stopLiveCameraScanner();
+  const modal = document.getElementById('appBarcodeScannerModal');
+  if (modal) modal.style.display = 'none';
+}
+
+function executeUniversalBarcodeScan(barcode) {
+  if (!barcode || !barcode.trim()) return;
+  onBarcodeDecoded(barcode.trim(), 'universal');
+}
+
+// عند نجاح أي مسح باركود (من الكاميرا الحية أو تصوير الصورة أو الإدخال)
+function onBarcodeDecoded(decodedText, context) {
+  const code = (decodedText || '').trim();
+  if (!code) return;
+
+  if (context === 'assign') {
+    processBarcodeAssignment(code);
+    return;
+  }
+
+  // Universal Scanner (فاتورة أو جرد)
+  stopLiveCameraScanner();
+  playSuccessChime();
+  if (navigator.vibrate) navigator.vibrate([40, 30, 80]);
+
+  const products = (typeof state !== 'undefined' && state.products) ? state.products : [];
+  // البحث بالكود أو الباركود المسجل
+  const found = products.find(p => 
+    (p.barcode && p.barcode.trim().toLowerCase() === code.toLowerCase()) ||
+    (p.code && p.code.trim().toLowerCase() === code.toLowerCase())
+  );
+
+  const resBox  = document.getElementById('universalScanResultBox');
+  const resCode = document.getElementById('universalScanResultCode');
+  const resProd = document.getElementById('universalScanResultProduct');
 
   if (found) {
-    // أضف للفاتورة
-    if (typeof addToCart === 'function') addToCart(found.id);
+    if (resBox) {
+      resBox.style.display = 'block';
+      resBox.style.background = '#ecfdf5';
+      resBox.style.border = '1.5px solid #86efac';
+    }
+    if (resCode) resCode.textContent = `[${code}]`;
+    if (resProd) resProd.textContent = `✅ عثر على: ${found.name}`;
 
-    if (resultBox)     resultBox.style.display  = 'block';
-    if (resultCode)    resultCode.textContent    = code;
-    if (resultProduct) resultProduct.textContent = `✅ تمت إضافة "${found.name}" للفاتورة`;
+    if (universalScannerMode === 'invoice') {
+      // إضافة للفاتورة
+      if (typeof addToCart === 'function') {
+        addToCart(found.id);
+      }
+      if (typeof showToast === 'function') {
+        showToast(`✅ تمت إضافة "${found.name}" للفاتورة بنجاح`, 'success');
+      }
+      setTimeout(closeUniversalBarcodeScanner, 1400);
 
-    // أغلق النافذة بعد ثانيتين
-    setTimeout(closeBarcodeScanner, 2000);
-
-    // انتقل لتبويب الفاتورة
-    if (typeof switchTab === 'function') setTimeout(() => switchTab('create-invoice'), 2100);
+    } else if (universalScannerMode === 'inventory') {
+      // الانتقال للصنف بالجرد
+      closeUniversalBarcodeScanner();
+      locateProductInInventory(found.id);
+      if (typeof showToast === 'function') {
+        showToast(`🔍 تم العثور على الصنف: ${found.name}`, 'info');
+      }
+    }
 
   } else {
-    if (resultBox)     resultBox.style.display  = 'block';
-    if (resultBox)     resultBox.style.background = '#fef2f2';
-    if (resultBox)     resultBox.style.borderColor = '#fecaca';
-    if (resultCode)    resultCode.textContent    = code;
-    if (resultProduct) {
-      resultProduct.textContent = '❌ لم يتم العثور على منتج بهذا الكود في قاعدة البيانات';
-      resultProduct.style.color = '#dc2626';
+    // لم يتم العثور على صنف
+    playErrorBuzz();
+    if (resBox) {
+      resBox.style.display = 'block';
+      resBox.style.background = '#fef2f2';
+      resBox.style.border = '1.5px solid #fca5a5';
     }
-    // أعد تشغيل الكاميرا بعد 2.5 ثانية
-    if (fromCamera) {
-      setTimeout(() => {
-        if (resultBox) { resultBox.style.display = 'none'; resultBox.style.background = ''; resultBox.style.borderColor = ''; }
-        if (resultProduct) resultProduct.style.color = '';
-        startScanner();
-      }, 2500);
+    if (resCode) resCode.textContent = `[${code}]`;
+    if (resProd) {
+      resProd.innerHTML = `
+        <span style="color:#dc2626;">❌ هذا الباركود غير مسجل لأي صنف في النظام</span>
+        <div style="font-size:0.78rem; color:#64748b; margin-top:0.35rem;">
+          يمكنك تعريفه بسهولة بالذهاب للجرد والضغط على "إضافة باركود" بجانب الصنف
+        </div>
+      `;
     }
+
+    // إعادة فتح الكاميرا بعد ثانيتين
+    setTimeout(() => {
+      startLiveCameraScanner('universal');
+    }, 2200);
   }
 }
 
-function showScannerFallback() {
-  const inner = document.getElementById('barcodeScannerInner');
-  if (inner) {
-    inner.innerHTML = `
-      <div style="padding:2rem; text-align:center; color:#94a3b8;">
-        <div style="font-size:2.5rem; margin-bottom:0.75rem;">📷</div>
-        <div style="font-size:0.9rem; margin-bottom:0.5rem;">تعذّر الوصول للكاميرا</div>
-        <div style="font-size:0.8rem;">استخدم خانة الإدخال اليدوي أدناه</div>
-      </div>`;
-  }
-}
+// ─────────────────────────────────────────────
+//  [10] مستمعي الأحداث العامة
+// ─────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  initSecuritySettingsForm();
+});
 
-// دعم لوحة المفاتيح على صفحة القفل
+// دعم لوحة المفاتيح لشاشة القفل
 document.addEventListener('keydown', (e) => {
   const screen = document.getElementById('pinLockScreen');
   if (!screen || screen.style.display === 'none') return;
-  if (e.key >= '0' && e.key <= '9') pinKeyPress(e.key);
-  else if (e.key === 'Backspace') pinKeyDelete();
-  else if (e.key === 'Enter' && pinBuffer.length === 4) checkPin();
+
+  if (e.key >= '0' && e.key <= '9') {
+    pinKeyPress(e.key);
+  } else if (e.key === 'Backspace') {
+    pinKeyDelete();
+  } else if (e.key === 'Enter') {
+    if (pinBuffer.length === 4) verifyEnteredPin();
+  }
 });
