@@ -250,12 +250,19 @@ body {
 
 .tab-content.active {
   display: block;
-  animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: tabTransitionEffect 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform, opacity;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
+@keyframes tabTransitionEffect {
+  0% {
+    opacity: 0;
+    transform: translateY(14px) scale(0.995);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 /* Cards: Flat, Clean, Modern Single Elevation */
@@ -5261,7 +5268,7 @@ div[style*="overflow-x: auto"]::-webkit-scrollbar-track,
 /* 4. استجابة شاشات التابلت والجوال (أقل من 768px) */
 @media (max-width: 768px) {
   body {
-    padding-bottom: calc(65px + env(safe-area-inset-bottom, 0px)) !important;
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)) !important;
   }
 
   .app-container {
@@ -5370,20 +5377,20 @@ div[style*="overflow-x: auto"]::-webkit-scrollbar-track,
     flex-shrink: 0;
   }
 
-  /* شريط التنقل السفلي الفاخر للهواتف */
+  /* شريط التنقل السفلي الفاخر للهواتف (تم تكبيره وإضافة مؤثرات انتقال تفاعلية) */
   .mobile-bottom-nav {
     display: flex !important;
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
-    height: calc(58px + env(safe-area-inset-bottom, 0px));
-    padding: 0 0.25rem env(safe-area-inset-bottom, 0px) 0.25rem;
-    background: rgba(255, 255, 255, 0.96);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-top: 1px solid #e2e8f0;
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
+    height: calc(68px + env(safe-area-inset-bottom, 0px));
+    padding: 0 0.4rem env(safe-area-inset-bottom, 0px) 0.4rem;
+    background: rgba(255, 255, 255, 0.97);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border-top: 1.5px solid #e2e8f0;
+    box-shadow: 0 -6px 25px rgba(0, 0, 0, 0.09);
     z-index: 9999;
     justify-content: space-around;
     align-items: center;
@@ -5394,71 +5401,96 @@ div[style*="overflow-x: auto"]::-webkit-scrollbar-track,
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 3px;
+    gap: 4px;
     background: transparent;
     border: none;
     color: #64748b;
-    padding: 6px 8px;
-    border-radius: 12px;
+    padding: 7px 8px;
+    border-radius: 16px;
     cursor: pointer;
     position: relative;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
     font-family: inherit;
     flex: 1;
+    min-height: 54px;
     text-decoration: none;
     -webkit-tap-highlight-color: transparent;
   }
 
   .mob-nav-btn:active {
-    transform: scale(0.92);
+    transform: scale(0.86);
+    transition: transform 0.1s ease;
   }
 
   .mob-nav-btn.active {
     color: #2563eb;
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(59, 130, 246, 0.05));
   }
 
   .mob-nav-btn.active .mob-nav-icon {
-    transform: translateY(-2px);
-    filter: drop-shadow(0 2px 6px rgba(37, 99, 235, 0.35));
+    transform: translateY(-2px) scale(1.18);
+    filter: drop-shadow(0 3px 8px rgba(37, 99, 235, 0.45));
+    animation: mobIconBounce 0.38s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  @keyframes mobIconBounce {
+    0% { transform: scale(0.85); }
+    50% { transform: scale(1.28) translateY(-4px); }
+    100% { transform: scale(1.18) translateY(-2px); }
   }
 
   .mob-nav-btn.active::after {
     content: '';
     position: absolute;
-    bottom: 3px;
-    width: 14px;
-    height: 3px;
-    background: #2563eb;
+    bottom: 4px;
+    width: 22px;
+    height: 3.5px;
+    background: linear-gradient(90deg, #2563eb, #3b82f6);
     border-radius: 99px;
+    box-shadow: 0 1px 6px rgba(37, 99, 235, 0.55);
+    animation: indicatorGrow 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  @keyframes indicatorGrow {
+    from { width: 0; opacity: 0; }
+    to { width: 22px; opacity: 1; }
   }
 
   .mob-nav-icon-wrap {
     position: relative;
     display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .mob-nav-icon {
-    font-size: 1.25rem;
+    font-size: 1.55rem;
     line-height: 1;
-    transition: transform 0.2s ease;
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
 
   .mob-nav-label {
-    font-size: 0.72rem;
+    font-size: 0.78rem;
     font-weight: 700;
     line-height: 1;
+    letter-spacing: -0.2px;
+  }
+
+  .mob-nav-btn.active .mob-nav-label {
+    font-weight: 800;
+    color: #1d4ed8;
   }
 
   .mob-cart-badge {
     position: absolute;
     top: -5px;
-    right: -8px;
+    right: -9px;
     background: #2563eb;
     color: #ffffff;
-    font-size: 0.65rem;
+    font-size: 0.70rem;
     font-weight: 800;
-    min-width: 17px;
-    height: 17px;
+    min-width: 19px;
+    height: 19px;
     padding: 0 4px;
     border-radius: 99px;
     display: inline-flex;
@@ -5466,6 +5498,14 @@ div[style*="overflow-x: auto"]::-webkit-scrollbar-track,
     justify-content: center;
     border: 2px solid #ffffff;
     box-shadow: 0 2px 6px rgba(37, 99, 235, 0.4);
+    animation: badgePulse 0.3s ease;
+  }
+
+  @keyframes badgePulse {
+    0% { transform: scale(0.6); }
+    70% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+  }
   }
 
   .mob-cart-badge.warning {
@@ -5772,7 +5812,7 @@ div[style*="overflow-x: auto"]::-webkit-scrollbar-track,
 
   /* الأشرطة العائمة تعلو شريط التنقل السفلي */
   .floating-cart-bar {
-    bottom: calc(64px + env(safe-area-inset-bottom, 0px) + 8px) !important;
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px) + 8px) !important;
     right: 0.5rem !important;
     left: 0.5rem !important;
     width: calc(100% - 1rem) !important;
@@ -5783,7 +5823,7 @@ div[style*="overflow-x: auto"]::-webkit-scrollbar-track,
   }
 
   .inventory-floating-pill {
-    bottom: calc(64px + env(safe-area-inset-bottom, 0px) + 8px) !important;
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px) + 8px) !important;
     right: 0.5rem !important;
     left: 0.5rem !important;
     width: calc(100% - 1rem) !important;

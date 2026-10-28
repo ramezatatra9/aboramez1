@@ -1177,6 +1177,10 @@ function switchTab(tabId) {
 }
 
 function actuallySwitchTab(tabId) {
+  if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
+    try { window.navigator.vibrate(12); } catch (e) {}
+  }
+  window.scrollTo({ top: 0, behavior: 'smooth' });
   // إلغاء تفعيل الأزرار
   document.querySelectorAll('.nav-tab-btn, .mob-nav-btn').forEach(btn => {
     btn.classList.toggle('active', btn.getAttribute('data-tab') === tabId);
