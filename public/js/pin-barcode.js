@@ -528,8 +528,11 @@ async function startLiveCameraScanner(context) {
   await stopLiveCameraScanner();
 
   const isAssign = context === 'assign';
-  const videoEl = document.getElementById(isAssign ? 'assignScannerVideo' : 'universalScannerVideo');
-  const qrContainer = document.getElementById(isAssign ? 'assignScannerQrContainer' : 'universalScannerQrContainer');
+  const isBatch = context === 'batch';
+  const videoId = isBatch ? 'batchScannerVideo' : (isAssign ? 'assignScannerVideo' : 'universalScannerVideo');
+  const qrId = isBatch ? 'batchScannerQrContainer' : (isAssign ? 'assignScannerQrContainer' : 'universalScannerQrContainer');
+  const videoEl = document.getElementById(videoId);
+  const qrContainer = document.getElementById(qrId);
 
   if (!videoEl || !qrContainer) return;
 
@@ -573,7 +576,6 @@ async function startLiveCameraScanner(context) {
     qrContainer.innerHTML = '';
 
     try {
-      const qrId = isAssign ? 'assignScannerQrContainer' : 'universalScannerQrContainer';
       html5QrInstance = new Html5Qrcode(qrId);
 
       const config = {
@@ -592,7 +594,7 @@ async function startLiveCameraScanner(context) {
           config,
           (decodedText) => {
             if (isScanningActive) {
-              isScanningActive = false;
+              if (context !== 'batch') isScanningActive = false;
               onBarcodeDecoded(decodedText.trim(), context);
             }
           },
@@ -606,7 +608,7 @@ async function startLiveCameraScanner(context) {
           config,
           (decodedText) => {
             if (isScanningActive) {
-              isScanningActive = false;
+              if (context !== 'batch') isScanningActive = false;
               onBarcodeDecoded(decodedText.trim(), context);
             }
           },
@@ -687,6 +689,11 @@ async function stopLiveCameraScanner() {
     univVid.srcObject = null;
     univVid.style.display = 'none';
   }
+  const batchVid = document.getElementById('batchScannerVideo');
+  if (batchVid) {
+    batchVid.srcObject = null;
+    batchVid.style.display = 'none';
+  }
 
   if (html5QrInstance) {
     try {
@@ -725,9 +732,11 @@ async function toggleScannerTorch(context) {
 
 function showCameraPermissionNotice(context, errMsg) {
   const isAssign = context === 'assign';
-  const qrContainerId = isAssign ? 'assignScannerQrContainer' : 'universalScannerQrContainer';
+  const isBatch = context === 'batch';
+  const qrContainerId = isBatch ? 'batchScannerQrContainer' : (isAssign ? 'assignScannerQrContainer' : 'universalScannerQrContainer');
+  const videoId = isBatch ? 'batchScannerVideo' : (isAssign ? 'assignScannerVideo' : 'universalScannerVideo');
   const qrContainer = document.getElementById(qrContainerId);
-  const videoEl = document.getElementById(isAssign ? 'assignScannerVideo' : 'universalScannerVideo');
+  const videoEl = document.getElementById(videoId);
   if (videoEl) videoEl.style.display = 'none';
   if (qrContainer) {
     qrContainer.style.display = 'block';
@@ -1029,10 +1038,15 @@ function executeUniversalBarcodeScan(barcode) {
   onBarcodeDecoded(barcode.trim(), 'universal');
 }
 
-// عند نجاح أي مسح باركود (من الكاميرا الحية أو تصوير الصورة أو الإدخال)
+// عند نجاح أي مسح باركود (من الكاميرا الحية المباشرة أو الإدخال اليدوي)
 function onBarcodeDecoded(decodedText, context) {
   const code = (decodedText || '').trim();
   if (!code) return;
+
+  if (context === 'batch') {
+    handleBatchDetectedBarcode(code);
+    return;
+  }
 
   if (context === 'assign') {
     processBarcodeAssignment(code);
@@ -1128,3 +1142,557 @@ document.addEventListener('keydown', (e) => {
     if (pinBuffer.length === 4) verifyEnteredPin();
   }
 });
+
+// ─────────────────────────────────────────────
+//  [11] نظام تسجيل باركود المنتجات الذكي والشامل (Batch Registration)
+// ─────────────────────────────────────────────
+let batchSessionStats = {
+  success: 0,
+  skipped: 0,
+  conflict: 0,
+  failed: 0
+};
+let batchCurrentDetectedBarcode = null;
+let batchSelectedProduct = null;
+let batchLastProcessedBarcode = null;
+let batchLastScanTimestamp = 0;
+let isBatchScannerPaused = false;
+let batchSearchDebounceTimer = null;
+
+function updateBatchStatsUI() {
+  const sEl = document.getElementById('batchStatSuccess');
+  const kEl = document.getElementById('batchStatSkipped');
+  const cEl = document.getElementById('batchStatConflict');
+  const fEl = document.getElementById('batchStatFailed');
+  if (sEl) sEl.textContent = batchSessionStats.success;
+  if (kEl) kEl.textContent = batchSessionStats.skipped;
+  if (cEl) cEl.textContent = batchSessionStats.conflict;
+  if (fEl) fEl.textContent = batchSessionStats.failed;
+}
+
+function resetBatchSessionStats() {
+  batchSessionStats = { success: 0, skipped: 0, conflict: 0, failed: 0 };
+  updateBatchStatsUI();
+  if (typeof showToast === 'function') {
+    showToast('تم تصفير إحصائيات الجلسة 🔄', 'info');
+  }
+}
+
+function openBatchBarcodeRegistrationModal() {
+  const modal = document.getElementById('batchBarcodeRegistrationModal');
+  if (!modal) return;
+
+  clearBatchItemState();
+  updateBatchStatsUI();
+
+  modal.style.display = 'flex';
+  isBatchScannerPaused = false;
+
+  const iconEl = document.getElementById('btnBatchToggleCameraIcon');
+  const textEl = document.getElementById('btnBatchToggleCameraText');
+  const badgeEl = document.getElementById('batchScannerBadge');
+  const badgeText = document.getElementById('batchScannerBadgeText');
+  if (iconEl) iconEl.textContent = '⏸️';
+  if (textEl) textEl.textContent = 'إيقاف الكاميرا';
+  if (badgeEl) badgeEl.style.opacity = '1';
+  if (badgeText) badgeText.textContent = 'ماسح ذكي نشط';
+
+  // بدء تشغيل كاميرا الموقع الحية المباشرة
+  setTimeout(() => startLiveCameraScanner('batch'), 100);
+}
+
+function closeBatchBarcodeModal() {
+  stopLiveCameraScanner();
+  const modal = document.getElementById('batchBarcodeRegistrationModal');
+  if (modal) modal.style.display = 'none';
+  clearBatchItemState();
+}
+
+function clearBatchItemState() {
+  batchCurrentDetectedBarcode = null;
+  batchSelectedProduct = null;
+  batchLastProcessedBarcode = null;
+
+  const codeEl = document.getElementById('batchDetectedCodeVal');
+  const badgeEl = document.getElementById('batchDetectedStatusBadge');
+  const hintEl = document.getElementById('batchDetectedHint');
+  const copyBtn = document.getElementById('btnBatchCopyCode');
+  const alertBox = document.getElementById('batchAlertBox');
+  const searchInp = document.getElementById('batchSearchInput');
+  const resultsDiv = document.getElementById('batchSearchResults');
+  const selCard = document.getElementById('batchSelectedProduct');
+  const saveBtn = document.getElementById('btnBatchConfirmSave');
+
+  if (codeEl) codeEl.textContent = 'لم يتم مسح أي باركود بعد';
+  if (badgeEl) {
+    badgeEl.textContent = 'بانتظار توجيه الكاميرا...';
+    badgeEl.className = 'detected-status-badge status-waiting';
+  }
+  if (hintEl) hintEl.textContent = 'وجّه الكاميرا نحو باركود الصنف ليتم التعرف عليه تلقائياً ومباشرة';
+  if (copyBtn) copyBtn.style.display = 'none';
+  if (alertBox) {
+    alertBox.style.display = 'none';
+    alertBox.innerHTML = '';
+  }
+  if (searchInp) searchInp.value = '';
+  if (resultsDiv) {
+    resultsDiv.style.display = 'none';
+    resultsDiv.innerHTML = '';
+  }
+  if (selCard) selCard.style.display = 'none';
+  if (saveBtn) saveBtn.disabled = true;
+}
+
+// معالجة الباركود المكتشف من كاميرا الـ Batch
+async function handleBatchDetectedBarcode(rawBarcode) {
+  const barcode = String(rawBarcode || '').trim();
+  if (!barcode) return;
+
+  const now = performance.now();
+  // منع المعالجة المتكررة لنفس الكود خلال 2.5 ثانية إذا كان لا يزال أمام الكاميرا
+  if (barcode === batchLastProcessedBarcode && (now - batchLastScanTimestamp < 2500)) {
+    return;
+  }
+
+  batchLastProcessedBarcode = barcode;
+  batchLastScanTimestamp = now;
+  batchCurrentDetectedBarcode = barcode;
+
+  playSuccessChime();
+  if (navigator.vibrate) navigator.vibrate([35, 45]);
+
+  // تحديث كارت الباركود المكتشف
+  const codeEl = document.getElementById('batchDetectedCodeVal');
+  const badgeEl = document.getElementById('batchDetectedStatusBadge');
+  const copyBtn = document.getElementById('btnBatchCopyCode');
+  const alertBox = document.getElementById('batchAlertBox');
+  const hintEl = document.getElementById('batchDetectedHint');
+  const saveBtn = document.getElementById('btnBatchConfirmSave');
+
+  if (codeEl) codeEl.textContent = barcode;
+  if (copyBtn) copyBtn.style.display = 'inline-flex';
+
+  // البحث عن الباركود في قاعدة بيانات المنتجات
+  const products = (typeof state !== 'undefined' && state.products) ? state.products : [];
+  const existingOwner = products.find(p => 
+    p.barcode && String(p.barcode).trim().toLowerCase() === barcode.toLowerCase()
+  );
+
+  if (existingOwner) {
+    // الحالة الأولى: الباركود مسجل مسبقاً في الموقع
+    if (badgeEl) {
+      badgeEl.textContent = '✅ مسجل مسبقاً';
+      badgeEl.className = 'detected-status-badge status-registered';
+    }
+    if (hintEl) {
+      hintEl.textContent = `هذا الباركود معرف مسبقاً للصنف: ${existingOwner.name}`;
+    }
+
+    if (alertBox) {
+      alertBox.style.display = 'block';
+      alertBox.innerHTML = `
+        <div style="background:#eff6ff; border:1.5px solid #3b82f6; border-radius:12px; padding:0.85rem; color:#1e3a8a;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem;">
+            <strong style="font-size:0.92rem;">ℹ️ الباركود مسجل مسبقاً لهذا الصنف:</strong>
+            <span class="badge badge-code">[${existingOwner.code || 'PRD'}]</span>
+          </div>
+          <div style="font-size:0.95rem; font-weight:800; margin-bottom:0.25rem;">${escapeHtml(existingOwner.name)}</div>
+          <div style="font-size:0.78rem; color:#475569; margin-bottom:0.6rem;">
+            الماركة: ${escapeHtml(existingOwner.brand || 'عام')} • القسم: ${escapeHtml(existingOwner.category || 'عام')}
+          </div>
+          <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+            <button type="button" class="btn btn-sm btn-outline-primary" onclick="locateProductInInventory('${existingOwner.id}'); closeBatchBarcodeModal();">
+              <span>🔍</span>
+              <span>عرض في المخزون</span>
+            </button>
+            <button type="button" class="btn btn-sm btn-secondary" onclick="skipCurrentBatchBarcode()">
+              <span>⏭️</span>
+              <span>تخطي والانتقال للتالي</span>
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    if (saveBtn) saveBtn.disabled = true;
+
+  } else {
+    // الحالة الثانية: الباركود جديد وغير مسجل
+    if (badgeEl) {
+      badgeEl.textContent = '🆕 باركود جديد';
+      badgeEl.className = 'detected-status-badge status-new';
+    }
+    if (hintEl) {
+      hintEl.textContent = 'باركود جديد غير مسجل. اختر الصنف المناسب من الأسفل لتأكيد ربطه به.';
+    }
+
+    if (alertBox) {
+      alertBox.style.display = 'block';
+      alertBox.innerHTML = `
+        <div style="background:#ecfdf5; border:1.5px solid #10b981; border-radius:12px; padding:0.65rem 0.85rem; color:#065f46; font-size:0.85rem; font-weight:700; display:flex; align-items:center; gap:0.5rem;">
+          <span style="font-size:1.15rem;">✨</span>
+          <span>باركود جديد جاهز للربط! ابحث عن الصنف بالأسفل واضغط تأكيد الحفظ</span>
+        </div>
+      `;
+    }
+
+    const searchInp = document.getElementById('batchSearchInput');
+    if (searchInp) searchInp.focus();
+
+    if (batchSelectedProduct) {
+      if (saveBtn) saveBtn.disabled = false;
+    } else {
+      if (saveBtn) saveBtn.disabled = true;
+    }
+  }
+
+  // الحفاظ على استمرار عمل الماسح
+  isScanningActive = true;
+  const videoEl = document.getElementById('batchScannerVideo');
+  if (videoEl && liveScannerStream) {
+    startBarcodeDetectionLoop(videoEl, 'batch');
+  }
+}
+
+// البحث الفوري في المنتجات لربطها بالباركود
+function handleBatchProductSearchInput(rawQuery) {
+  const query = (rawQuery || '').trim().toLowerCase();
+  const resultsContainer = document.getElementById('batchSearchResults');
+  const spinner = document.getElementById('batchSearchSpinner');
+  if (!resultsContainer) return;
+
+  if (batchSearchDebounceTimer) clearTimeout(batchSearchDebounceTimer);
+
+  if (!query) {
+    resultsContainer.style.display = 'none';
+    resultsContainer.innerHTML = '';
+    return;
+  }
+
+  if (spinner) spinner.style.display = 'inline-block';
+
+  batchSearchDebounceTimer = setTimeout(() => {
+    if (spinner) spinner.style.display = 'none';
+    const products = (typeof state !== 'undefined' && state.products) ? state.products : [];
+
+    const matches = products.filter(p => {
+      const name = (p.name || '').toLowerCase();
+      const code = (p.code || '').toLowerCase();
+      const brand = (p.brand || '').toLowerCase();
+      const barcode = (p.barcode || '').toLowerCase();
+      return name.includes(query) || code.includes(query) || brand.includes(query) || barcode.includes(query);
+    }).slice(0, 15);
+
+    if (matches.length === 0) {
+      resultsContainer.style.display = 'block';
+      resultsContainer.innerHTML = `
+        <div style="padding:0.75rem; text-align:center; color:#94a3b8; font-size:0.82rem;">
+          لم يتم العثور على أي صنف يطابق "${escapeHtml(query)}"
+        </div>
+      `;
+      return;
+    }
+
+    resultsContainer.style.display = 'block';
+    resultsContainer.innerHTML = matches.map(p => `
+      <div class="search-res-item" onclick="selectBatchProductForLink('${p.id}')">
+        <div class="search-res-info">
+          <span class="search-res-name">${escapeHtml(p.name)}</span>
+          <span class="search-res-meta">
+            كود: [${escapeHtml(p.code || 'PRD')}] • ماركة: ${escapeHtml(p.brand || 'عام')}
+            ${p.barcode ? `• باركود: <b style="color:#059669;">${escapeHtml(p.barcode)}</b>` : '• <span style="color:#f59e0b;">(بدون باركود)</span>'}
+          </span>
+        </div>
+        <button type="button" class="btn btn-xs btn-outline-primary" style="font-weight:700;">اختيار</button>
+      </div>
+    `).join('');
+  }, 120);
+}
+
+function selectBatchProductForLink(productId) {
+  const products = (typeof state !== 'undefined' && state.products) ? state.products : [];
+  const prod = products.find(p => p.id === productId);
+  if (!prod) return;
+
+  batchSelectedProduct = prod;
+
+  const resultsContainer = document.getElementById('batchSearchResults');
+  if (resultsContainer) resultsContainer.style.display = 'none';
+
+  const selCard = document.getElementById('batchSelectedProduct');
+  const imgEl   = document.getElementById('batchSelProdImg');
+  const nameEl  = document.getElementById('batchSelProdName');
+  const codeEl  = document.getElementById('batchSelProdCode');
+  const metaEl  = document.getElementById('batchSelProdMeta');
+  const bcTagEl = document.getElementById('batchSelProdBcTag');
+
+  if (imgEl)   imgEl.src = prod.image || 'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80';
+  if (nameEl)  nameEl.textContent = prod.name || 'بدون اسم';
+  if (codeEl)  codeEl.textContent = prod.code || 'PRD';
+  if (metaEl)  metaEl.textContent = `${prod.brand || 'عام'} • ${prod.category || 'عام'}`;
+  if (bcTagEl) {
+    if (prod.barcode) {
+      bcTagEl.textContent = prod.barcode;
+      bcTagEl.style.color = '#059669';
+    } else {
+      bcTagEl.textContent = 'لا يوجد';
+      bcTagEl.style.color = '#d97706';
+    }
+  }
+
+  if (selCard) selCard.style.display = 'block';
+
+  // التحقق من تعارض محتمل إذا كان الباركود مسجلاً لصنف آخر
+  if (batchCurrentDetectedBarcode) {
+    const existingOwner = products.find(p => 
+      p.barcode && String(p.barcode).trim().toLowerCase() === batchCurrentDetectedBarcode.toLowerCase()
+    );
+
+    if (existingOwner && existingOwner.id !== prod.id) {
+      batchSessionStats.conflict++;
+      updateBatchStatsUI();
+      playErrorBuzz();
+
+      const alertBox = document.getElementById('batchAlertBox');
+      const badgeEl = document.getElementById('batchDetectedStatusBadge');
+      if (badgeEl) {
+        badgeEl.textContent = '⛔ باركود متعارض';
+        badgeEl.className = 'detected-status-badge status-conflict';
+      }
+
+      if (alertBox) {
+        alertBox.style.display = 'block';
+        alertBox.innerHTML = `
+          <div style="background:#fef2f2; border:2px solid #ef4444; border-radius:12px; padding:0.85rem; color:#991b1b;">
+            <div style="font-weight:800; font-size:0.95rem; margin-bottom:0.35rem;">⛔ تحذير تعارض في الباركود!</div>
+            <p style="font-size:0.82rem; margin:0 0 0.6rem 0; line-height:1.4;">
+              هذا الباركود <strong>(${escapeHtml(batchCurrentDetectedBarcode)})</strong> مرتبط حالياً بالصنف: 
+              <br><strong>[${escapeHtml(existingOwner.code || 'PRD')}] ${escapeHtml(existingOwner.name)}</strong>
+              <br>ولا يمكن ربطه بالصنف الجديد بصمت دون موافقة صريحة.
+            </p>
+            <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+              <button type="button" class="btn btn-sm btn-danger" onclick="executeBatchBarcodeReassign('${existingOwner.id}', '${prod.id}', '${escapeHtml(batchCurrentDetectedBarcode)}')" style="font-weight:700;">
+                <span>⚠️</span>
+                <span>نقل وتصحيح الباركود للصنف المختار</span>
+              </button>
+              <button type="button" class="btn btn-sm btn-secondary" onclick="skipCurrentBatchBarcode()">
+                <span>⏭️</span>
+                <span>تخطي وعدم التغيير</span>
+              </button>
+            </div>
+          </div>
+        `;
+      }
+
+      const saveBtn = document.getElementById('btnBatchConfirmSave');
+      if (saveBtn) saveBtn.disabled = true;
+      return;
+    }
+  }
+
+  const saveBtn = document.getElementById('btnBatchConfirmSave');
+  if (saveBtn && batchCurrentDetectedBarcode) {
+    saveBtn.disabled = false;
+  }
+}
+
+function clearBatchSelectedProduct() {
+  batchSelectedProduct = null;
+  const selCard = document.getElementById('batchSelectedProduct');
+  if (selCard) selCard.style.display = 'none';
+
+  const saveBtn = document.getElementById('btnBatchConfirmSave');
+  if (saveBtn) saveBtn.disabled = true;
+}
+
+// تأكيد وحفظ الباركود للصنف المختار
+async function confirmBatchBarcodeAssignment() {
+  if (!batchCurrentDetectedBarcode) {
+    if (typeof showToast === 'function') showToast('يرجى مسح باركود أولاً', 'warning');
+    return;
+  }
+  if (!batchSelectedProduct) {
+    if (typeof showToast === 'function') showToast('يرجى اختيار الصنف المراد ربطه بالباركود', 'warning');
+    return;
+  }
+
+  const barcodeToSave = String(batchCurrentDetectedBarcode).trim();
+  const targetProdId = batchSelectedProduct.id;
+  const targetProdName = batchSelectedProduct.name;
+
+  const saveBtn = document.getElementById('btnBatchConfirmSave');
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<span>⏳</span><span>جاري الحفظ والربط...</span>';
+  }
+
+  try {
+    const res = await fetch(`/api/products/${targetProdId}/barcode`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ barcode: barcodeToSave })
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      batchSessionStats.success++;
+      updateBatchStatsUI();
+      playSuccessChime();
+      if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
+
+      // تحديث الصنف محلياً في الـ state
+      const products = (typeof state !== 'undefined' && state.products) ? state.products : [];
+      const localProd = products.find(p => p.id === targetProdId);
+      if (localProd) localProd.barcode = barcodeToSave;
+
+      if (typeof renderInventoryList === 'function') {
+        renderInventoryList();
+      }
+
+      if (typeof showToast === 'function') {
+        showToast(`✅ تم ربط الباركود (${barcodeToSave}) بالصنف: "${targetProdName}" بنجاح`, 'success');
+      }
+
+      clearBatchItemState();
+
+      const alertBox = document.getElementById('batchAlertBox');
+      if (alertBox) {
+        alertBox.style.display = 'block';
+        alertBox.innerHTML = `
+          <div style="background:#ecfdf5; border:1.5px solid #10b981; border-radius:12px; padding:0.75rem; color:#065f46; font-size:0.86rem; font-weight:700;">
+            ✅ تم حفظ وربط الباركود (${escapeHtml(barcodeToSave)}) بنجاح!
+            <div style="font-size:0.78rem; color:#047857; margin-top:2px;">الماسح نشط وتلقائي — وجّه الكاميرا للصنف التالي فوراً</div>
+          </div>
+        `;
+      }
+
+      resumeBatchScannerLoop();
+
+    } else if (data.error === 'duplicate') {
+      batchSessionStats.conflict++;
+      updateBatchStatsUI();
+      playErrorBuzz();
+      if (typeof showToast === 'function') {
+        showToast(`⛔ تعارض: الباركود مسجل مسبقاً لصنف آخر`, 'error');
+      }
+    } else {
+      batchSessionStats.failed++;
+      updateBatchStatsUI();
+      playErrorBuzz();
+      if (typeof showToast === 'function') {
+        showToast(data.error || 'فشل حفظ الباركود', 'error');
+      }
+    }
+  } catch (err) {
+    batchSessionStats.failed++;
+    updateBatchStatsUI();
+    playErrorBuzz();
+    console.error('Batch confirm error:', err);
+    if (typeof showToast === 'function') {
+      showToast('تعذر الاتصال بالخادم لحفظ الباركود', 'error');
+    }
+  } finally {
+    if (saveBtn) {
+      saveBtn.innerHTML = '<span>💾</span><span>تأكيد وحفظ الباركود</span>';
+    }
+  }
+}
+
+// تنفيذ نقل وتصحيح الباركود للصنف المختار (حالة التعارض)
+async function executeBatchBarcodeReassign(oldOwnerId, newOwnerId, barcode) {
+  try {
+    const res = await fetch('/api/barcodes/reassign', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        barcode: barcode,
+        targetProductId: newOwnerId
+      })
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      batchSessionStats.success++;
+      updateBatchStatsUI();
+      playSuccessChime();
+
+      const products = (typeof state !== 'undefined' && state.products) ? state.products : [];
+      const oldP = products.find(p => p.id === oldOwnerId);
+      if (oldP) oldP.barcode = '';
+      const newP = products.find(p => p.id === newOwnerId);
+      if (newP) newP.barcode = barcode;
+
+      if (typeof renderInventoryList === 'function') renderInventoryList();
+
+      if (typeof showToast === 'function') {
+        showToast(`✅ تم نقل وتصحيح الباركود بنجاح`, 'success');
+      }
+
+      clearBatchItemState();
+      resumeBatchScannerLoop();
+
+    } else {
+      playErrorBuzz();
+      if (typeof showToast === 'function') {
+        showToast(data.error || 'فشل نقل الباركود', 'error');
+      }
+    }
+  } catch (e) {
+    playErrorBuzz();
+    console.error('Reassign error:', e);
+  }
+}
+
+// تخطي الباركود الحالي والانتقال للصنف التالي
+function skipCurrentBatchBarcode() {
+  batchSessionStats.skipped++;
+  updateBatchStatsUI();
+
+  clearBatchItemState();
+
+  if (typeof showToast === 'function') {
+    showToast('تم التخطي ⏭️ وجّه الكاميرا للصنف التالي', 'info');
+  }
+
+  resumeBatchScannerLoop();
+}
+
+function resumeBatchScannerLoop() {
+  isScanningActive = true;
+  const videoEl = document.getElementById('batchScannerVideo');
+  if (videoEl && liveScannerStream) {
+    startBarcodeDetectionLoop(videoEl, 'batch');
+  }
+}
+
+// تبديل إيقاف / استئناف المسح
+function toggleBatchScannerActive() {
+  isBatchScannerPaused = !isBatchScannerPaused;
+  const iconEl = document.getElementById('btnBatchToggleCameraIcon');
+  const textEl = document.getElementById('btnBatchToggleCameraText');
+  const badgeEl = document.getElementById('batchScannerBadge');
+  const badgeText = document.getElementById('batchScannerBadgeText');
+
+  if (isBatchScannerPaused) {
+    stopLiveCameraScanner();
+    if (iconEl) iconEl.textContent = '▶️';
+    if (textEl) textEl.textContent = 'تشغيل الكاميرا';
+    if (badgeEl) badgeEl.style.opacity = '0.5';
+    if (badgeText) badgeText.textContent = 'الكاميرا متوقفة مؤقتاً';
+  } else {
+    startLiveCameraScanner('batch');
+    if (iconEl) iconEl.textContent = '⏸️';
+    if (textEl) textEl.textContent = 'إيقاف الكاميرا';
+    if (badgeEl) badgeEl.style.opacity = '1';
+    if (badgeText) badgeText.textContent = 'ماسح ذكي نشط';
+  }
+}
+
+function copyBatchDetectedBarcode() {
+  if (!batchCurrentDetectedBarcode) return;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(batchCurrentDetectedBarcode).then(() => {
+      if (typeof showToast === 'function') showToast(`تم نسخ الباركود: ${batchCurrentDetectedBarcode}`, 'info');
+    });
+  }
+}

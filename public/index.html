@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=6.3">
+  <link rel="stylesheet" href="css/style.css?v=7.0">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💼</text></svg>">
   
   <!-- PWA & Mobile Web App Meta Tags -->
@@ -1058,6 +1058,12 @@
           <!-- Inventory Action Toolbar (تقرير PDF، إرسال تيليجرام، حفظ التعديلات) -->
           <div class="inventory-actions-row" style="display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center; justify-content: space-between; padding-top: 0.5rem; border-top: 1px solid var(--border-color);">
             <div style="display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center;">
+              <!-- زر تسجيل باركود المنتجات الجماعي الذكي المباشر -->
+              <button type="button" class="btn btn-sm" id="btnBatchRegisterBarcodes" onclick="openBatchBarcodeRegistrationModal()" style="white-space: nowrap; font-weight: 800; background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color: white; border: none; box-shadow: 0 3px 10px rgba(37, 99, 235, 0.35);">
+                <span>🏷️</span>
+                <span>تسجيل باركود المنتجات</span>
+              </button>
+
               <!-- زر مسح الباركود السريع في الجرد للبحث أو التحقق -->
               <button type="button" class="btn btn-sm btn-outline-primary" id="btnScanInventoryBarcode" onclick="openInventoryBarcodeSearchModal()" style="white-space: nowrap; font-weight: 700;">
                 <span>📷</span>
@@ -3649,6 +3655,157 @@
     </div>
   </div>
 
+  <!-- ═════════════════════════════════════════════════════════ -->
+  <!-- ─── [NEW] شاشة تسجيل ومسح باركود المنتجات الذكي الشاملة ─── -->
+  <!-- ═════════════════════════════════════════════════════════ -->
+  <div class="modal-overlay" id="batchBarcodeRegistrationModal" style="display:none;">
+    <div class="modal-content" style="max-width: 580px; width: 95%;">
+      <div class="modal-header" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);">
+        <div style="display:flex; align-items:center; gap:0.6rem;">
+          <span style="font-size:1.4rem;">🏷️</span>
+          <div>
+            <h3 class="modal-title" style="margin:0; font-size:1.15rem; color:#ffffff;">تسجيل باركود المنتجات</h3>
+            <span style="font-size:0.75rem; color:#94a3b8;">مسح مستمر وربط ذكي بالأصناف الحالية</span>
+          </div>
+        </div>
+        <button class="modal-close" onclick="closeBatchBarcodeModal()">✕</button>
+      </div>
+
+      <div class="modal-body" style="padding: 1rem; max-height: calc(88vh - 120px); overflow-y: auto;">
+
+        <!-- 1. شريط إحصائيات الجلسة الحية -->
+        <div class="batch-session-stats">
+          <div class="stat-pill stat-success" title="تم حفظها بنجاح">
+            <span class="stat-num" id="batchStatSuccess">0</span>
+            <span class="stat-lbl">✅ ناجحة</span>
+          </div>
+          <div class="stat-pill stat-skipped" title="تم تخطيها">
+            <span class="stat-num" id="batchStatSkipped">0</span>
+            <span class="stat-lbl">⏭️ متخطاة</span>
+          </div>
+          <div class="stat-pill stat-conflict" title="باركود متعارض">
+            <span class="stat-num" id="batchStatConflict">0</span>
+            <span class="stat-lbl">⚠️ متعارضة</span>
+          </div>
+          <div class="stat-pill stat-failed" title="فشل الحفظ">
+            <span class="stat-num" id="batchStatFailed">0</span>
+            <span class="stat-lbl">❌ فاشلة</span>
+          </div>
+        </div>
+
+        <!-- 2. منطقة الكاميرا الحية المباشرة وشبكة التوجيه -->
+        <div class="scanner-live-wrapper" style="margin-bottom: 0.85rem;">
+          <div class="scanner-feed-box" id="batchScannerFeedBox" style="height: 250px;">
+            <video id="batchScannerVideo" playsinline autoplay muted style="width:100%; height:100%; object-fit:cover; display:none;"></video>
+            <div id="batchScannerQrContainer" style="width:100%; height:100%; display:none;"></div>
+            <div class="scanner-reticle" id="batchScannerReticle">
+              <div class="reticle-box">
+                <div class="scan-laser-line"></div>
+              </div>
+            </div>
+            <div class="scanner-live-badge" id="batchScannerBadge">
+              <span class="live-dot"></span>
+              <span id="batchScannerBadgeText">ماسح ذكي نشط</span>
+            </div>
+          </div>
+
+          <!-- شريط أدوات الكاميرا السريع -->
+          <div class="scanner-tools-bar">
+            <button type="button" class="btn btn-xs btn-outline-light" id="btnBatchToggleCamera" onclick="toggleBatchScannerActive()">
+              <span id="btnBatchToggleCameraIcon">⏸️</span>
+              <span id="btnBatchToggleCameraText">إيقاف الكاميرا</span>
+            </button>
+            <button type="button" class="btn btn-xs btn-outline-light" onclick="toggleScannerCameraDevice('batch')">
+              <span>🔄</span>
+              <span>تبديل الكاميرا</span>
+            </button>
+            <button type="button" class="btn btn-xs btn-outline-light" onclick="toggleScannerTorch('batch')" id="btnBatchTorch" title="تشغيل / إيقاف الفلاش">
+              <span>🔦</span>
+              <span>فلاش</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 3. كارت الباركود المكتشف وحالته -->
+        <div class="batch-detected-card" id="batchDetectedCard">
+          <div class="detected-header">
+            <span class="detected-title">الباركود المقروء:</span>
+            <span class="detected-status-badge status-waiting" id="batchDetectedStatusBadge">بانتظار توجيه الكاميرا...</span>
+          </div>
+          <div class="detected-code-row">
+            <span class="detected-icon">⚡</span>
+            <span class="detected-code-val" id="batchDetectedCodeVal">لم يتم مسح أي باركود بعد</span>
+            <button type="button" class="btn btn-xs btn-outline-secondary" id="btnBatchCopyCode" onclick="copyBatchDetectedBarcode()" title="نسخ الباركود" style="display:none;">
+              📋
+            </button>
+          </div>
+          <div class="detected-hint" id="batchDetectedHint">
+            وجّه الكاميرا نحو باركود الصنف ليتم التعرف عليه تلقائياً ومباشرة
+          </div>
+        </div>
+
+        <!-- 4. صندوق التنبيه في حالة الباركود مسجل مسبقاً أو متعارض -->
+        <div id="batchAlertBox" style="display:none; margin-bottom: 0.85rem;"></div>
+
+        <!-- 5. قسم البحث واختيار المنتج للربط -->
+        <div class="batch-link-section" id="batchLinkSection">
+          <div class="section-title-sm">
+            <span>🔍</span>
+            <span>ابحث عن الصنف في المعرض لربط هذا الباركود به:</span>
+          </div>
+
+          <!-- حقل البحث الفوري بالاسم أو رقم الصنف -->
+          <div style="position:relative; margin-bottom: 0.5rem;">
+            <input type="text" id="batchSearchInput" class="form-control" placeholder="اكتب اسم الصنف أو كوده (مثال: شاشة سامسونج أو PRD-102)..." oninput="handleBatchProductSearchInput(this.value)" autocomplete="off">
+            <span id="batchSearchSpinner" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); display:none;">⏳</span>
+          </div>
+
+          <!-- قائمة نتائج البحث السريعة -->
+          <div class="batch-search-results" id="batchSearchResults" style="display:none;"></div>
+
+          <!-- كارت معاينة الصنف المختار للربط -->
+          <div class="batch-selected-product" id="batchSelectedProduct" style="display:none;">
+            <div class="sel-prod-card">
+              <img id="batchSelProdImg" src="" alt="صورة الصنف" class="sel-prod-thumb">
+              <div class="sel-prod-info">
+                <div class="sel-prod-title" id="batchSelProdName">اسم الصنف</div>
+                <div class="sel-prod-meta">
+                  <span class="badge badge-code" id="batchSelProdCode">PRD-000</span>
+                  <span class="sel-prod-cat" id="batchSelProdMeta">ماركة • قسم</span>
+                </div>
+                <div class="sel-prod-bc-status" id="batchSelProdCurrentBc">
+                  الباركود الحالي: <span class="tag-curr-bc" id="batchSelProdBcTag">لا يوجد</span>
+                </div>
+              </div>
+              <button type="button" class="btn btn-xs btn-outline-danger" onclick="clearBatchSelectedProduct()" title="إلغاء الاختيار">✕</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 6. أزرار الإجراءات والتحكم -->
+        <div class="batch-actions-bar">
+          <button type="button" class="btn btn-success btn-lg" id="btnBatchConfirmSave" onclick="confirmBatchBarcodeAssignment()" disabled style="flex:2; font-weight:800; font-size:1rem;">
+            <span>💾</span>
+            <span>تأكيد وحفظ الباركود</span>
+          </button>
+          <button type="button" class="btn btn-secondary" id="btnBatchSkip" onclick="skipCurrentBatchBarcode()" style="flex:1; font-weight:700;">
+            <span>⏭️</span>
+            <span>تخطي</span>
+          </button>
+        </div>
+
+      </div>
+
+      <div class="modal-footer" style="justify-content:space-between; background:var(--bg-card);">
+        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="resetBatchSessionStats()">
+          <span>🔄</span>
+          <span>تصفير الإحصائيات</span>
+        </button>
+        <button type="button" class="btn btn-secondary" onclick="closeBatchBarcodeModal()">إغلاق الشاشة</button>
+      </div>
+    </div>
+  </div>
+
   <!-- JavaScript -->
   <script src="js/html2pdf.bundle.min.js"></script>
   <script src="js/warranties.js"></script>
@@ -3657,7 +3814,7 @@
   <script src="js/pwa.js"></script>
   <!-- مكتبة مسح الباركود المحلية السريعة -->
   <script src="js/html5-qrcode.min.js"></script>
-  <script src="js/pin-barcode.js?v=6.3"></script>
+  <script src="js/pin-barcode.js?v=7.0"></script>
 </body>
 </html>
 

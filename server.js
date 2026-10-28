@@ -204,6 +204,194 @@ app.post('/api/products/:id/barcode', async (req, res) => {
   }
 });
 
+// البحث عن منتج بواسطة الباركود
+app.get('/api/barcodes/lookup', (req, res) => {
+  try {
+    const rawBarcode = req.query.barcode || req.query.code || '';
+    const cleanBarcode = String(rawBarcode).trim();
+
+    if (!cleanBarcode) {
+      return res.status(400).json({ success: false, error: 'رمز الباركود مطلوب' });
+    }
+
+    const products = dataStore.getProducts();
+    const matched = products.find(p => 
+      p.barcode && String(p.barcode).trim().toLowerCase() === cleanBarcode.toLowerCase()
+    );
+
+    if (matched) {
+      return res.json({
+        success: true,
+        registered: true,
+        product: {
+          id: matched.id,
+          code: matched.code || 'بدون كود',
+          name: matched.name || 'بدون اسم',
+          brand: matched.brand || 'عام',
+          brandAr: matched.brandAr || 'عام',
+          category: matched.category || 'عام',
+          costPrice: matched.costPrice || 0,
+          sellPrice: matched.sellPrice || 0,
+          stock: matched.stock !== undefined ? matched.stock : 0,
+          image: matched.image || '',
+          barcode: String(matched.barcode).trim()
+        }
+      });
+    }
+
+    res.json({
+      success: true,
+      registered: false,
+      barcode: cleanBarcode,
+      message: 'الباركود غير مسجل مسبقاً'
+    });
+  } catch (err) {
+    console.error('Barcode lookup error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// البحث السريع في المنتجات بالاسم أو رقم الصنف لربط الباركود
+app.get('/api/products/search', (req, res) => {
+  try {
+    const q = (req.query.q || '').trim().toLowerCase();
+    const limit = Math.min(50, parseInt(req.query.limit) || 20);
+    const products = dataStore.getProducts();
+
+    if (!q) {
+      return res.json({ success: true, count: 0, products: [] });
+    }
+
+    const matches = products.filter(p => {
+      const name = (p.name || '').toLowerCase();
+      const code = (p.code || '').toLowerCase();
+      const brand = (p.brand || '').toLowerCase();
+      const barcode = (p.barcode || '').toLowerCase();
+      return name.includes(q) || code.includes(q) || brand.includes(q) || barcode.includes(q);
+    }).slice(0, limit);
+
+    res.json({
+      success: true,
+      count: matches.length,
+      products: matches.map(p => ({
+        id: p.id,
+        code: p.code || 'PRD',
+        name: p.name,
+        brand: p.brand || 'عام',
+        category: p.category || 'عام',
+        sellPrice: p.sellPrice || 0,
+        stock: p.stock !== undefined ? p.stock : 0,
+        image: p.image || '',
+        barcode: p.barcode ? String(p.barcode).trim() : ''
+      }))
+    });
+  } catch (err) {
+    console.error('Product search error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// جلب باركودات منتج محدد
+app.get('/api/products/:id/barcodes', (req, res) => {
+  try {
+    const { id } = req.params;
+    const products = dataStore.getProducts();
+    const product = products.find(p => p.id === id);
+
+    if (!product) {
+      return res.status(404).json({ success: false, error: 'المنتج غير موجود' });
+    }
+
+    const barcodes = product.barcode ? [String(product.barcode).trim()] : [];
+    res.json({
+      success: true,
+      productId: product.id,
+      productName: product.name,
+      barcodes
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// إعادة تعيين أو نقل باركود من صنف إلى صنف آخر بصلاحية إدارية صريحة
+app.post('/api/barcodes/reassign', async (req, res) => {
+  try {
+    const { barcode, targetProductId, note } = req.body;
+    const cleanBarcode = String(barcode || '').trim();
+
+    if (!cleanBarcode || !targetProductId) {
+      return res.status(400).json({ success: false, error: 'الباركود ومعرف الصنف المستهدف مطلوبان' });
+    }
+
+    const products = dataStore.getProducts();
+    const targetProduct = products.find(p => p.id === targetProductId);
+    if (!targetProduct) {
+      return res.status(404).json({ success: false, error: 'الصنف المستهدف غير موجود' });
+    }
+
+    // البحث عن الصنف المرتبط حالياً بهذا الباركود إن وجد
+    const currentOwner = products.find(p => 
+      p.barcode && String(p.barcode).trim().toLowerCase() === cleanBarcode.toLowerCase()
+    );
+
+    let previousOwnerInfo = null;
+    if (currentOwner && currentOwner.id !== targetProductId) {
+      previousOwnerInfo = {
+        id: currentOwner.id,
+        name: currentOwner.name,
+        code: currentOwner.code
+      };
+      currentOwner.barcode = '';
+      currentOwner.updatedAt = new Date().toISOString();
+      await dataStore.saveProduct(currentOwner);
+    }
+
+    // ربط الباركود بالصنف المستهدف
+    targetProduct.barcode = cleanBarcode;
+    targetProduct.updatedAt = new Date().toISOString();
+    const saved = await dataStore.saveProduct(targetProduct);
+
+    console.log(`[Barcode Reassign] Barcode '${cleanBarcode}' reassigned to '${targetProduct.name}' (${targetProduct.id}) from '${previousOwnerInfo ? previousOwnerInfo.name : 'none'}'`);
+
+    res.json({
+      success: true,
+      message: `تم نقل الباركود (${cleanBarcode}) إلى الصنف "${targetProduct.name}" بنجاح`,
+      product: saved,
+      previousOwner: previousOwnerInfo
+    });
+  } catch (err) {
+    console.error('Barcode reassign error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// إزالة باركود من صنف
+app.delete('/api/products/:id/barcode', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const products = dataStore.getProducts();
+    const target = products.find(p => p.id === id);
+
+    if (!target) {
+      return res.status(404).json({ success: false, error: 'الصنف غير موجود' });
+    }
+
+    const oldBarcode = target.barcode;
+    target.barcode = '';
+    target.updatedAt = new Date().toISOString();
+    const saved = await dataStore.saveProduct(target);
+
+    res.json({
+      success: true,
+      message: `تم حذف الباركود (${oldBarcode}) من الصنف بنجاح`,
+      product: saved
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // حذف منتج
 app.delete('/api/products/:id', async (req, res) => {
   try {
