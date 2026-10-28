@@ -7919,3 +7919,146 @@ body.role-cashier button[onclick*="confirmDeleteProduct"] {
 }
 
 
+
+/* ═══════════════════════════════════════════════════════════
+   FIXED MODAL OVERLAY & POPUP SYSTEM (نافذة منبثقة حقيقية فوق كل عناصر الصفحة)
+   ═══════════════════════════════════════════════════════════ */
+.modal-overlay,
+.modal-backdrop.modal-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  background: rgba(15, 23, 42, 0.78) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  display: none;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 25000 !important;
+  padding: 1rem !important;
+  box-sizing: border-box !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+.modal-overlay.active,
+.modal-backdrop.modal-overlay.active,
+.modal-overlay[style*="display: flex"],
+.modal-overlay[style*="display:flex"],
+.modal-backdrop.modal-overlay[style*="display: flex"],
+.modal-backdrop.modal-overlay[style*="display:flex"] {
+  display: flex !important;
+}
+
+.modal-overlay .modal-content,
+.modal-backdrop.modal-overlay .modal-content {
+  background: var(--bg-card, #ffffff) !important;
+  border-radius: 20px !important;
+  width: 100% !important;
+  max-width: 580px !important;
+  max-height: 90vh !important;
+  max-height: 90dvh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.12) !important;
+  animation: modalCenterPop 0.24s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  overflow: hidden !important;
+  position: relative !important;
+  z-index: 25001 !important;
+  margin: auto !important;
+}
+
+@keyframes modalCenterPop {
+  from { opacity: 0; transform: scale(0.93) translateY(12px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@media (max-width: 768px) {
+  .modal-overlay,
+  .modal-backdrop.modal-overlay {
+    align-items: flex-end !important;
+    padding: 0 !important;
+    overflow-y: hidden !important;
+  }
+  .modal-overlay .modal-content,
+  .modal-backdrop.modal-overlay .modal-content {
+    width: 100% !important;
+    max-width: 100% !important;
+    border-radius: 24px 24px 0 0 !important;
+    max-height: 92vh !important;
+    max-height: 92dvh !important;
+    margin: 0 !important;
+    animation: modalSheetSlideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  }
+}
+
+@keyframes modalSheetSlideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+/* ─── ضبط أبعاد وتغذية الفيديو للماسح داخل الحاوية ─── */
+#batchScannerQrContainer,
+#assignScannerQrContainer,
+#universalScannerQrContainer {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  overflow: hidden !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: #020617 !important;
+}
+
+#batchScannerQrContainer video,
+#assignScannerQrContainer video,
+#universalScannerQrContainer video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  border-radius: 14px !important;
+  display: block !important;
+}
+
+#batchScannerQrContainer img,
+#assignScannerQrContainer img,
+#universalScannerQrContainer img {
+  display: none !important;
+}
+
+/* ─── شارة توجيه المسح الذكية ─── */
+.scanner-guidance-pill {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.9);
+  color: #fef08a;
+  border: 1px solid rgba(234, 179, 8, 0.5);
+  font-size: 0.74rem;
+  font-weight: 700;
+  padding: 0.3rem 0.8rem;
+  border-radius: 99px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 12;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  animation: pulseGuidance 2s infinite;
+  white-space: nowrap;
+}
+
+@keyframes pulseGuidance {
+  0%, 100% { opacity: 0.95; transform: translateX(-50%) scale(1); }
+  50% { opacity: 1; transform: translateX(-50%) scale(1.03); }
+}
+

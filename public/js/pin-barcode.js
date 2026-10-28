@@ -1,4 +1,4 @@
-﻿/* =========================================================
+/* =========================================================
    pin-barcode.js
    نظام الصلاحيات وقفل PIN متعدد المستخدمين
    + محرك مسح الباركود بالكاميرا (حي ومحلي ومزدوج المحرك)
@@ -499,201 +499,173 @@ function toggleInputVisibility(inputId, btn) {
 
 // ─────────────────────────────────────────────
 //  [6] محرك كاميرا الموقع الذكية المباشرة للتعرف التلقائي على الباركود
+//  Dual-Engine: Html5Qrcode + ZXing Core مع تسريع BarcodeDetector التلقائي
 // ─────────────────────────────────────────────
-let liveScannerStream = null;
-let liveScannerRafId = null;
 let isScanningActive = false;
-let barcodeDetectorInstance = null;
 let html5QrInstance = null;
-let currentCameraFacing = 'environment';
+let currentCameraFacing = 'environment'; // 'environment' (back) | 'user' (front)
 let currentActiveScannerContext = null;
+let scannerGuidanceTimer = null;
+let isScannerTorchActive = false;
+let lastDecodedBarcode = null;
+let lastDecodedTimestamp = 0;
 
-// فحص توفر BarcodeDetector المدمج فائق السرعة
-function getNativeBarcodeDetector() {
-  if (!barcodeDetectorInstance && ('BarcodeDetector' in window)) {
-    try {
-      barcodeDetectorInstance = new window.BarcodeDetector({
-        formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'qr_code', 'itf']
-      });
-    } catch (e) {
-      barcodeDetectorInstance = null;
-    }
+// إرجاع قائمة الصيغ المدعومة الكاملة من Html5Qrcode (ZXing)
+function getTargetBarcodeFormats() {
+  if (typeof Html5QrcodeSupportedFormats !== 'undefined') {
+    return [
+      Html5QrcodeSupportedFormats.EAN_13,
+      Html5QrcodeSupportedFormats.EAN_8,
+      Html5QrcodeSupportedFormats.CODE_128,
+      Html5QrcodeSupportedFormats.CODE_39,
+      Html5QrcodeSupportedFormats.UPC_A,
+      Html5QrcodeSupportedFormats.UPC_E,
+      Html5QrcodeSupportedFormats.ITF,
+      Html5QrcodeSupportedFormats.QR_CODE
+    ];
   }
-  return barcodeDetectorInstance;
+  return undefined;
 }
 
-// تشغيل كاميرا الموقع الحية المباشرة والتعرف الذكي التلقائي
+// مؤقت إظهار نصيحة التوجيه للمستخدم عند تأخر القراءة
+function startScannerGuidanceTimer(context) {
+  if (scannerGuidanceTimer) clearTimeout(scannerGuidanceTimer);
+  const pillId = context === 'batch' ? 'batchScannerGuidancePill' : 'universalScannerGuidancePill';
+  const pill = document.getElementById(pillId);
+  if (pill) pill.style.display = 'none';
+
+  scannerGuidanceTimer = setTimeout(() => {
+    if (isScanningActive && pill) {
+      pill.style.display = 'inline-flex';
+    }
+  }, 3200);
+}
+
+function hideScannerGuidanceTip(context) {
+  if (scannerGuidanceTimer) {
+    clearTimeout(scannerGuidanceTimer);
+    scannerGuidanceTimer = null;
+  }
+  const pillId = context === 'batch' ? 'batchScannerGuidancePill' : 'universalScannerGuidancePill';
+  const pill = document.getElementById(pillId);
+  if (pill) pill.style.display = 'none';
+}
+
+// تشغيل كاميرا الموقع الحية المباشرة مع قراءة الإطارات الذكية
 async function startLiveCameraScanner(context) {
   currentActiveScannerContext = context;
   await stopLiveCameraScanner();
 
   const isAssign = context === 'assign';
   const isBatch = context === 'batch';
-  const videoId = isBatch ? 'batchScannerVideo' : (isAssign ? 'assignScannerVideo' : 'universalScannerVideo');
   const qrId = isBatch ? 'batchScannerQrContainer' : (isAssign ? 'assignScannerQrContainer' : 'universalScannerQrContainer');
-  const videoEl = document.getElementById(videoId);
+  const videoId = isBatch ? 'batchScannerVideo' : (isAssign ? 'assignScannerVideo' : 'universalScannerVideo');
+
   const qrContainer = document.getElementById(qrId);
+  const videoEl = document.getElementById(videoId);
 
-  if (!videoEl || !qrContainer) return;
+  if (!qrContainer) {
+    console.error('[Scanner] Missing QR container element:', qrId);
+    return;
+  }
 
-  const detector = getNativeBarcodeDetector();
+  // إخفاء الـ video الثابت وإظهار حاوية البث المباشر
+  if (videoEl) videoEl.style.display = 'none';
+  qrContainer.style.display = 'block';
+  qrContainer.innerHTML = '';
 
-  // 1. المسار الأساسي الذكي: كاميرا المتصفح الحية المباشرة + BarcodeDetector بدون أي التقاط صور
-  if (detector && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-    try {
-      const constraints = {
-        video: {
-          facingMode: { ideal: currentCameraFacing },
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        },
-        audio: false
-      };
+  hideScannerGuidanceTip(context);
 
-      try {
-        liveScannerStream = await navigator.mediaDevices.getUserMedia(constraints);
-      } catch (e1) {
-        liveScannerStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+  if (typeof Html5Qrcode === 'undefined') {
+    console.error('[Scanner] Html5Qrcode library not loaded.');
+    showCameraPermissionNotice(context, 'تعذر تحميل مكتبة قراءة الباركود، يرجى تحديث الصفحة.');
+    return;
+  }
+
+  try {
+    const formats = getTargetBarcodeFormats();
+    html5QrInstance = new Html5Qrcode(qrId, {
+      formatsToSupport: formats,
+      verbose: false,
+      experimentalFeatures: {
+        useBarCodeDetectorIfSupported: true
+      }
+    });
+
+    const cameraConfig = {
+      facingMode: currentCameraFacing
+    };
+
+    const scanConfig = {
+      fps: 12, // 10-12 إطار بالثانية: دقة عالية في القراءة دون إرهاق المعالج
+      aspectRatio: 1.333334,
+      disableFlip: false
+      // مسح الإطار بالكامل لضمان قراءة الباركودات الطويلة EAN-13 و Code 128
+    };
+
+    const onScanSuccess = (decodedText) => {
+      if (!isScanningActive) return;
+      const cleanCode = String(decodedText || '').trim();
+      if (!cleanCode) return;
+
+      const now = performance.now();
+      if (cleanCode === lastDecodedBarcode && (now - lastDecodedTimestamp < 1800)) {
+        return; // منع المعالجة المتكررة لنفس الرمز
       }
 
-      videoEl.srcObject = liveScannerStream;
-      videoEl.style.display = 'block';
-      qrContainer.style.display = 'none';
+      lastDecodedBarcode = cleanCode;
+      lastDecodedTimestamp = now;
 
-      await videoEl.play();
+      console.log('[Scanner] Barcode successfully decoded [' + context + ']:', cleanCode);
+      hideScannerGuidanceTip(context);
+
+      if (context !== 'batch') {
+        isScanningActive = false;
+      }
+      onBarcodeDecoded(cleanCode, context);
+    };
+
+    const onScanError = () => {
+      // إطار بدون باركود أثناء البث الطبيعي
+    };
+
+    try {
+      await html5QrInstance.start(cameraConfig, scanConfig, onScanSuccess, onScanError);
       isScanningActive = true;
-      startBarcodeDetectionLoop(videoEl, context);
-      return;
-    } catch (nativeErr) {
-      console.warn('Native getUserMedia stream failed, trying Html5Qrcode fallback:', nativeErr);
+      startScannerGuidanceTimer(context);
+    } catch (camErr) {
+      console.warn('[Scanner] facingMode start failed, trying fallback to default camera:', camErr);
+      await html5QrInstance.start({}, scanConfig, onScanSuccess, onScanError);
+      isScanningActive = true;
+      startScannerGuidanceTimer(context);
     }
-  }
 
-  // 2. المسار البديل للمتصفحات التي تفتقر لـ BarcodeDetector (مثل Safari iOS)
-  if (typeof Html5Qrcode !== 'undefined') {
-    videoEl.style.display = 'none';
-    qrContainer.style.display = 'block';
-    qrContainer.innerHTML = '';
-
+    // تفعيل التركيز التلقائي المستمر (Continuous Autofocus) إذا كانت الكاميرا تدعمه
     try {
-      html5QrInstance = new Html5Qrcode(qrId);
-
-      const config = {
-        fps: 20,
-        qrbox: (viewfinderWidth, viewfinderHeight) => {
-          const w = Math.max(120, Math.min(280, Math.floor(viewfinderWidth * 0.85)));
-          const h = Math.max(80, Math.min(160, Math.floor(viewfinderHeight * 0.65)));
-          return { width: w, height: h };
-        },
-        aspectRatio: 1.333334
-      };
-
-      try {
-        await html5QrInstance.start(
-          { facingMode: currentCameraFacing },
-          config,
-          (decodedText) => {
-            if (isScanningActive) {
-              if (context !== 'batch') isScanningActive = false;
-              onBarcodeDecoded(decodedText.trim(), context);
-            }
-          },
-          () => {}
-        );
-        isScanningActive = true;
-        return;
-      } catch (fErr) {
-        await html5QrInstance.start(
-          {},
-          config,
-          (decodedText) => {
-            if (isScanningActive) {
-              if (context !== 'batch') isScanningActive = false;
-              onBarcodeDecoded(decodedText.trim(), context);
-            }
-          },
-          () => {}
-        );
-        isScanningActive = true;
-        return;
-      }
-    } catch (h5Err) {
-      console.error('Html5Qrcode engine failed:', h5Err);
-    }
-  }
-
-  showCameraPermissionNotice(context, 'يرجى السماح بالوصول للكاميرا في المتصفح لاستخدام المسح التلقائي');
-}
-
-// حلقة المسح التلقائي الذكي للإطارات بمعدل 15 إطار بالثانية
-function startBarcodeDetectionLoop(videoEl, context) {
-  let lastScan = 0;
-  let isScanningFrame = false;
-
-  async function checkFrame() {
-    if (!isScanningActive || !liveScannerStream) return;
-
-    const now = performance.now();
-    if (now - lastScan > 65 && !isScanningFrame && videoEl.readyState >= 2) {
-      isScanningFrame = true;
-      lastScan = now;
-      try {
-        const detector = getNativeBarcodeDetector();
-        if (detector) {
-          const barcodes = await detector.detect(videoEl);
-          if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
-            const code = barcodes[0].rawValue.trim();
-            if (code) {
-              isScanningActive = false; // إيقاف فوري لمنع التكرار
-              onBarcodeDecoded(code, context);
-              return;
-            }
+      const activeVideo = qrContainer.querySelector('video');
+      if (activeVideo && activeVideo.srcObject) {
+        const videoTrack = activeVideo.srcObject.getVideoTracks()[0];
+        if (videoTrack && videoTrack.applyConstraints) {
+          const caps = videoTrack.getCapabilities ? videoTrack.getCapabilities() : {};
+          if (caps.focusMode && Array.isArray(caps.focusMode) && caps.focusMode.includes('continuous')) {
+            await videoTrack.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
           }
         }
-      } catch (err) {
-        // تجاهل أخطاء فحص الإطار
-      } finally {
-        isScanningFrame = false;
       }
+    } catch (focusErr) {
+      // اختياري
     }
 
-    liveScannerRafId = requestAnimationFrame(checkFrame);
+  } catch (err) {
+    console.error('[Scanner] Camera initialization failed:', err);
+    showCameraPermissionNotice(context, 'يرجى السماح بالوصول للكاميرا في المتصفح لاستخدام المسح التلقائي');
   }
-
-  liveScannerRafId = requestAnimationFrame(checkFrame);
 }
 
 // إيقاف الكاميرا وتفريغ الموارد بأمان تام
 async function stopLiveCameraScanner() {
   isScanningActive = false;
-
-  if (liveScannerRafId) {
-    cancelAnimationFrame(liveScannerRafId);
-    liveScannerRafId = null;
-  }
-
-  if (liveScannerStream) {
-    try {
-      liveScannerStream.getTracks().forEach(track => track.stop());
-    } catch (e) {}
-    liveScannerStream = null;
-  }
-
-  const assignVid = document.getElementById('assignScannerVideo');
-  if (assignVid) {
-    assignVid.srcObject = null;
-    assignVid.style.display = 'none';
-  }
-  const univVid = document.getElementById('universalScannerVideo');
-  if (univVid) {
-    univVid.srcObject = null;
-    univVid.style.display = 'none';
-  }
-  const batchVid = document.getElementById('batchScannerVideo');
-  if (batchVid) {
-    batchVid.srcObject = null;
-    batchVid.style.display = 'none';
-  }
+  hideScannerGuidanceTip(currentActiveScannerContext);
 
   if (html5QrInstance) {
     try {
@@ -702,31 +674,56 @@ async function stopLiveCameraScanner() {
       }
       try { html5QrInstance.clear(); } catch (e) {}
     } catch (e) {
-      console.warn('Stop scanner warning:', e);
+      console.warn('[Scanner] Stop warning:', e);
     } finally {
       html5QrInstance = null;
     }
   }
+
+  isScannerTorchActive = false;
 }
 
 // تبديل الكاميرا (أمامية / خلفية)
-function toggleScannerCameraDevice(context) {
+async function toggleScannerCameraDevice(context) {
   currentCameraFacing = currentCameraFacing === 'environment' ? 'user' : 'environment';
-  startLiveCameraScanner(context);
   if (navigator.vibrate) navigator.vibrate(20);
+  await startLiveCameraScanner(context);
 }
 
 // تشغيل فلاش الكاميرا (Torch) إن وجد
 async function toggleScannerTorch(context) {
-  if (liveScannerStream) {
-    const track = liveScannerStream.getVideoTracks()[0];
-    if (track && track.applyConstraints) {
-      try {
-        await track.applyConstraints({
-          advanced: [{ torch: true }]
-        });
-      } catch (e) {}
+  const isAssign = context === 'assign';
+  const isBatch = context === 'batch';
+  const qrId = isBatch ? 'batchScannerQrContainer' : (isAssign ? 'assignScannerQrContainer' : 'universalScannerQrContainer');
+  const qrContainer = document.getElementById(qrId);
+
+  const videoTrack = qrContainer?.querySelector('video')?.srcObject?.getVideoTracks()?.[0];
+  if (!videoTrack || !videoTrack.applyConstraints) {
+    if (typeof showToast === 'function') showToast('الفلاش غير مدعوم على هذه الكاميرا', 'warning');
+    return;
+  }
+
+  const caps = videoTrack.getCapabilities ? videoTrack.getCapabilities() : {};
+  if (!caps.torch) {
+    if (typeof showToast === 'function') showToast('الفلاش غير متوفر على هذا الجهاز', 'warning');
+    return;
+  }
+
+  try {
+    isScannerTorchActive = !isScannerTorchActive;
+    await videoTrack.applyConstraints({
+      advanced: [{ torch: isScannerTorchActive }]
+    });
+    if (typeof showToast === 'function') {
+      showToast(isScannerTorchActive ? 'تم تشغيل فلاش الكاميرا 🔦' : 'تم إيقاف الفلاش', 'info');
     }
+    const btnTorch = document.getElementById('btnBatchTorch');
+    if (btnTorch) {
+      btnTorch.classList.toggle('active', isScannerTorchActive);
+    }
+  } catch (e) {
+    console.warn('[Scanner] Torch apply error:', e);
+    if (typeof showToast === 'function') showToast('تعذر تغيير وضع الفلاش', 'error');
   }
 }
 
@@ -734,30 +731,27 @@ function showCameraPermissionNotice(context, errMsg) {
   const isAssign = context === 'assign';
   const isBatch = context === 'batch';
   const qrContainerId = isBatch ? 'batchScannerQrContainer' : (isAssign ? 'assignScannerQrContainer' : 'universalScannerQrContainer');
-  const videoId = isBatch ? 'batchScannerVideo' : (isAssign ? 'assignScannerVideo' : 'universalScannerVideo');
   const qrContainer = document.getElementById(qrContainerId);
-  const videoEl = document.getElementById(videoId);
-  if (videoEl) videoEl.style.display = 'none';
+
   if (qrContainer) {
     qrContainer.style.display = 'block';
-    qrContainer.innerHTML = `
-      <div style="padding:1.5rem 1rem; text-align:center; color:#ffffff; background:#0f172a; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center;">
-        <span style="font-size:2.5rem; margin-bottom:0.4rem;">📷</span>
-        <strong style="font-size:0.98rem; margin-bottom:0.35rem; color:#f87171;">الكاميرا بحاجة لإذن المتصفح</strong>
-        <p style="font-size:0.8rem; color:#94a3b8; margin-bottom:1rem; max-width:250px; line-height:1.4;">
-          يرجى الضغط على علامة القفل 🔒 بجانب عنوان الموقع وتفعيل خيار (الكاميرا Camera)
-        </p>
-        <button type="button" class="btn btn-sm btn-primary" onclick="startLiveCameraScanner('${context}')" style="font-weight:700;">
-          <span>🔄</span>
-          <span>إعادة محاولة تشغيل الكاميرا</span>
-        </button>
-      </div>
-    `;
+    qrContainer.innerHTML = [
+      '<div style="padding:1.5rem 1rem; text-align:center; color:#ffffff; background:#0f172a; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center;">',
+      '  <span style="font-size:2.5rem; margin-bottom:0.4rem;">📷</span>',
+      '  <strong style="font-size:0.98rem; margin-bottom:0.35rem; color:#f87171;">الكاميرا بحاجة لإذن المتصفح</strong>',
+      '  <p style="font-size:0.8rem; color:#94a3b8; margin-bottom:1rem; max-width:260px; line-height:1.4;">',
+      '    ' + escapeHtml(errMsg || 'يرجى الضغط على علامة القفل 🔒 بجانب عنوان الموقع وتفعيل خيار (الكاميرا Camera)'),
+      '  </p>',
+      '  <button type="button" class="btn btn-sm btn-primary" onclick="startLiveCameraScanner(\'' + context + '\')" style="font-weight:700;">',
+      '    <span>🔄</span>',
+      '    <span>إعادة محاولة تشغيل الكاميرا</span>',
+      '  </button>',
+      '</div>'
+    ].join('\n');
   }
 }
 
-// ─────────────────────────────────────────────
-//  [8] نافذة تعريف باركود لصنف بالجرد (مع فحص ومنع التكرار الصارم)
+// ─────────────────────────────────────────────//  [8] نافذة تعريف باركود لصنف بالجرد (مع فحص ومنع التكرار الصارم)
 // ─────────────────────────────────────────────
 let assignTargetProduct = null;
 
@@ -803,14 +797,20 @@ function openAssignBarcodeModal(productId) {
   document.getElementById('barcodeSuccessAlertBox').style.display = 'none';
   document.getElementById('assignScannerLiveWrapper').style.display = 'block';
 
+  document.body.style.overflow = 'hidden';
   modal.style.display = 'flex';
-  setTimeout(() => startLiveCameraScanner('assign'), 100);
+  modal.classList.add('active');
+  setTimeout(() => startLiveCameraScanner('assign'), 80);
 }
 
 function closeAssignBarcodeModal() {
   stopLiveCameraScanner();
   const modal = document.getElementById('assignBarcodeModal');
-  if (modal) modal.style.display = 'none';
+  if (modal) {
+    modal.style.display = 'none';
+    modal.classList.remove('active');
+  }
+  document.body.style.overflow = '';
   assignTargetProduct = null;
 }
 
@@ -1042,8 +1042,10 @@ function openUniversalBarcodeScanner(mode = 'invoice') {
     if (subEl)   subEl.textContent   = 'وجّه الكاميرا نحو باركود الصنف وسيُضاف تلقائياً للفاتورة الحالية';
   }
 
+  document.body.style.overflow = 'hidden';
   modal.style.display = 'flex';
-  setTimeout(() => startLiveCameraScanner('universal'), 100);
+  modal.classList.add('active');
+  setTimeout(() => startLiveCameraScanner('universal'), 80);
 }
 
 function openInventoryBarcodeSearchModal() {
@@ -1053,7 +1055,11 @@ function openInventoryBarcodeSearchModal() {
 function closeUniversalBarcodeScanner() {
   stopLiveCameraScanner();
   const modal = document.getElementById('appBarcodeScannerModal');
-  if (modal) modal.style.display = 'none';
+  if (modal) {
+    modal.style.display = 'none';
+    modal.classList.remove('active');
+  }
+  document.body.style.overflow = '';
 }
 
 function executeUniversalBarcodeScan(barcode) {
@@ -1225,7 +1231,11 @@ function openBatchBarcodeRegistrationModal() {
   clearBatchItemState();
   updateBatchStatsUI();
 
+  // تجميد تمرير الصفحة الخلفية فوراً لمنع تحرك المحتوى
+  document.body.style.overflow = 'hidden';
+
   modal.style.display = 'flex';
+  modal.classList.add('active');
   isBatchScannerPaused = false;
 
   const iconEl = document.getElementById('btnBatchToggleCameraIcon');
@@ -1238,13 +1248,18 @@ function openBatchBarcodeRegistrationModal() {
   if (badgeText) badgeText.textContent = 'ماسح ذكي نشط';
 
   // بدء تشغيل كاميرا الموقع الحية المباشرة
-  setTimeout(() => startLiveCameraScanner('batch'), 100);
+  setTimeout(() => startLiveCameraScanner('batch'), 80);
 }
 
 function closeBatchBarcodeModal() {
   stopLiveCameraScanner();
   const modal = document.getElementById('batchBarcodeRegistrationModal');
-  if (modal) modal.style.display = 'none';
+  if (modal) {
+    modal.style.display = 'none';
+    modal.classList.remove('active');
+  }
+  // استعادة التمرير الطبيعي للصفحة
+  document.body.style.overflow = '';
   clearBatchItemState();
 }
 
@@ -1699,10 +1714,8 @@ function skipCurrentBatchBarcode() {
 
 function resumeBatchScannerLoop() {
   isScanningActive = true;
-  const videoEl = document.getElementById('batchScannerVideo');
-  if (videoEl && liveScannerStream) {
-    startBarcodeDetectionLoop(videoEl, 'batch');
-  }
+  batchCurrentDetectedBarcode = null;
+  startScannerGuidanceTimer('batch');
 }
 
 // تبديل إيقاف / استئناف المسح
@@ -1736,6 +1749,8 @@ function copyBatchDetectedBarcode() {
     });
   }
 }
+
+
 
 
 
