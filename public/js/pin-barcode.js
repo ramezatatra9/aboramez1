@@ -584,23 +584,48 @@ async function startLiveCameraScanner(context) {
 
   try {
     const formats = getTargetBarcodeFormats();
+
+    // فحص ما إذا كان المتصفح يدعم BarcodeDetector فعلياً لصيغ الباركود الخطية EAN-13
+    let enableNativeBarcodeDetector = false;
+    if (typeof window !== 'undefined' && 'BarcodeDetector' in window && typeof BarcodeDetector.getSupportedFormats === 'function') {
+      try {
+        const supported = await BarcodeDetector.getSupportedFormats();
+        if (Array.isArray(supported) && (supported.includes('ean_13') || supported.includes('code_128'))) {
+          enableNativeBarcodeDetector = true;
+          console.log('[Scanner] Native BarcodeDetector supports 1D formats:', supported);
+        } else {
+          console.log('[Scanner] Native BarcodeDetector lacks 1D barcode formats, defaulting to Pure ZXing High-Definition Engine.');
+        }
+      } catch (e) {
+        enableNativeBarcodeDetector = false;
+      }
+    }
+
     html5QrInstance = new Html5Qrcode(qrId, {
       formatsToSupport: formats,
       verbose: false,
       experimentalFeatures: {
-        useBarCodeDetectorIfSupported: true
+        useBarCodeDetectorIfSupported: enableNativeBarcodeDetector
       }
     });
 
-    const cameraConfig = {
-      facingMode: currentCameraFacing
+    // إعدادات الكاميرا: دقة عالية (1080p أو 720p) لمنع انضغاط وتغبيش خطوط الباركود الرفيعة
+    const videoConstraints = {
+      facingMode: currentCameraFacing,
+      width: { min: 640, ideal: 1280, max: 1920 },
+      height: { min: 480, ideal: 720, max: 1080 }
     };
 
     const scanConfig = {
-      fps: 12, // 10-12 إطار بالثانية: دقة عالية في القراءة دون إرهاق المعالج
-      aspectRatio: 1.333334,
-      disableFlip: false
-      // مسح الإطار بالكامل لضمان قراءة الباركودات الطويلة EAN-13 و Code 128
+      fps: 15,
+      videoConstraints: videoConstraints,
+      disableFlip: false,
+      qrbox: function(viewfinderWidth, viewfinderHeight) {
+        // مستطيل عريض يطابق إطار التوجيه البصري (Reticle Box)
+        const w = Math.min(Math.floor(viewfinderWidth * 0.90), 520);
+        const h = Math.min(Math.floor(viewfinderHeight * 0.65), 260);
+        return { width: Math.max(w, 240), height: Math.max(h, 120) };
+      }
     };
 
     const onScanSuccess = (decodedText) => {
@@ -630,30 +655,55 @@ async function startLiveCameraScanner(context) {
     };
 
     try {
-      await html5QrInstance.start(cameraConfig, scanConfig, onScanSuccess, onScanError);
+      await html5QrInstance.start({ facingMode: currentCameraFacing }, scanConfig, onScanSuccess, onScanError);
       isScanningActive = true;
       startScannerGuidanceTimer(context);
     } catch (camErr) {
-      console.warn('[Scanner] facingMode start failed, trying fallback to default camera:', camErr);
-      await html5QrInstance.start({}, scanConfig, onScanSuccess, onScanError);
+      console.warn('[Scanner] HD facingMode start failed, trying fallback to basic stream:', camErr);
+      const fallbackConfig = {
+        fps: 12,
+        disableFlip: false,
+        qrbox: scanConfig.qrbox
+      };
+      await html5QrInstance.start({}, fallbackConfig, onScanSuccess, onScanError);
       isScanningActive = true;
       startScannerGuidanceTimer(context);
     }
 
-    // تفعيل التركيز التلقائي المستمر (Continuous Autofocus) إذا كانت الكاميرا تدعمه
+    // تفعيل التركيز التلقائي المستمر وتقريب العدسة البصري إن وُجد
     try {
       const activeVideo = qrContainer.querySelector('video');
       if (activeVideo && activeVideo.srcObject) {
         const videoTrack = activeVideo.srcObject.getVideoTracks()[0];
-        if (videoTrack && videoTrack.applyConstraints) {
-          const caps = videoTrack.getCapabilities ? videoTrack.getCapabilities() : {};
+        if (videoTrack && videoTrack.getCapabilities && videoTrack.applyConstraints) {
+          const caps = videoTrack.getCapabilities();
+          const advanced = [];
+
           if (caps.focusMode && Array.isArray(caps.focusMode) && caps.focusMode.includes('continuous')) {
-            await videoTrack.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+            advanced.push({ focusMode: 'continuous' });
           }
+
+          if (caps.zoom && caps.zoom.min !== undefined && caps.zoom.max !== undefined) {
+            const optimalZoom = Math.min(caps.zoom.max, Math.max(caps.zoom.min, 1.25));
+            if (optimalZoom > caps.zoom.min) {
+              advanced.push({ zoom: optimalZoom });
+            }
+          }
+
+          if (advanced.length > 0) {
+            await videoTrack.applyConstraints({ advanced });
+            console.log('[Scanner] Camera advanced capabilities applied:', advanced);
+          }
+
+          setTimeout(() => {
+            if (activeVideo) {
+              console.log(`[Scanner] Active camera resolution: ${activeVideo.videoWidth}x${activeVideo.videoHeight} (${videoTrack.label || 'Default Camera'})`);
+            }
+          }, 600);
         }
       }
     } catch (focusErr) {
-      // اختياري
+      console.debug('[Scanner] Optional camera constraints note:', focusErr);
     }
 
   } catch (err) {

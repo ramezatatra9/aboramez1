@@ -59,6 +59,12 @@ assert(
   'زر فتح شاشة تسجيل الباركود متوفر'
 );
 
+assert(
+  html.includes('html5-qrcode.min.js?v=3.5.0') &&
+  html.includes('pin-barcode.js?v=7.5.0'),
+  'وسوم السكربت محدثة برقم إصدار Cache-Busting v3.5.0 لمنع تحميل نسخ الكاش القديمة'
+);
+
 // ─── 2. فحص قواعد CSS للنافذة المنبثقة وضبط الكاميرا ───
 console.log('\n--- 2. فحص قواعد CSS للنافذة المنبثقة وضبط الكاميرا ---');
 const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'css', 'style.css'), 'utf8');
@@ -90,9 +96,11 @@ assert(
   'تنسيقات نصيحة التوجيه عند ضعف الإضاءة أو بعد المسافة جاهزة'
 );
 
-// ─── 3. فحص JavaScript لمحرك القراءة وحفظ الأصفار ───
-console.log('\n--- 3. فحص JavaScript لمحرك القراءة وإدارة التمرير ---');
+// ─── 3. فحص JavaScript لمحرك القراءة ومكتبة Html5Qrcode ───
+console.log('\n--- 3. فحص JavaScript لمحرك القراءة وضبط دقة الحساس ---');
 const js = fs.readFileSync(path.join(__dirname, '..', 'public', 'js', 'pin-barcode.js'), 'utf8');
+const qrcodeLib = fs.readFileSync(path.join(__dirname, '..', 'public', 'js', 'html5-qrcode.min.js'), 'utf8');
+const sw = fs.readFileSync(path.join(__dirname, '..', 'public', 'sw.js'), 'utf8');
 
 assert(
   js.includes('document.body.style.overflow = \'hidden\'') &&
@@ -108,13 +116,37 @@ assert(
 );
 
 assert(
-  js.includes('startScannerGuidanceTimer'),
-  'مؤقت التوجيه التلقائي للمستخدم (3.2 ثوانٍ) مدمج في محرك المسح'
+  js.includes('enableNativeBarcodeDetector') &&
+  js.includes('useBarCodeDetectorIfSupported: enableNativeBarcodeDetector'),
+  'فحص التوافق العتادي الديناميكي لـ BarcodeDetector لضمان عدم السقوط في أخطاء المتصفحات الصامتة'
 );
 
 assert(
-  js.includes('useBarCodeDetectorIfSupported: true'),
-  'تفعيل التسريع العتادي عبر BarcodeDetector مع البقاء الآمن على ZXing'
+  js.includes('videoConstraints') &&
+  js.includes('ideal: 1280') &&
+  js.includes('qrbox: function'),
+  'ضبط دقة البث الفعلي بدقة HD (1280x720 / 1080p) ومستطيل مسح عريض'
+);
+
+assert(
+  qrcodeLib.includes('o.set(E.DecodeHintType.TRY_HARDER,!0)'),
+  'تفعيل خيار TRY_HARDER: true في محرك ZXing لمسح كامل ارتفاع الإطار ودعم الزوايا المائلة'
+);
+
+assert(
+  qrcodeLib.includes('var dw=Math.round(a),dh=Math.round(c);') &&
+  qrcodeLib.includes('this.context.drawImage(i,l,h,a,c,0,0,dw,dh);'),
+  'رسم إطارات الكاميرا على الكانفاس بدقة الحساس الكاملة (Native Sensor Resolution) دون ضغط تشويهي'
+);
+
+assert(
+  qrcodeLib.includes('this.qrcode.decodeRobustlyAsync(this.canvasElement)'),
+  'تفعيل الفك المتين (Robust Decoding) مع تجربة المحركين في نفس الإطار حال التعذر'
+);
+
+assert(
+  sw.includes('aboramez-pos-v3.5.0'),
+  'تحديث رقم إصدار Service Worker إلى v3.5.0 لتجاوز كاش PWA'
 );
 
 assert(

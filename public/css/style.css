@@ -8034,6 +8034,12 @@ body.role-cashier button[onclick*="confirmDeleteProduct"] {
   display: none !important;
 }
 
+#batchScannerQrContainer > div[style*="border-left"],
+#assignScannerQrContainer > div[style*="border-left"],
+#universalScannerQrContainer > div[style*="border-left"] {
+  display: none !important;
+}
+
 /* ─── شارة توجيه المسح الذكية ─── */
 .scanner-guidance-pill {
   position: absolute;
