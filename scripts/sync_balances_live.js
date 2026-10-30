@@ -1,9 +1,19 @@
 /**
  * sync_balances_live.js
- * يجلب أرصدة الموردين والزبائن الحية من قاعدة بيانات الشامل SQL Server
- * ويزامنها مع الموقع — يضمن عدم وجود أي فرق بعد التشغيل
+ * سكريبت محلي فقط (Windows) — لا يُستخدم على سيرفر الإنتاج
+ * يتصل مباشرة بـ SQL Server للمزامنة الحية
+ * تشغيل: node scripts/sync_balances_live.js
+ * 
+ * ملاحظة: يحتاج تثبيت mssql محلياً: npm install mssql msnodesqlv8
  */
-const sql = require('mssql');
+
+let sql;
+try {
+  sql = require('mssql');
+} catch (e) {
+  console.error('❌ مكتبة mssql غير مثبتة. شغّل: npm install mssql msnodesqlv8');
+  process.exit(1);
+}
 const dataStore = require('../dataStore');
 
 const SQL_CONFIG = {
