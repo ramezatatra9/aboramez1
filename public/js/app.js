@@ -6131,14 +6131,23 @@ function renderCustomerTab() {
 
   if (emptyMsg) emptyMsg.style.display = 'none';
 
+  // تسريع فائق O(N): احتساب مؤقتات الحركات مسبقاً وتخزينها في Cache لتسريع الفرز والعرض
+  const timerCache = new Map();
+  for (let i = 0; i < filtered.length; i++) {
+    const c = filtered[i];
+    timerCache.set(c.id || c.systemNumber || ('item_' + i), getCustomerReceiptTimerData(c));
+  }
+
   // فرز الحسابات:
   // 1. العملاء المقتربين من 30 يوماً أو المتجاوزين 30 يوماً (اللون الأحمر) في القمة أولاً دائماً!
   // 2. باقي المدينين (عليهم ديون)
   // 3. الدائنين (لهم أرصدة)
   // 4. الحسابات المسددة
   filtered.sort((a, b) => {
-    const timerA = getCustomerReceiptTimerData(a);
-    const timerB = getCustomerReceiptTimerData(b);
+    const keyA = a.id || a.systemNumber;
+    const keyB = b.id || b.systemNumber;
+    const timerA = timerCache.get(keyA) || getCustomerReceiptTimerData(a);
+    const timerB = timerCache.get(keyB) || getCustomerReceiptTimerData(b);
 
     if (timerA.isUrgentRed && !timerB.isUrgentRed) return -1;
     if (!timerA.isUrgentRed && timerB.isUrgentRed) return 1;
@@ -6188,8 +6197,9 @@ function renderCustomerTab() {
       }
     }
 
-    // حساب مؤقت وتاريخ آخر حركة وتعديل الرصيد
-    const timer = getCustomerReceiptTimerData(c);
+    // جلب المؤقت المحسوب مسبقاً بسرعة فائقة O(1)
+    const key = c.id || c.systemNumber;
+    const timer = timerCache.get(key) || getCustomerReceiptTimerData(c);
     let timerHtml = '';
 
     let statusText = '';
