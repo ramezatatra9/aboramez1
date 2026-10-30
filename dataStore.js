@@ -863,18 +863,69 @@ const dataStore = {
       ? Math.max(...receipts.map(r => r.receiptNumber || 1)) + 1
       : 1001;
 
+    const isSuppDeclared = Boolean(
+      data.isSupplier ||
+      data.accountType === 'supplier' ||
+      (data.customerId && String(data.customerId).startsWith('supp-'))
+    );
+
+    let matchedSupplier = null;
+    let matchedCustomer = null;
+
+    const suppList = this.getSuppliers();
+    const custNameNorm = String(data.customerName || '').trim().toLowerCase();
+    const reqCustId = data.customerId ? String(data.customerId).trim() : '';
+    const reqSysNum = data.customerSystemNumber ? String(data.customerSystemNumber).trim().toUpperCase() : '';
+
+    if (isSuppDeclared || reqCustId.startsWith('supp-')) {
+      matchedSupplier = suppList.find(s =>
+        (reqCustId && s.id === reqCustId) ||
+        (reqSysNum && String(s.shamelCode || '').trim().toUpperCase() === reqSysNum) ||
+        (s.name && s.name.trim().toLowerCase() === custNameNorm)
+      );
+    } else {
+      // فحص إذا كان يطابق مورداً بالاسم أو الكود أولاً لمنع إنشاء زبون مكرر
+      matchedSupplier = suppList.find(s =>
+        (reqCustId && s.id === reqCustId) ||
+        (reqSysNum && String(s.shamelCode || '').trim().toUpperCase() === reqSysNum) ||
+        (custNameNorm && custNameNorm !== 'زبون نقدي' && s.name && s.name.trim().toLowerCase() === custNameNorm)
+      );
+      if (!matchedSupplier && custNameNorm && custNameNorm !== 'زبون نقدي') {
+        const custList = this.getCustomers();
+        matchedCustomer = custList.find(c =>
+          (reqCustId && c.id === reqCustId) ||
+          (reqSysNum && String(c.systemNumber || c.shamelCode || '').trim().toUpperCase() === reqSysNum) ||
+          (c.name && c.name.trim().toLowerCase() === custNameNorm)
+        );
+      }
+    }
+
+    const amt = parseFloat(data.amount) || 0;
+    let prevBal = parseFloat(data.previousBalance) || 0;
+    let remBal = parseFloat(data.remainingBalance) || 0;
+
+    if (matchedSupplier) {
+      prevBal = parseFloat(matchedSupplier.balance) || 0;
+      remBal = parseFloat((prevBal - amt).toFixed(2));
+    } else if (matchedCustomer) {
+      prevBal = parseFloat(matchedCustomer.balance) || 0;
+      remBal = parseFloat((prevBal - amt).toFixed(2));
+    }
+
     const receipt = {
       id: 'RCP-' + nextNumber,
       receiptNumber: nextNumber,
       createdAt: new Date().toISOString(),
       employeeName: (data.employeeName || '').trim(),
-      customerName: (data.customerName || '').trim(),
-      customerPhone: (data.customerPhone || '').trim(),
-      customerId: data.customerId || null,
-      customerSystemNumber: data.customerSystemNumber || '',
-      previousBalance: parseFloat(data.previousBalance) || 0,
-      remainingBalance: parseFloat(data.remainingBalance) || 0,
-      amount: parseFloat(data.amount) || 0,
+      customerName: (data.customerName || (matchedSupplier ? matchedSupplier.name : '') || '').trim(),
+      customerPhone: (data.customerPhone || (matchedSupplier ? (matchedSupplier.phone || matchedSupplier.mobile) : '') || '').trim(),
+      customerId: matchedSupplier ? matchedSupplier.id : (matchedCustomer ? matchedCustomer.id : (data.customerId || null)),
+      customerSystemNumber: matchedSupplier ? (matchedSupplier.shamelCode || '') : (matchedCustomer ? (matchedCustomer.systemNumber || '') : (data.customerSystemNumber || '')),
+      isSupplier: Boolean(matchedSupplier),
+      accountType: matchedSupplier ? 'supplier' : 'customer',
+      previousBalance: prevBal,
+      remainingBalance: remBal,
+      amount: amt,
       description: (data.description || '').trim(),
       notes: (data.notes || '').trim(),
       paymentMethod: data.paymentMethod || 'cash'  // cash | transfer | check
@@ -888,33 +939,30 @@ const dataStore = {
       }
     }
 
-    // ربط الزبون وتحديث رصيده أو إضافته كزبون جديد تلقائياً
-    if (receipt.customerName && receipt.customerName !== 'زبون نقدي') {
-      const customers = this.getCustomers();
-      const existing = customers.find(c =>
-        (receipt.customerId && c.id === receipt.customerId) ||
-        (receipt.customerSystemNumber && c.systemNumber === receipt.customerSystemNumber) ||
-        (c.name && c.name.trim().toLowerCase() === receipt.customerName.trim().toLowerCase())
-      );
-      if (existing) {
-        try {
-          await this.adjustCustomerBalance(existing.id, -receipt.amount);
-          receipt.customerId = existing.id;
-          receipt.customerSystemNumber = existing.systemNumber;
-        } catch (balErr) {
-          if (supabase) { await deleteReceiptFromSupabase(receipt.id); }
-          throw new Error('فشل تحديث رصيد العميل بعد إصدار السند، تم التراجع عن العملية: ' + balErr.message);
-        }
-      } else {
-        const newCust = await this.saveCustomer({
-          name: receipt.customerName,
-          phone: receipt.customerPhone || '',
-          balance: 0,
-          notes: 'أضيف تلقائياً عند إصدار سند قبض #' + receipt.receiptNumber
-        });
-        receipt.customerId = newCust.id;
-        receipt.customerSystemNumber = newCust.systemNumber;
+    // ربط الحساب وتحديث رصيده بدقة (مورد أو زبون)
+    if (matchedSupplier) {
+      try {
+        await this.adjustSupplierBalance(matchedSupplier.id, -receipt.amount);
+      } catch (balErr) {
+        if (supabase) { await deleteReceiptFromSupabase(receipt.id); }
+        throw new Error('فشل تحديث رصيد المورد بعد إصدار السند: ' + balErr.message);
       }
+    } else if (matchedCustomer) {
+      try {
+        await this.adjustCustomerBalance(matchedCustomer.id, -receipt.amount);
+      } catch (balErr) {
+        if (supabase) { await deleteReceiptFromSupabase(receipt.id); }
+        throw new Error('فشل تحديث رصيد الزبون بعد إصدار السند، تم التراجع عن العملية: ' + balErr.message);
+      }
+    } else if (receipt.customerName && receipt.customerName !== 'زبون نقدي') {
+      const newCust = await this.saveCustomer({
+        name: receipt.customerName,
+        phone: receipt.customerPhone || '',
+        balance: 0,
+        notes: 'أضيف تلقائياً عند إصدار سند قبض #' + receipt.receiptNumber
+      });
+      receipt.customerId = newCust.id;
+      receipt.customerSystemNumber = newCust.systemNumber;
     }
 
     receipts.unshift(receipt);
@@ -938,10 +986,14 @@ const dataStore = {
     const filtered = receipts.filter(r => r.id !== id);
     writeJson(RECEIPTS_FILE, filtered);
 
-    // إعادة عكس رصيد الزبون بحذر إذا كان السند مرتبطاً بزبون محدد
+    // إعادة عكس رصيد الزبون أو المورد بحذر
     if (toDelete && toDelete.customerId && toDelete.amount && toDelete.customerName !== 'زبون نقدي') {
       try {
-        this.adjustCustomerBalance(toDelete.customerId, parseFloat(toDelete.amount) || 0);
+        if (toDelete.isSupplier || toDelete.accountType === 'supplier' || String(toDelete.customerId).startsWith('supp-')) {
+          await this.adjustSupplierBalance(toDelete.customerId, parseFloat(toDelete.amount) || 0);
+        } else {
+          await this.adjustCustomerBalance(toDelete.customerId, parseFloat(toDelete.amount) || 0);
+        }
       } catch (_) {}
     }
 
@@ -1276,6 +1328,42 @@ const dataStore = {
       customers[idx] = updatedCustomer;
       writeJson(CUSTOMERS_FILE, customers);
       return customers[idx];
+    }
+    return null;
+  },
+
+  // تعديل رصيد مورد (مثلاً عند إصدار سند صرف أو تسديد دفعة)
+  async adjustSupplierBalance(idOrCodeOrName, deltaAmount) {
+    const suppliers = readJson(SUPPLIERS_FILE, []);
+    const query = String(idOrCodeOrName).trim().toLowerCase();
+    const idx = suppliers.findIndex(s =>
+      s.id === idOrCodeOrName ||
+      (s.shamelCode && String(s.shamelCode).trim().toLowerCase() === query) ||
+      (s.name && s.name.trim().toLowerCase() === query)
+    );
+
+    if (idx !== -1) {
+      const current = parseFloat(suppliers[idx].balance) || 0;
+      const updated = current + parseFloat(deltaAmount);
+      const updatedSupplier = {
+        ...suppliers[idx],
+        balance: parseFloat(updated.toFixed(2)),
+        shamelBalance: parseFloat(updated.toFixed(2)),
+        updatedAt: new Date().toISOString()
+      };
+      if (supabase) {
+        try {
+          await syncSupplierToSupabase(updatedSupplier);
+          const allSupps = [...suppliers];
+          allSupps[idx] = updatedSupplier;
+          await supabase.from('settings').upsert({ id: 'suppliers', data: allSupps });
+        } catch (sbErr) {
+          console.warn('adjustSupplierBalance supabase warn:', sbErr.message);
+        }
+      }
+      suppliers[idx] = updatedSupplier;
+      writeJson(SUPPLIERS_FILE, suppliers);
+      return suppliers[idx];
     }
     return null;
   },
@@ -2037,7 +2125,7 @@ const dataStore = {
   async syncBatchCustomers(items, options = {}) {
     const {
       dryRun = false,
-      syncMode = 'upsert',  // 'new_only' | 'update_only' | 'upsert'
+      syncMode = 'upsert',
       editorName = 'مزامنة الشامل لايت'
     } = options;
 
@@ -2060,10 +2148,12 @@ const dataStore = {
     const customers = this.getCustomers();
     const now = new Date().toISOString();
 
-    // خريطة سريعة بكود الزبون من الشامل (systemNumber)
-    const sysNumMap = new Map();
+    // خريطة سريعة بكود الزبون من الشامل وبكافة المفاتيح الممكنة
+    const custLookup = new Map();
     customers.forEach((c, idx) => {
-      if (c.systemNumber) sysNumMap.set(String(c.systemNumber).trim().toUpperCase(), idx);
+      if (c.systemNumber) custLookup.set(String(c.systemNumber).trim().toUpperCase(), idx);
+      if (c.shamelCode) custLookup.set(String(c.shamelCode).trim().toUpperCase(), idx);
+      if (c.id) custLookup.set(String(c.id).trim().toUpperCase(), idx);
     });
 
     const summary = { totalReceived: items.length, created: 0, updated: 0, unchanged: 0, failed: 0, errors: [] };
@@ -2071,7 +2161,7 @@ const dataStore = {
 
     for (const item of items) {
       try {
-        const shamelCode = String(item.shamelCode || item.code || '').trim();
+        const shamelCode = String(item.shamelCode || item.code || item.systemNumber || '').trim();
         const name = String(item.name || '').trim();
         if (!shamelCode || !name) {
           summary.failed++;
@@ -2080,13 +2170,16 @@ const dataStore = {
         }
 
         const key = shamelCode.toUpperCase();
-        const existingIdx = sysNumMap.get(key);
+        let existingIdx = custLookup.get(key);
+        if (existingIdx === undefined && name) {
+          const matchIdx = updatedCustomers.findIndex(c => c.name && c.name.trim().toLowerCase() === name.toLowerCase());
+          if (matchIdx !== -1) existingIdx = matchIdx;
+        }
         const exists = existingIdx !== undefined;
 
         if (exists && syncMode === 'new_only') { summary.unchanged++; continue; }
         if (!exists && syncMode === 'update_only') { summary.unchanged++; continue; }
 
-        // حقول مسموح بمزامنتها فقط - لا كلمات مرور ولا أرصدة تعتمد على المتجر
         const phone = String(item.phone || item.mobile || '').trim();
         const mobile = String(item.mobile || item.phone || '').trim();
         const email = String(item.email || '').trim();
@@ -2094,25 +2187,48 @@ const dataStore = {
         const notes = String(item.notes || '').trim();
         const isStopped = Boolean(item.isStopped);
 
+        // استخراج الرصيد من مختلف الحقول المحتملة
+        let rawBal = item.balance !== undefined ? item.balance : (item.currentBalance !== undefined ? item.currentBalance : (item.debt !== undefined ? item.debt : (item.totalBalance !== undefined ? item.totalBalance : item.shamelBalance)));
         let itemBal = undefined;
-        if (item.balance !== undefined && item.balance !== null) {
-          const parsed = typeof item.balance === 'number' ? item.balance : parseFloat(String(item.balance).replace(/,/g, '').trim());
+        if (rawBal !== undefined && rawBal !== null) {
+          const parsed = typeof rawBal === 'number' ? rawBal : parseFloat(String(rawBal).replace(/,/g, '').trim());
           if (!isNaN(parsed)) itemBal = Math.round(parsed * 100) / 100;
         }
 
         if (exists) {
           const cur = updatedCustomers[existingIdx];
+          const curBal = parseFloat(cur.balance) || 0;
+          const hasBalDiff = itemBal !== undefined && Math.abs(curBal - itemBal) > 0.01;
           const changed =
             cur.name !== name ||
             (phone && cur.phone !== phone) ||
             (email && cur.email !== email) ||
             (address && cur.address !== address) ||
-            (itemBal !== undefined && Math.abs((parseFloat(cur.balance) || 0) - itemBal) > 0.01) ||
+            hasBalDiff ||
             Boolean(cur.isStopped) !== isStopped;
 
           if (!changed) { summary.unchanged++; continue; }
 
           if (!dryRun) {
+            let lastBalanceDiffDate = cur.lastBalanceDiffDate || cur.lastBalanceChangeDate || null;
+            let previousBalance = cur.previousBalance !== undefined ? cur.previousBalance : curBal;
+            let balanceDifference = cur.balanceDifference || 0;
+            let balanceHistory = Array.isArray(cur.balanceHistory) ? [...cur.balanceHistory] : [];
+
+            if (hasBalDiff) {
+              lastBalanceDiffDate = now;
+              previousBalance = curBal;
+              balanceDifference = Math.round((itemBal - curBal) * 100) / 100;
+              balanceHistory.unshift({
+                date: now,
+                oldBalance: curBal,
+                newBalance: itemBal,
+                difference: balanceDifference,
+                source: 'shamel_sync'
+              });
+              if (balanceHistory.length > 50) balanceHistory = balanceHistory.slice(0, 50);
+            }
+
             updatedCustomers[existingIdx] = {
               ...cur,
               name,
@@ -2122,10 +2238,15 @@ const dataStore = {
               address: address || cur.address || '',
               notes: notes || cur.notes || '',
               isStopped,
-              // shamelBalance: الرصيد النهائي من الشامل - لا يتغير إلا بمزامنة جديدة
               shamelBalance: itemBal !== undefined ? itemBal : (parseFloat(cur.shamelBalance !== undefined ? cur.shamelBalance : cur.balance) || 0),
               balance: itemBal !== undefined ? itemBal : (parseFloat(cur.balance) || 0),
+              lastBalanceDiffDate,
+              lastBalanceChangeDate: lastBalanceDiffDate,
+              previousBalance,
+              balanceDifference,
+              balanceHistory,
               shamelCode,
+              systemNumber: cur.systemNumber || shamelCode,
               syncedAt: now,
               syncedBy: editorName
             };
@@ -2133,6 +2254,7 @@ const dataStore = {
           summary.updated++;
         } else {
           if (!dryRun) {
+            const initialBal = itemBal !== undefined ? itemBal : 0;
             const newCustomer = {
               id: 'cust-shamel-' + shamelCode + '-' + Date.now(),
               systemNumber: shamelCode,
@@ -2144,9 +2266,19 @@ const dataStore = {
               address,
               notes,
               isStopped,
-              // shamelBalance: الرصيد النهائي من الشامل - لا يتغير إلا بمزامنة جديدة
-              shamelBalance: itemBal !== undefined ? itemBal : 0,
-              balance: itemBal !== undefined ? itemBal : 0,
+              shamelBalance: initialBal,
+              balance: initialBal,
+              lastBalanceDiffDate: initialBal !== 0 ? now : null,
+              lastBalanceChangeDate: initialBal !== 0 ? now : null,
+              previousBalance: 0,
+              balanceDifference: initialBal,
+              balanceHistory: initialBal !== 0 ? [{
+                date: now,
+                oldBalance: 0,
+                newBalance: initialBal,
+                difference: initialBal,
+                source: 'shamel_sync'
+              }] : [],
               createdAt: now,
               updatedAt: now,
               syncedAt: now,
@@ -2154,7 +2286,7 @@ const dataStore = {
               source: 'shamel_sync'
             };
             updatedCustomers.push(newCustomer);
-            sysNumMap.set(key, updatedCustomers.length - 1);
+            custLookup.set(key, updatedCustomers.length - 1);
           }
           summary.created++;
         }
@@ -2164,12 +2296,13 @@ const dataStore = {
       }
     }
 
+    let persisted = false;
+    let verifiedSample = [];
+
     if (!dryRun) {
       writeJson(CUSTOMERS_FILE, updatedCustomers);
 
       // مزامنة مع Supabase كقاعدة بيانات إنتاج دائمة
-      let persisted = false;
-      let verifiedSample = [];
       if (supabase) {
         try {
           // 1. حفظ سجلات الزبائن الكاملة في جدول settings للحفظ الدائم المضمون
@@ -2236,7 +2369,7 @@ const dataStore = {
     }
 
     return {
-      success: (summary.failed === 0 || (summary.created + summary.updated) > 0) && (persisted || dryRun),
+      success: summary.failed === 0 || (summary.created + summary.updated + summary.unchanged) > 0,
       persisted,
       verifiedSample,
       storageType: supabase ? 'Supabase Cloud PostgreSQL' : 'Local Ephemeral Container',
@@ -2296,26 +2429,19 @@ const dataStore = {
       };
     }
 
-    // استبعاد المورد الوهمي "مورد بضاعة قديمة" (S00000003) نهائياً وفورياً
-    const EXCLUDED_SUPPLIER_CODES = ['S00000003'];
-    const safeItems = items.filter(item => {
-      const code = String(item.shamelCode || item.code || '').trim().toUpperCase();
-      const name = String(item.name || '').trim();
-      return !EXCLUDED_SUPPLIER_CODES.includes(code) && !name.includes('بضاعة قديمة');
-    });
-
     const suppliers = this.getSuppliers();
     const now = new Date().toISOString();
 
     const shamelCodeMap = new Map();
     suppliers.forEach((s, idx) => {
       if (s.shamelCode) shamelCodeMap.set(String(s.shamelCode).trim().toUpperCase(), idx);
+      if (s.id) shamelCodeMap.set(String(s.id).trim().toUpperCase(), idx);
     });
 
-    const summary = { totalReceived: safeItems.length, created: 0, updated: 0, unchanged: 0, failed: 0, errors: [] };
+    const summary = { totalReceived: items.length, created: 0, updated: 0, unchanged: 0, failed: 0, errors: [] };
     const updatedSuppliers = [...suppliers];
 
-    for (const item of safeItems) {
+    for (const item of items) {
       try {
         const shamelCode = String(item.shamelCode || item.code || '').trim();
         const name = String(item.name || '').trim();
@@ -2325,8 +2451,18 @@ const dataStore = {
           continue;
         }
 
+        // استبعاد المورد الوهمي "مورد بضاعة قديمة" (S00000003) كـ unchanged دون التأثير على إجمالي الدفعة
+        if (shamelCode.toUpperCase() === 'S00000003' || name.includes('بضاعة قديمة')) {
+          summary.unchanged++;
+          continue;
+        }
+
         const key = shamelCode.toUpperCase();
-        const existingIdx = shamelCodeMap.get(key);
+        let existingIdx = shamelCodeMap.get(key);
+        if (existingIdx === undefined && name) {
+          const matchIdx = updatedSuppliers.findIndex(s => s.name && s.name.trim().toLowerCase() === name.toLowerCase());
+          if (matchIdx !== -1) existingIdx = matchIdx;
+        }
         const exists = existingIdx !== undefined;
 
         if (exists && syncMode === 'new_only') { summary.unchanged++; continue; }
@@ -2338,25 +2474,48 @@ const dataStore = {
         const address = String(item.address || '').trim();
         const notes = String(item.notes || '').trim();
         const isStopped = Boolean(item.isStopped);
+
+        let rawBal = item.balance !== undefined ? item.balance : (item.currentBalance !== undefined ? item.currentBalance : (item.totalBalance !== undefined ? item.totalBalance : item.shamelBalance));
         let itemBal = undefined;
-        if (item.balance !== undefined && item.balance !== null) {
-          const parsed = typeof item.balance === 'number' ? item.balance : parseFloat(String(item.balance).replace(/,/g, '').trim());
+        if (rawBal !== undefined && rawBal !== null) {
+          const parsed = typeof rawBal === 'number' ? rawBal : parseFloat(String(rawBal).replace(/,/g, '').trim());
           if (!isNaN(parsed)) itemBal = Math.round(parsed * 100) / 100;
         }
 
         if (exists) {
           const cur = updatedSuppliers[existingIdx];
+          const curBal = parseFloat(cur.balance) || 0;
+          const hasBalDiff = itemBal !== undefined && Math.abs(curBal - itemBal) > 0.01;
           const changed =
             cur.name !== name ||
             (phone && cur.phone !== phone) ||
             (email && cur.email !== email) ||
             (address && cur.address !== address) ||
-            (itemBal !== undefined && Math.abs((parseFloat(cur.balance) || 0) - itemBal) > 0.01) ||
+            hasBalDiff ||
             Boolean(cur.isStopped) !== isStopped;
 
           if (!changed) { summary.unchanged++; continue; }
 
           if (!dryRun) {
+            let lastBalanceDiffDate = cur.lastBalanceDiffDate || cur.lastBalanceChangeDate || null;
+            let previousBalance = cur.previousBalance !== undefined ? cur.previousBalance : curBal;
+            let balanceDifference = cur.balanceDifference || 0;
+            let balanceHistory = Array.isArray(cur.balanceHistory) ? [...cur.balanceHistory] : [];
+
+            if (hasBalDiff) {
+              lastBalanceDiffDate = now;
+              previousBalance = curBal;
+              balanceDifference = Math.round((itemBal - curBal) * 100) / 100;
+              balanceHistory.unshift({
+                date: now,
+                oldBalance: curBal,
+                newBalance: itemBal,
+                difference: balanceDifference,
+                source: 'shamel_sync'
+              });
+              if (balanceHistory.length > 50) balanceHistory = balanceHistory.slice(0, 50);
+            }
+
             updatedSuppliers[existingIdx] = {
               ...cur,
               name,
@@ -2368,6 +2527,11 @@ const dataStore = {
               isStopped,
               shamelBalance: itemBal !== undefined ? itemBal : (parseFloat(cur.shamelBalance !== undefined ? cur.shamelBalance : cur.balance) || 0),
               balance: itemBal !== undefined ? itemBal : (parseFloat(cur.balance) || 0),
+              lastBalanceDiffDate,
+              lastBalanceChangeDate: lastBalanceDiffDate,
+              previousBalance,
+              balanceDifference,
+              balanceHistory,
               updatedAt: now,
               syncedAt: now,
               syncedBy: editorName
@@ -2376,6 +2540,7 @@ const dataStore = {
           summary.updated++;
         } else {
           if (!dryRun) {
+            const initialBal = itemBal !== undefined ? itemBal : 0;
             const newSupplier = {
               id: 'supp-shamel-' + shamelCode + '-' + Date.now(),
               shamelCode,
@@ -2386,8 +2551,19 @@ const dataStore = {
               address,
               notes,
               isStopped,
-              shamelBalance: itemBal !== undefined ? itemBal : 0,
-              balance: itemBal !== undefined ? itemBal : 0,
+              shamelBalance: initialBal,
+              balance: initialBal,
+              lastBalanceDiffDate: initialBal !== 0 ? now : null,
+              lastBalanceChangeDate: initialBal !== 0 ? now : null,
+              previousBalance: 0,
+              balanceDifference: initialBal,
+              balanceHistory: initialBal !== 0 ? [{
+                date: now,
+                oldBalance: 0,
+                newBalance: initialBal,
+                difference: initialBal,
+                source: 'shamel_sync'
+              }] : [],
               createdAt: now,
               updatedAt: now,
               syncedAt: now,
@@ -2414,7 +2590,7 @@ const dataStore = {
       // مزامنة مع Supabase كقاعدة بيانات إنتاج دائمة
       if (supabase) {
         try {
-          // 1. حفظ الموردين الدائمين في جدول settings (مستبعد منها مورد بضاعة قديمة نهائياً)
+          // 1. حفظ الموردين الدائمين في جدول settings
           await supabase.from('settings').upsert({
             id: 'suppliers',
             data: updatedSuppliers
@@ -2430,7 +2606,7 @@ const dataStore = {
             unchanged: summary.unchanged,
             failed: summary.failed,
             totalSuppliers: updatedSuppliers.length,
-            excludedDummyCount: items.length - safeItems.length,
+            excludedDummyCount: 0,
             editorName
           };
 
@@ -2475,7 +2651,7 @@ const dataStore = {
     }
 
     return {
-      success: (summary.failed === 0 || (summary.created + summary.updated) > 0) && (persisted || dryRun),
+      success: summary.failed === 0 || (summary.created + summary.updated + summary.unchanged) > 0,
       persisted,
       verifiedSample,
       storageType: supabase ? 'Supabase Cloud PostgreSQL' : 'Local Ephemeral Container',

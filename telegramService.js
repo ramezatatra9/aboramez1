@@ -434,23 +434,56 @@ ${notesRow}
     const receiptDate = formatDateTime(receipt.createdAt);
     const receiptNum = receipt.receiptNumber || receipt.id;
     const remBal = parseFloat(receipt.remainingBalance) || 0;
+    const isSupplier = Boolean(receipt.isSupplier || receipt.accountType === 'supplier');
+
+    let title = '';
+    let partyLabel = '';
+    let amountLabel = '';
+    let remBalText = '';
+    let footerSuccess = '';
+
+    if (isSupplier) {
+      title = `📤 <b>سند صرف لمورد #${receiptNum}</b>`;
+      partyLabel = `🏢 <b>المورد:</b> ${escapeHtml(receipt.customerName)}`;
+      amountLabel = `💵 <b>المبلغ المصروف:</b> 🔴 <b>${formatCurrency(receipt.amount, currency)}</b>`;
+      if (remBal > 0) {
+        remBalText = `⏳ <b>المتبقي له بذمتنا (دائن):</b> <b>${formatCurrency(remBal, currency)}</b>`;
+      } else if (remBal < 0) {
+        remBalText = `⏳ <b>المتبقي عليه لنا (مدين):</b> <b>${formatCurrency(Math.abs(remBal), currency)}</b>`;
+      } else {
+        remBalText = `⏳ <b>الرصيد المتبقي:</b> <b>0 ${currency} (تم تسديد كامل الحساب)</b>`;
+      }
+      footerSuccess = `✅ تم تسجيل عملية الصرف وتحديث رصيد المورد بنجاح.`;
+    } else {
+      title = `💰 <b>سند قبض من زبون #${receiptNum}</b>`;
+      partyLabel = `👤 <b>الزبون:</b> ${escapeHtml(receipt.customerName)}`;
+      amountLabel = `💵 <b>المبلغ المقبوض:</b> 🟢 <b>${formatCurrency(receipt.amount, currency)}</b>`;
+      if (remBal > 0) {
+        remBalText = `⏳ <b>المبلغ المتبقي عليه (دين):</b> <b>${formatCurrency(remBal, currency)}</b>`;
+      } else if (remBal < 0) {
+        remBalText = `⏳ <b>رصيد دائن للزبون:</b> <b>${formatCurrency(Math.abs(remBal), currency)}</b>`;
+      } else {
+        remBalText = `⏳ <b>المبلغ المتبقي:</b> <b>0 ${currency} (تم السداد بالكامل)</b>`;
+      }
+      footerSuccess = `✅ تم تسجيل عملية القبض بنجاح.`;
+    }
 
     const message = 
-`💰 <b>سند قبض #${receiptNum}</b>
+`${title}
 
 🏢 <b>${escapeHtml(companyName)}</b>
 
-👤 <b>الزبون:</b> ${escapeHtml(receipt.customerName)}
-💵 <b>المبلغ المقبوض:</b> 🟢 <b>${formatCurrency(receipt.amount, currency)}</b>
+${partyLabel}
+${amountLabel}
 
-⏳المبلغ المتبقي : <b>${formatCurrency(remBal, currency)}</b>
-📅 <b>تاريخ القبض:</b> ${receiptDate}
+${remBalText}
+📅 <b>تاريخ المعاملة:</b> ${receiptDate}
 
 ━━━━━━━━━━━━━━
 
-✅ تم تسجيل عملية القبض بنجاح.
+${footerSuccess}
 
-📎 مرفق سند القبض الرسمي بصيغة PDF.
+📎 مرفق السند المالي الرسمي بصيغة PDF.
 
 ⚡ نظام رامز عطاطرة للإدارة المالية`;
 
@@ -710,30 +743,53 @@ ${netBadge}
 
     const companyName = settings.companyName || 'رامز عطاطرة';
     const balance = parseFloat(customer.balance) || 0;
+    const isSupp = Boolean(customer.isSupplier || customer.accountType === 'supplier');
+
     let balDesc = '';
-    if (balance > 0) {
-      balDesc = `🔴 <b>دين مستحق بذمته (عليه):</b> <b>${formatCurrency(balance, currency)}</b>`;
-    } else if (balance < 0) {
-      balDesc = `🔵 <b>رصيد دائن لصالحه (له):</b> <b>${formatCurrency(Math.abs(balance), currency)}</b>`;
+    if (isSupp) {
+      if (balance > 0) {
+        balDesc = `🔵 <b>المتبقي له بذمتنا (دائن):</b> <b>${formatCurrency(balance, currency)}</b>`;
+      } else if (balance < 0) {
+        balDesc = `🔴 <b>المتبقي عليه لنا (مدين):</b> <b>${formatCurrency(Math.abs(balance), currency)}</b>`;
+      } else {
+        balDesc = `🟢 <b>الحساب مسدد بالكامل (خالص):</b> <b>0 ${currency}</b>`;
+      }
     } else {
-      balDesc = `🟢 <b>الحساب مسدد بالكامل (خالص):</b> <b>0 ${currency}</b>`;
+      if (balance > 0) {
+        balDesc = `🔴 <b>دين مستحق بذمته (عليه):</b> <b>${formatCurrency(balance, currency)}</b>`;
+      } else if (balance < 0) {
+        balDesc = `🔵 <b>رصيد دائن لصالحه (له):</b> <b>${formatCurrency(Math.abs(balance), currency)}</b>`;
+      } else {
+        balDesc = `🟢 <b>الحساب مسدد بالكامل (خالص):</b> <b>0 ${currency}</b>`;
+      }
     }
 
+    let diffText = '';
+    if (customer.lastBalanceDiffDate || customer.lastBalanceChangeDate) {
+      diffText = `\n📅 <b>تاريخ آخر فرق رصيد من الشامل:</b> ${formatDateTime(customer.lastBalanceDiffDate || customer.lastBalanceChangeDate)}`;
+      if (customer.balanceDifference) {
+        diffText += ` (${customer.balanceDifference > 0 ? '+' : ''}${formatCurrency(customer.balanceDifference, currency)})`;
+      }
+    }
+
+    const title = isSupp ? `📑 <b>كشف حساب تفصيلي معتمد لمورد</b>` : `📑 <b>كشف حساب تفصيلي معتمد لزبون</b>`;
+    const partyLabel = isSupp ? `🏢 <b>اسم المورد:</b>` : `👤 <b>اسم الزبون:</b>`;
+
     const message = 
-`📑 <b>كشف حساب تفصيلي معتمد لزبون</b>
+`${title}
 🏢 <b>${escapeHtml(companyName)}</b>
 ━━━━━━━━━━━━━━━━━━
-👤 <b>اسم الزبون:</b> <b>${escapeHtml(customer.name)}</b>
+${partyLabel} <b>${escapeHtml(customer.name)}</b>
 🔢 <b>رقم الحساب بالنظام:</b> #${escapeHtml(customer.systemNumber || '--')}
 ${customer.phone ? `📞 <b>رقم الهاتف:</b> ${escapeHtml(customer.phone)}\n` : ''}📅 <b>تاريخ إصدار الكشف:</b> ${formatDateTime(new Date())}
 ━━━━━━━━━━━━━━━━━━
 💰 <b>الرصيد المالي الحالي:</b>
-${balDesc}
+${balDesc}${diffText}
 ━━━━━━━━━━━━━━━━━━
 📊 <b>ملخص العمليات المسجلة:</b>
 🧾 عدد الفواتير: <b>${statementData.invoicesCount || 0} فاتورة</b>
-💰 عدد سندات القبض: <b>${statementData.receiptsCount || 0} سند</b>
-💵 إجمالي المسددات بسندات القبض: <b>${formatCurrency(statementData.totalPaid || 0, currency)}</b>
+💰 عدد السندات المالية: <b>${statementData.receiptsCount || 0} سند</b>
+💵 إجمالي المسددات بالسندات: <b>${formatCurrency(statementData.totalPaid || 0, currency)}</b>
 ━━━━━━━━━━━━━━━━━━
 <i>📎 مرفق كشف الحساب الرسمي المعتمد بصيغة PDF يحتوي على جميع الحركات والتواريخ بالتفصيل.</i>`;
 

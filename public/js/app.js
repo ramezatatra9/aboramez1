@@ -4635,6 +4635,14 @@ async function handleReceiptSubmit(event) {
     submitBtn.innerHTML = '<span>⏳</span><span>جاري الحفظ وإرسال الإشعار...</span>';
   }
 
+  const customerId = document.getElementById('rcpCustomerId')?.value || '';
+  const customerSystemNumber = document.getElementById('rcpCustomerSystemNumber')?.value || '';
+  const previousBalance = parseFloat(document.getElementById('rcpPreviousBalance')?.value) || 0;
+  const remainingBalance = parseFloat(document.getElementById('rcpRemainingBalance')?.value) || 0;
+  const matchedAcc = state.customers.find(c => (customerId && c.id === customerId) || (c.name && c.name.trim().toLowerCase() === customerName.trim().toLowerCase()));
+  const isSupplier = Boolean(matchedAcc?.isSupplier || matchedAcc?.accountType === 'supplier');
+  const accountType = isSupplier ? 'supplier' : 'customer';
+
   try {
     const res = await fetch('/api/receipts', {
       method: 'POST',
@@ -4643,6 +4651,12 @@ async function handleReceiptSubmit(event) {
         employeeName,
         customerName,
         customerPhone,
+        customerId,
+        customerSystemNumber,
+        previousBalance,
+        remainingBalance,
+        isSupplier,
+        accountType,
         amount,
         paymentMethod,
         description,
@@ -4652,12 +4666,13 @@ async function handleReceiptSubmit(event) {
 
     const data = await res.json();
     if (data.success && data.receipt) {
-      showToast(`🎉 تم إصدار سند القبض رقم #${data.receipt.receiptNumber} بنجاح`, 'success');
+      const typeLabel = isSupplier ? 'سند الصرف للمورد' : 'سند القبض';
+      showToast(`🎉 تم إصدار ${typeLabel} رقم #${data.receipt.receiptNumber} بنجاح`, 'success');
       state.receipts.unshift(data.receipt);
       renderReceiptsTable();
 
-      // إرسال ملف PDF لسند القبض المعتمد تلقائياً إلى تيليجرام
-      showToast('✈️ جاري إرسال سند القبض الرسمي كملف PDF إلى تيليجرام...', 'info');
+      // إرسال ملف PDF للسند المعتمد تلقائياً إلى تيليجرام
+      showToast(`✈️ جاري إرسال ${typeLabel} كملف PDF إلى تيليجرام...`, 'info');
       try {
         await sendReceiptPdfToTelegram(data.receipt);
       } catch (pdfErr) {
@@ -6170,7 +6185,14 @@ function renderCustomerTab() {
         <td>
           ${c.phone ? `<span style="direction: ltr; display: inline-block;">📞 ${escapeHtml(c.phone)}</span>` : '<span style="color:#94a3b8;">--</span>'}
         </td>
-        <td style="text-align: center;">${debtBadgeHtml}</td>
+        <td style="text-align: center;">
+          ${debtBadgeHtml}
+          ${c.lastBalanceDiffDate || c.lastBalanceChangeDate ? `
+            <div style="font-size:0.75rem; color:#4f46e5; margin-top:0.25rem; font-weight:700; background:#eef2ff; padding:2px 6px; border-radius:4px; border:1px solid #c7d2fe;">
+              📅 فرق رصيد الشامل: ${formatAppDateTime(c.lastBalanceDiffDate || c.lastBalanceChangeDate)} ${c.balanceDifference ? `(${c.balanceDifference > 0 ? '+' : ''}${c.balanceDifference.toLocaleString('en-US')} ${cur})` : ''}
+            </div>
+          ` : ''}
+        </td>
         <td style="text-align: center;">${timerHtml}</td>
         <td style="font-size: 0.85rem; color: #64748b;">${escapeHtml(c.notes || '--')}</td>
         <td>
@@ -6377,16 +6399,26 @@ function selectReceiptCustomer(custId) {
   if (prevBalInput) prevBalInput.value = c.balance || 0;
   if (dropdown) dropdown.style.display = 'none';
 
-  // تحديث بطاقة دين الزبون في واجهة سند القبض
+  // تحديث بطاقة دين الزبون / المورد في واجهة سند القبض أو الصرف
   const card = document.getElementById('rcpCustomerDebtCard');
   const nameEl = document.getElementById('rcpDebtCustName');
   const numEl = document.getElementById('rcpDebtCustNum');
   const valEl = document.getElementById('rcpDebtCurrentVal');
 
+  const isSupp = Boolean(c.isSupplier || c.accountType === 'supplier');
   if (card && nameEl && valEl) {
-    nameEl.textContent = c.name;
-    if (numEl) numEl.textContent = c.systemNumber ? `رقم الحساب بالنظام: #${c.systemNumber}` : 'زبون مسجل';
-    valEl.textContent = `${(c.balance || 0).toLocaleString('en-US')} ${cur}`;
+    nameEl.textContent = (isSupp ? '🏢 مورد: ' : '👤 زبون: ') + c.name;
+    if (numEl) numEl.textContent = c.systemNumber ? `رقم الحساب بالنظام: #${c.systemNumber}` : (isSupp ? 'مورد مسجل' : 'زبون مسجل');
+    const balVal = parseFloat(c.balance) || 0;
+    if (isSupp) {
+      if (balVal > 0) valEl.innerHTML = `<span style="color:#b45309;">له رصيد بذمتنا: ${balVal.toLocaleString('en-US')} ${cur}</span>`;
+      else if (balVal < 0) valEl.innerHTML = `<span style="color:#dc2626;">عليه رصيد للمعرض: ${Math.abs(balVal).toLocaleString('en-US')} ${cur}</span>`;
+      else valEl.innerHTML = `<span style="color:#059669;">خالص (0 ${cur})</span>`;
+    } else {
+      if (balVal > 0) valEl.innerHTML = `<span style="color:#dc2626;">عليه دين: ${balVal.toLocaleString('en-US')} ${cur}</span>`;
+      else if (balVal < 0) valEl.innerHTML = `<span style="color:#2563eb;">له رصيد دائن: ${Math.abs(balVal).toLocaleString('en-US')} ${cur}</span>`;
+      else valEl.innerHTML = `<span style="color:#059669;">خالص (0 ${cur})</span>`;
+    }
     card.style.display = 'block';
   }
 
@@ -6427,26 +6459,47 @@ function quickCreateCustomerFromInput(context, name) {
 function fillReceiptFullBalance() {
   const prevBal = parseFloat(document.getElementById('rcpPreviousBalance')?.value) || 0;
   const amountInput = document.getElementById('rcpAmount');
-  if (amountInput && prevBal > 0) {
-    amountInput.value = prevBal;
-    updateReceiptTafqeet(prevBal);
+  if (amountInput && prevBal !== 0) {
+    amountInput.value = Math.abs(prevBal);
+    updateReceiptTafqeet(Math.abs(prevBal));
     updateReceiptRemainingCalculation();
   } else {
-    showToast('رصيد الزبون خالص أو صفر', 'info');
+    showToast('رصيد الحساب خالص أو صفر', 'info');
   }
 }
 
 function updateReceiptRemainingCalculation() {
+  const custId = document.getElementById('rcpCustomerId')?.value || '';
+  const custName = document.getElementById('rcpCustomerName')?.value || '';
+  const matchedAcc = state.customers.find(c => (custId && c.id === custId) || (c.name && c.name.trim().toLowerCase() === custName.trim().toLowerCase()));
+  const isSupp = Boolean(matchedAcc?.isSupplier || matchedAcc?.accountType === 'supplier');
+
   const prevBal = parseFloat(document.getElementById('rcpPreviousBalance')?.value) || 0;
   const currentAmt = parseFloat(document.getElementById('rcpAmount')?.value) || 0;
   const remBalInput = document.getElementById('rcpRemainingBalance');
   const remHint = document.getElementById('rcpDebtRemainingHint');
   const cur = state.settings.currency || 'شيكل';
 
-  const remaining = Math.max(0, prevBal - currentAmt);
+  const remaining = prevBal - currentAmt;
   if (remBalInput) remBalInput.value = remaining;
   if (remHint) {
-    remHint.innerHTML = `الرصيد بعد السند: <strong style="color: ${remaining > 0 ? '#b45309' : '#047857'};">${remaining.toLocaleString('en-US')} ${cur}</strong>`;
+    if (isSupp) {
+      if (remaining > 0) {
+        remHint.innerHTML = `المتبقي له بذمتنا بعد الصرف: <strong style="color: #b45309;">${remaining.toLocaleString('en-US')} ${cur}</strong>`;
+      } else if (remaining < 0) {
+        remHint.innerHTML = `المتبقي عليه لنا (مدين): <strong style="color: #047857;">${Math.abs(remaining).toLocaleString('en-US')} ${cur}</strong>`;
+      } else {
+        remHint.innerHTML = `الرصيد بعد الصرف: <strong style="color: #047857;">0 ${cur} (تم تسديد كامل الحساب)</strong>`;
+      }
+    } else {
+      if (remaining > 0) {
+        remHint.innerHTML = `المبلغ المتبقي عليه بعد السند: <strong style="color: #b45309;">${remaining.toLocaleString('en-US')} ${cur}</strong>`;
+      } else if (remaining < 0) {
+        remHint.innerHTML = `رصيد دائن للزبون: <strong style="color: #2563eb;">${Math.abs(remaining).toLocaleString('en-US')} ${cur}</strong>`;
+      } else {
+        remHint.innerHTML = `الرصيد بعد السند: <strong style="color: #047857;">0 ${cur} (تم السداد بالكامل)</strong>`;
+      }
+    }
   }
 }
 
@@ -7837,6 +7890,11 @@ function renderCustomerStatementHtml(st) {
             <div style="font-size: 1.35rem; font-weight: 900; color: ${hasDebt ? '#dc2626' : (isCredit ? '#2563eb' : '#16a34a')};">
               ${balText}
             </div>
+            ${c.lastBalanceDiffDate || c.lastBalanceChangeDate ? `
+              <div style="font-size: 0.78rem; color: #4338ca; margin-top: 0.25rem; background: #eef2ff; padding: 3px 8px; border-radius: 4px; border: 1px solid #c7d2fe; display: inline-block;">
+                📅 تاريخ آخر فرق رصيد من الشامل: <strong>${formatAppDateTime(c.lastBalanceDiffDate || c.lastBalanceChangeDate)}</strong> ${c.balanceDifference ? `(${c.balanceDifference > 0 ? '+' : ''}${c.balanceDifference.toLocaleString('en-US')} ${cur})` : ''}
+              </div>
+            ` : ''}
           </div>
         </div>
       </div>

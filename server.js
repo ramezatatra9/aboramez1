@@ -1366,6 +1366,8 @@ app.post('/api/receipts', async (req, res) => {
       customerSystemNumber,
       previousBalance,
       remainingBalance,
+      isSupplier,
+      accountType,
       amount,
       description,
       notes,
@@ -1397,6 +1399,8 @@ app.post('/api/receipts', async (req, res) => {
       customerSystemNumber,
       previousBalance,
       remainingBalance,
+      isSupplier,
+      accountType,
       amount,
       description,
       notes,
@@ -1755,13 +1759,36 @@ app.post('/api/receipts/:id/send-pdf-telegram', pdfUpload.single('pdfFile'), asy
     // 2. إرفاق ملف PDF
     if (req.file && req.file.buffer) {
       const cur = settings.currency || 'شيكل';
-      const fileName = req.file.originalname || `سند_قبض_${receipt.receiptNumber}.pdf`;
-      const caption = 
+      const isSupp = Boolean(receipt.isSupplier || receipt.accountType === 'supplier');
+      const remBal = parseFloat(receipt.remainingBalance) || 0;
+      let remText = '';
+      if (isSupp) {
+        if (remBal > 0) remText = `⏳ <b>المتبقي له بذمتنا:</b> <b>${Number(remBal).toLocaleString('en-US')} ${cur}</b>`;
+        else if (remBal < 0) remText = `⏳ <b>المتبقي عليه لنا:</b> <b>${Number(Math.abs(remBal)).toLocaleString('en-US')} ${cur}</b>`;
+        else remText = `⏳ <b>الرصيد المتبقي:</b> <b>0 ${cur} (تم تسديد كامل الحساب)</b>`;
+      } else {
+        if (remBal > 0) remText = `⏳ <b>المبلغ المتبقي عليه:</b> <b>${Number(remBal).toLocaleString('en-US')} ${cur}</b>`;
+        else if (remBal < 0) remText = `⏳ <b>رصيد دائن للزبون:</b> <b>${Number(Math.abs(remBal)).toLocaleString('en-US')} ${cur}</b>`;
+        else remText = `⏳ <b>المبلغ المتبقي:</b> <b>0 ${cur} (تم السداد بالكامل)</b>`;
+      }
+
+      const fileName = req.file.originalname || (isSupp ? `سند_صرف_${receipt.receiptNumber}.pdf` : `سند_قبض_${receipt.receiptNumber}.pdf`);
+      const caption = isSupp ?
+`📄 <b>سند صرف لمورد معتمد #${receipt.receiptNumber} (ملف PDF رسمي)</b>
+🏢 <b>${settings.companyName || 'رامز عطاطرة'}</b>
+━━━━━━━━━━━━━━━━━━
+🏢 <b>المورد:</b> ${receipt.customerName}
+💵 <b>المبلغ المصروف:</b> 🔴 <b>${Number(receipt.amount || 0).toLocaleString('en-US')} ${cur}</b>
+${remText}
+📅 <b>التاريخ:</b> ${formatServerDateTime(receipt.createdAt)}
+<i>📎 مرفق أعلاه ملف سند الصرف الرسمي المعتمد بصيغة PDF.</i>`
+:
 `📄 <b>سند قبض مالي معتمد #${receipt.receiptNumber} (ملف PDF رسمي)</b>
 🏢 <b>${settings.companyName || 'رامز عطاطرة'}</b>
 ━━━━━━━━━━━━━━━━━━
 👤 <b>الزبون:</b> ${receipt.customerName}
 💰 <b>المبلغ المقبوض:</b> 🟢 <b>${Number(receipt.amount || 0).toLocaleString('en-US')} ${cur}</b>
+${remText}
 📅 <b>التاريخ:</b> ${formatServerDateTime(receipt.createdAt)}
 <i>📎 مرفق أعلاه ملف سند القبض الرسمي المعتمد بصيغة PDF.</i>`;
 
