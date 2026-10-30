@@ -978,9 +978,12 @@ async function processBarcodeAssignment(scannedBarcode) {
       if (successBox) successBox.style.display = 'flex';
       document.getElementById('assignScannerLiveWrapper').style.display = 'none';
 
-      // تحديث قائمة الجرد إن كانت مفتوحة
+      // تحديث قائمة الجرد والكتالوج إن كانا معروضين
       if (typeof renderInventoryList === 'function') {
         renderInventoryList();
+      }
+      if (typeof renderCatalog === 'function') {
+        renderCatalog();
       }
 
       if (typeof showToast === 'function') {

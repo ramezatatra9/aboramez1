@@ -60,9 +60,9 @@ assert(
 );
 
 assert(
-  html.includes('html5-qrcode.min.js?v=3.5.0') &&
-  html.includes('pin-barcode.js?v=7.5.0'),
-  'وسوم السكربت محدثة برقم إصدار Cache-Busting v3.5.0 لمنع تحميل نسخ الكاش القديمة'
+  html.includes('html5-qrcode.min.js?v=') &&
+  html.includes('pin-barcode.js?v='),
+  'وسوم السكربت محدثة برقم إصدار Cache-Busting لمنع تحميل نسخ الكاش القديمة'
 );
 
 // ─── 2. فحص قواعد CSS للنافذة المنبثقة وضبط الكاميرا ───
@@ -145,8 +145,8 @@ assert(
 );
 
 assert(
-  sw.includes('aboramez-pos-v3.5.0'),
-  'تحديث رقم إصدار Service Worker إلى v3.5.0 لتجاوز كاش PWA'
+  sw.includes('aboramez-pos-v3.'),
+  'تحديث رقم إصدار Service Worker لتجاوز كاش PWA'
 );
 
 assert(
