@@ -1049,15 +1049,28 @@
     "email": "",
     "address": "",
     "balance": 0,
-    "shamelBalance": 700,
+    "shamelBalance": 0,
     "isStopped": false,
     "notes": "دين عليه: 700 شيكل",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-19T16:23:21.984+00:00",
-    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
+    "syncedAt": "2026-10-30T19:01:17.831Z",
+    "syncedBy": "مزامنة حية مباشرة",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-19T16:23:21.984+00:00",
-    "lastSyncAt": null
+    "updatedAt": "2026-10-30T19:01:17.831Z",
+    "lastSyncAt": null,
+    "lastBalanceDiffDate": "2026-10-30T19:01:17.831Z",
+    "lastBalanceChangeDate": "2026-10-30T19:01:17.831Z",
+    "previousBalance": 700,
+    "balanceDifference": -700,
+    "balanceHistory": [
+      {
+        "date": "2026-10-30T19:01:17.831Z",
+        "oldBalance": 700,
+        "newBalance": 0,
+        "difference": -700,
+        "source": "shamel_sync"
+      }
+    ]
   },
   {
     "id": "cust-1791127655270-9553",
@@ -1329,15 +1342,28 @@
     "email": "",
     "address": "",
     "balance": 1700,
-    "shamelBalance": 2000,
+    "shamelBalance": 1700,
     "isStopped": false,
     "notes": "دين عليه: 2000 شيكل",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-19T16:23:21.984+00:00",
-    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
+    "syncedAt": "2026-10-30T19:01:17.831Z",
+    "syncedBy": "مزامنة حية مباشرة",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-19T16:23:21.984+00:00",
-    "lastSyncAt": null
+    "updatedAt": "2026-10-30T19:01:17.831Z",
+    "lastSyncAt": null,
+    "lastBalanceDiffDate": "2026-10-30T19:01:17.831Z",
+    "lastBalanceChangeDate": "2026-10-30T19:01:17.831Z",
+    "previousBalance": 2000,
+    "balanceDifference": -300,
+    "balanceHistory": [
+      {
+        "date": "2026-10-30T19:01:17.831Z",
+        "oldBalance": 2000,
+        "newBalance": 1700,
+        "difference": -300,
+        "source": "shamel_sync"
+      }
+    ]
   },
   {
     "id": "cust-1791127655272-19951",
@@ -1549,15 +1575,28 @@
     "email": "",
     "address": "",
     "balance": -1700,
-    "shamelBalance": -2300,
+    "shamelBalance": -1700,
     "isStopped": false,
     "notes": "رصيد خالص",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-19T16:23:21.984+00:00",
-    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
+    "syncedAt": "2026-10-30T19:01:17.831Z",
+    "syncedBy": "مزامنة حية مباشرة",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-19T16:23:21.984+00:00",
-    "lastSyncAt": null
+    "updatedAt": "2026-10-30T19:01:17.831Z",
+    "lastSyncAt": null,
+    "lastBalanceDiffDate": "2026-10-30T19:01:17.831Z",
+    "lastBalanceChangeDate": "2026-10-30T19:01:17.831Z",
+    "previousBalance": -2300,
+    "balanceDifference": 600,
+    "balanceHistory": [
+      {
+        "date": "2026-10-30T19:01:17.831Z",
+        "oldBalance": -2300,
+        "newBalance": -1700,
+        "difference": 600,
+        "source": "shamel_sync"
+      }
+    ]
   },
   {
     "id": "cust-1791127655270-30920",
@@ -1789,15 +1828,28 @@
     "email": "",
     "address": "",
     "balance": -870,
-    "shamelBalance": -270,
+    "shamelBalance": -870,
     "isStopped": false,
     "notes": "رصيد دائن له: 270 شيكل",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-19T16:23:21.984+00:00",
-    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
+    "syncedAt": "2026-10-30T19:01:17.831Z",
+    "syncedBy": "مزامنة حية مباشرة",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-19T16:23:21.984+00:00",
-    "lastSyncAt": null
+    "updatedAt": "2026-10-30T19:01:17.831Z",
+    "lastSyncAt": null,
+    "lastBalanceDiffDate": "2026-10-30T19:01:17.831Z",
+    "lastBalanceChangeDate": "2026-10-30T19:01:17.831Z",
+    "previousBalance": -270,
+    "balanceDifference": -600,
+    "balanceHistory": [
+      {
+        "date": "2026-10-30T19:01:17.831Z",
+        "oldBalance": -270,
+        "newBalance": -870,
+        "difference": -600,
+        "source": "shamel_sync"
+      }
+    ]
   },
   {
     "id": "cust-1791127655270-40844",
@@ -1949,15 +2001,28 @@
     "email": "",
     "address": "",
     "balance": 150,
-    "shamelBalance": 0,
+    "shamelBalance": 150,
     "isStopped": false,
     "notes": "رصيد خالص",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-19T16:23:21.984+00:00",
-    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
+    "syncedAt": "2026-10-30T19:01:17.831Z",
+    "syncedBy": "مزامنة حية مباشرة",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-19T16:23:21.984+00:00",
-    "lastSyncAt": null
+    "updatedAt": "2026-10-30T19:01:17.831Z",
+    "lastSyncAt": null,
+    "lastBalanceDiffDate": "2026-10-30T19:01:17.831Z",
+    "lastBalanceChangeDate": "2026-10-30T19:01:17.831Z",
+    "previousBalance": 0,
+    "balanceDifference": 150,
+    "balanceHistory": [
+      {
+        "date": "2026-10-30T19:01:17.831Z",
+        "oldBalance": 0,
+        "newBalance": 150,
+        "difference": 150,
+        "source": "shamel_sync"
+      }
+    ]
   },
   {
     "id": "cust-1791127655270-89829",
@@ -2309,15 +2374,28 @@
     "email": "",
     "address": "",
     "balance": 1000,
-    "shamelBalance": 1300,
+    "shamelBalance": 1000,
     "isStopped": false,
     "notes": "دين عليه: 1300 شيكل",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-19T16:23:21.984+00:00",
-    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
+    "syncedAt": "2026-10-30T19:01:17.831Z",
+    "syncedBy": "مزامنة حية مباشرة",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-19T16:23:21.984+00:00",
-    "lastSyncAt": null
+    "updatedAt": "2026-10-30T19:01:17.831Z",
+    "lastSyncAt": null,
+    "lastBalanceDiffDate": "2026-10-30T19:01:17.831Z",
+    "lastBalanceChangeDate": "2026-10-30T19:01:17.831Z",
+    "previousBalance": 1300,
+    "balanceDifference": -300,
+    "balanceHistory": [
+      {
+        "date": "2026-10-30T19:01:17.831Z",
+        "oldBalance": 1300,
+        "newBalance": 1000,
+        "difference": -300,
+        "source": "shamel_sync"
+      }
+    ]
   },
   {
     "id": "cust-1791127655277-30367",
@@ -2449,15 +2527,28 @@
     "email": "",
     "address": "",
     "balance": 550,
-    "shamelBalance": 800,
+    "shamelBalance": 550,
     "isStopped": false,
     "notes": "دين عليه: 800 شيكل",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-19T16:23:21.984+00:00",
-    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
+    "syncedAt": "2026-10-30T19:01:17.831Z",
+    "syncedBy": "مزامنة حية مباشرة",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-19T16:23:21.984+00:00",
-    "lastSyncAt": null
+    "updatedAt": "2026-10-30T19:01:17.831Z",
+    "lastSyncAt": null,
+    "lastBalanceDiffDate": "2026-10-30T19:01:17.831Z",
+    "lastBalanceChangeDate": "2026-10-30T19:01:17.831Z",
+    "previousBalance": 800,
+    "balanceDifference": -250,
+    "balanceHistory": [
+      {
+        "date": "2026-10-30T19:01:17.831Z",
+        "oldBalance": 800,
+        "newBalance": 550,
+        "difference": -250,
+        "source": "shamel_sync"
+      }
+    ]
   },
   {
     "id": "cust-1791127655269-86723",
@@ -2829,15 +2920,28 @@
     "email": "",
     "address": "",
     "balance": 1200,
-    "shamelBalance": 0,
+    "shamelBalance": 1200,
     "isStopped": false,
     "notes": "رصيد خالص",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-19T16:23:21.984+00:00",
-    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
+    "syncedAt": "2026-10-30T19:01:17.831Z",
+    "syncedBy": "مزامنة حية مباشرة",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-19T16:23:21.984+00:00",
-    "lastSyncAt": null
+    "updatedAt": "2026-10-30T19:01:17.831Z",
+    "lastSyncAt": null,
+    "lastBalanceDiffDate": "2026-10-30T19:01:17.831Z",
+    "lastBalanceChangeDate": "2026-10-30T19:01:17.831Z",
+    "previousBalance": 0,
+    "balanceDifference": 1200,
+    "balanceHistory": [
+      {
+        "date": "2026-10-30T19:01:17.831Z",
+        "oldBalance": 0,
+        "newBalance": 1200,
+        "difference": 1200,
+        "source": "shamel_sync"
+      }
+    ]
   },
   {
     "id": "cust-1791127655288-7603",
@@ -3409,15 +3513,28 @@
     "email": "",
     "address": "",
     "balance": 0,
-    "shamelBalance": 4000,
+    "shamelBalance": 0,
     "isStopped": false,
     "notes": "دين عليه: 4000 شيكل",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-19T16:23:21.984+00:00",
-    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
+    "syncedAt": "2026-10-30T19:01:17.831Z",
+    "syncedBy": "مزامنة حية مباشرة",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-19T16:23:21.984+00:00",
-    "lastSyncAt": null
+    "updatedAt": "2026-10-30T19:01:17.831Z",
+    "lastSyncAt": null,
+    "lastBalanceDiffDate": "2026-10-30T19:01:17.831Z",
+    "lastBalanceChangeDate": "2026-10-30T19:01:17.831Z",
+    "previousBalance": 4000,
+    "balanceDifference": -4000,
+    "balanceHistory": [
+      {
+        "date": "2026-10-30T19:01:17.831Z",
+        "oldBalance": 4000,
+        "newBalance": 0,
+        "difference": -4000,
+        "source": "shamel_sync"
+      }
+    ]
   },
   {
     "id": "cust-1791127655280-40011",
@@ -3449,15 +3566,28 @@
     "email": "",
     "address": "",
     "balance": 150,
-    "shamelBalance": 0,
+    "shamelBalance": 150,
     "isStopped": false,
     "notes": "",
     "source": "",
-    "syncedAt": null,
-    "syncedBy": null,
+    "syncedAt": "2026-10-30T19:01:17.831Z",
+    "syncedBy": "مزامنة حية مباشرة",
     "createdAt": "2026-10-27T18:54:36.786+00:00",
-    "updatedAt": "2026-10-27T18:54:37.403322+00:00",
-    "lastSyncAt": null
+    "updatedAt": "2026-10-30T19:01:17.831Z",
+    "lastSyncAt": null,
+    "lastBalanceDiffDate": "2026-10-30T19:01:17.831Z",
+    "lastBalanceChangeDate": "2026-10-30T19:01:17.831Z",
+    "previousBalance": 0,
+    "balanceDifference": 150,
+    "balanceHistory": [
+      {
+        "date": "2026-10-30T19:01:17.831Z",
+        "oldBalance": 0,
+        "newBalance": 150,
+        "difference": 150,
+        "source": "shamel_sync"
+      }
+    ]
   },
   {
     "id": "cust-1791127655270-18601",
@@ -3889,15 +4019,28 @@
     "email": "",
     "address": "",
     "balance": 0,
-    "shamelBalance": 500,
+    "shamelBalance": 0,
     "isStopped": false,
     "notes": "دين عليه: 500 شيكل",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-19T16:23:21.984+00:00",
-    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
+    "syncedAt": "2026-10-30T19:01:17.831Z",
+    "syncedBy": "مزامنة حية مباشرة",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-19T16:23:21.984+00:00",
-    "lastSyncAt": null
+    "updatedAt": "2026-10-30T19:01:17.831Z",
+    "lastSyncAt": null,
+    "lastBalanceDiffDate": "2026-10-30T19:01:17.831Z",
+    "lastBalanceChangeDate": "2026-10-30T19:01:17.831Z",
+    "previousBalance": 500,
+    "balanceDifference": -500,
+    "balanceHistory": [
+      {
+        "date": "2026-10-30T19:01:17.831Z",
+        "oldBalance": 500,
+        "newBalance": 0,
+        "difference": -500,
+        "source": "shamel_sync"
+      }
+    ]
   },
   {
     "id": "cust-1791127655269-5698",
@@ -4409,15 +4552,28 @@
     "email": "",
     "address": "",
     "balance": 750,
-    "shamelBalance": 850,
+    "shamelBalance": 750,
     "isStopped": false,
     "notes": "دين عليه: 850 شيكل",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-19T16:23:21.984+00:00",
-    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
+    "syncedAt": "2026-10-30T19:01:17.831Z",
+    "syncedBy": "مزامنة حية مباشرة",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-19T16:23:21.984+00:00",
-    "lastSyncAt": null
+    "updatedAt": "2026-10-30T19:01:17.831Z",
+    "lastSyncAt": null,
+    "lastBalanceDiffDate": "2026-10-30T19:01:17.831Z",
+    "lastBalanceChangeDate": "2026-10-30T19:01:17.831Z",
+    "previousBalance": 850,
+    "balanceDifference": -100,
+    "balanceHistory": [
+      {
+        "date": "2026-10-30T19:01:17.831Z",
+        "oldBalance": 850,
+        "newBalance": 750,
+        "difference": -100,
+        "source": "shamel_sync"
+      }
+    ]
   },
   {
     "id": "cust-1791127655287-92367",
@@ -4689,15 +4845,28 @@
     "email": "",
     "address": "",
     "balance": 9450,
-    "shamelBalance": 10250,
+    "shamelBalance": 9450,
     "isStopped": false,
     "notes": "دين عليه: 10250 شيكل",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-19T16:23:21.984+00:00",
-    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
+    "syncedAt": "2026-10-30T19:01:17.831Z",
+    "syncedBy": "مزامنة حية مباشرة",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-19T16:23:21.984+00:00",
-    "lastSyncAt": null
+    "updatedAt": "2026-10-30T19:01:17.831Z",
+    "lastSyncAt": null,
+    "lastBalanceDiffDate": "2026-10-30T19:01:17.831Z",
+    "lastBalanceChangeDate": "2026-10-30T19:01:17.831Z",
+    "previousBalance": 10250,
+    "balanceDifference": -800,
+    "balanceHistory": [
+      {
+        "date": "2026-10-30T19:01:17.831Z",
+        "oldBalance": 10250,
+        "newBalance": 9450,
+        "difference": -800,
+        "source": "shamel_sync"
+      }
+    ]
   },
   {
     "id": "cust-1791127655270-35216",
@@ -5829,15 +5998,28 @@
     "email": "",
     "address": "",
     "balance": 0,
-    "shamelBalance": 300,
+    "shamelBalance": 0,
     "isStopped": false,
     "notes": "دين عليه: 300 شيكل",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-19T16:23:21.984+00:00",
-    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
+    "syncedAt": "2026-10-30T19:01:17.831Z",
+    "syncedBy": "مزامنة حية مباشرة",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-19T16:23:21.984+00:00",
-    "lastSyncAt": null
+    "updatedAt": "2026-10-30T19:01:17.831Z",
+    "lastSyncAt": null,
+    "lastBalanceDiffDate": "2026-10-30T19:01:17.831Z",
+    "lastBalanceChangeDate": "2026-10-30T19:01:17.831Z",
+    "previousBalance": 300,
+    "balanceDifference": -300,
+    "balanceHistory": [
+      {
+        "date": "2026-10-30T19:01:17.831Z",
+        "oldBalance": 300,
+        "newBalance": 0,
+        "difference": -300,
+        "source": "shamel_sync"
+      }
+    ]
   },
   {
     "id": "cust-1791127655297-42564",
@@ -6029,15 +6211,28 @@
     "email": "",
     "address": "",
     "balance": 100,
-    "shamelBalance": 200,
+    "shamelBalance": 100,
     "isStopped": false,
     "notes": "دين عليه: 200 شيكل",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-19T16:23:21.984+00:00",
-    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
+    "syncedAt": "2026-10-30T19:01:17.831Z",
+    "syncedBy": "مزامنة حية مباشرة",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-19T16:23:21.984+00:00",
-    "lastSyncAt": null
+    "updatedAt": "2026-10-30T19:01:17.831Z",
+    "lastSyncAt": null,
+    "lastBalanceDiffDate": "2026-10-30T19:01:17.831Z",
+    "lastBalanceChangeDate": "2026-10-30T19:01:17.831Z",
+    "previousBalance": 200,
+    "balanceDifference": -100,
+    "balanceHistory": [
+      {
+        "date": "2026-10-30T19:01:17.831Z",
+        "oldBalance": 200,
+        "newBalance": 100,
+        "difference": -100,
+        "source": "shamel_sync"
+      }
+    ]
   },
   {
     "id": "cust-1791127655271-36101",
@@ -6409,15 +6604,28 @@
     "email": "",
     "address": "",
     "balance": 600,
-    "shamelBalance": 900,
+    "shamelBalance": 600,
     "isStopped": false,
     "notes": "دين عليه: 900 شيكل",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-19T16:23:21.984+00:00",
-    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
+    "syncedAt": "2026-10-30T19:01:17.831Z",
+    "syncedBy": "مزامنة حية مباشرة",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-19T16:23:21.984+00:00",
-    "lastSyncAt": null
+    "updatedAt": "2026-10-30T19:01:17.831Z",
+    "lastSyncAt": null,
+    "lastBalanceDiffDate": "2026-10-30T19:01:17.831Z",
+    "lastBalanceChangeDate": "2026-10-30T19:01:17.831Z",
+    "previousBalance": 900,
+    "balanceDifference": -300,
+    "balanceHistory": [
+      {
+        "date": "2026-10-30T19:01:17.831Z",
+        "oldBalance": 900,
+        "newBalance": 600,
+        "difference": -300,
+        "source": "shamel_sync"
+      }
+    ]
   },
   {
     "id": "cust-1791127655269-74148",
@@ -7289,15 +7497,28 @@
     "email": "",
     "address": "",
     "balance": 6500,
-    "shamelBalance": 7500,
+    "shamelBalance": 6500,
     "isStopped": false,
     "notes": "دين عليه: 7500 شيكل",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-19T16:23:21.984+00:00",
-    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
+    "syncedAt": "2026-10-30T19:01:17.831Z",
+    "syncedBy": "مزامنة حية مباشرة",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-19T16:23:21.984+00:00",
-    "lastSyncAt": null
+    "updatedAt": "2026-10-30T19:01:17.831Z",
+    "lastSyncAt": null,
+    "lastBalanceDiffDate": "2026-10-30T19:01:17.831Z",
+    "lastBalanceChangeDate": "2026-10-30T19:01:17.831Z",
+    "previousBalance": 7500,
+    "balanceDifference": -1000,
+    "balanceHistory": [
+      {
+        "date": "2026-10-30T19:01:17.831Z",
+        "oldBalance": 7500,
+        "newBalance": 6500,
+        "difference": -1000,
+        "source": "shamel_sync"
+      }
+    ]
   },
   {
     "id": "cust-1791127655297-535",
@@ -7949,15 +8170,28 @@
     "email": "",
     "address": "",
     "balance": 2050,
-    "shamelBalance": 2550,
+    "shamelBalance": 2050,
     "isStopped": false,
     "notes": "دين عليه: 2550 شيكل",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-19T16:23:21.984+00:00",
-    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
+    "syncedAt": "2026-10-30T19:01:17.831Z",
+    "syncedBy": "مزامنة حية مباشرة",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-19T16:23:21.984+00:00",
-    "lastSyncAt": null
+    "updatedAt": "2026-10-30T19:01:17.831Z",
+    "lastSyncAt": null,
+    "lastBalanceDiffDate": "2026-10-30T19:01:17.831Z",
+    "lastBalanceChangeDate": "2026-10-30T19:01:17.831Z",
+    "previousBalance": 2550,
+    "balanceDifference": -500,
+    "balanceHistory": [
+      {
+        "date": "2026-10-30T19:01:17.831Z",
+        "oldBalance": 2550,
+        "newBalance": 2050,
+        "difference": -500,
+        "source": "shamel_sync"
+      }
+    ]
   },
   {
     "id": "cust-1791127655302-36209",
@@ -8149,15 +8383,28 @@
     "email": "",
     "address": "",
     "balance": 0,
-    "shamelBalance": 1000,
+    "shamelBalance": 0,
     "isStopped": false,
     "notes": "دين عليه: 1000 شيكل",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-19T16:23:21.984+00:00",
-    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
+    "syncedAt": "2026-10-30T19:01:17.831Z",
+    "syncedBy": "مزامنة حية مباشرة",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-19T16:23:21.984+00:00",
-    "lastSyncAt": null
+    "updatedAt": "2026-10-30T19:01:17.831Z",
+    "lastSyncAt": null,
+    "lastBalanceDiffDate": "2026-10-30T19:01:17.831Z",
+    "lastBalanceChangeDate": "2026-10-30T19:01:17.831Z",
+    "previousBalance": 1000,
+    "balanceDifference": -1000,
+    "balanceHistory": [
+      {
+        "date": "2026-10-30T19:01:17.831Z",
+        "oldBalance": 1000,
+        "newBalance": 0,
+        "difference": -1000,
+        "source": "shamel_sync"
+      }
+    ]
   },
   {
     "id": "cust-1791127655269-43888",
@@ -9009,15 +9256,28 @@
     "email": "",
     "address": "",
     "balance": 500,
-    "shamelBalance": 1000,
+    "shamelBalance": 500,
     "isStopped": false,
     "notes": "دين عليه: 1000 شيكل",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-19T16:23:21.984+00:00",
-    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
+    "syncedAt": "2026-10-30T19:01:17.831Z",
+    "syncedBy": "مزامنة حية مباشرة",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-19T16:23:21.984+00:00",
-    "lastSyncAt": null
+    "updatedAt": "2026-10-30T19:01:17.831Z",
+    "lastSyncAt": null,
+    "lastBalanceDiffDate": "2026-10-30T19:01:17.831Z",
+    "lastBalanceChangeDate": "2026-10-30T19:01:17.831Z",
+    "previousBalance": 1000,
+    "balanceDifference": -500,
+    "balanceHistory": [
+      {
+        "date": "2026-10-30T19:01:17.831Z",
+        "oldBalance": 1000,
+        "newBalance": 500,
+        "difference": -500,
+        "source": "shamel_sync"
+      }
+    ]
   },
   {
     "id": "cust-1791127655275-61603",
@@ -9169,15 +9429,28 @@
     "email": "",
     "address": "",
     "balance": 1100,
-    "shamelBalance": 800,
+    "shamelBalance": 1100,
     "isStopped": false,
     "notes": "دين عليه: 800 شيكل",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-19T16:23:21.984+00:00",
-    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
+    "syncedAt": "2026-10-30T19:01:17.831Z",
+    "syncedBy": "مزامنة حية مباشرة",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-19T16:23:21.984+00:00",
-    "lastSyncAt": null
+    "updatedAt": "2026-10-30T19:01:17.831Z",
+    "lastSyncAt": null,
+    "lastBalanceDiffDate": "2026-10-30T19:01:17.831Z",
+    "lastBalanceChangeDate": "2026-10-30T19:01:17.831Z",
+    "previousBalance": 800,
+    "balanceDifference": 300,
+    "balanceHistory": [
+      {
+        "date": "2026-10-30T19:01:17.831Z",
+        "oldBalance": 800,
+        "newBalance": 1100,
+        "difference": 300,
+        "source": "shamel_sync"
+      }
+    ]
   },
   {
     "id": "cust-1791127655285-28907",
@@ -9249,15 +9522,28 @@
     "email": "",
     "address": "",
     "balance": 1500,
-    "shamelBalance": 2000,
+    "shamelBalance": 1500,
     "isStopped": false,
     "notes": "رصيد خالص",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-19T16:23:21.984+00:00",
-    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
+    "syncedAt": "2026-10-30T19:01:17.831Z",
+    "syncedBy": "مزامنة حية مباشرة",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-19T16:23:21.984+00:00",
-    "lastSyncAt": null
+    "updatedAt": "2026-10-30T19:01:17.831Z",
+    "lastSyncAt": null,
+    "lastBalanceDiffDate": "2026-10-30T19:01:17.831Z",
+    "lastBalanceChangeDate": "2026-10-30T19:01:17.831Z",
+    "previousBalance": 2000,
+    "balanceDifference": -500,
+    "balanceHistory": [
+      {
+        "date": "2026-10-30T19:01:17.831Z",
+        "oldBalance": 2000,
+        "newBalance": 1500,
+        "difference": -500,
+        "source": "shamel_sync"
+      }
+    ]
   },
   {
     "id": "cust-1791127655297-62196",
