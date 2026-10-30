@@ -1,11 +1,11 @@
 {
-  "lastSyncAt": "2026-10-30T19:08:20.139Z",
   "mode": "upsert",
-  "itemsReceived": 1,
+  "failed": 0,
   "created": 0,
   "updated": 1,
   "unchanged": 0,
-  "failed": 0,
-  "totalCustomers": 487,
-  "editorName": "مزامنة الشامل لايت"
+  "editorName": "مزامنة الشامل لايت",
+  "lastSyncAt": "2026-10-30T19:18:07.115Z",
+  "itemsReceived": 1,
+  "totalCustomers": 487
 }

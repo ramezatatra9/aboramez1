@@ -1313,20 +1313,46 @@ const dataStore = {
 
     if (idx !== -1) {
       const current = parseFloat(customers[idx].balance) || 0;
-      const updated = current + parseFloat(deltaAmount);
+      const delta = parseFloat(deltaAmount) || 0;
+      const updated = parseFloat((current + delta).toFixed(2));
+      const now = new Date().toISOString();
+      const hasDiff = Math.abs(current - updated) > 0.01;
+
+      let balanceHistory = Array.isArray(customers[idx].balanceHistory) ? [...customers[idx].balanceHistory] : [];
+      if (hasDiff) {
+        balanceHistory.unshift({
+          date: now,
+          oldBalance: current,
+          newBalance: updated,
+          difference: delta,
+          source: 'balance_adjustment'
+        });
+        if (balanceHistory.length > 50) balanceHistory = balanceHistory.slice(0, 50);
+      }
+
       const updatedCustomer = {
         ...customers[idx],
-        balance: parseFloat(updated.toFixed(2)),
-        updatedAt: new Date().toISOString()
+        balance: updated,
+        shamelBalance: updated,
+        lastBalanceDiffDate: hasDiff ? now : (customers[idx].lastBalanceDiffDate || null),
+        lastBalanceChangeDate: hasDiff ? now : (customers[idx].lastBalanceChangeDate || null),
+        previousBalance: hasDiff ? current : (customers[idx].previousBalance !== undefined ? customers[idx].previousBalance : current),
+        balanceDifference: hasDiff ? delta : (customers[idx].balanceDifference || 0),
+        balanceHistory,
+        updatedAt: now
       };
-      if (supabase) {
-        const res = await syncCustomerToSupabase(updatedCustomer);
-        if (!res.success) {
-          throw new Error('تعذر تحديث رصيد العميل في قاعدة البيانات الدائمة (Supabase): ' + res.error);
-        }
-      }
+
       customers[idx] = updatedCustomer;
       writeJson(CUSTOMERS_FILE, customers);
+
+      if (supabase) {
+        try {
+          await syncCustomerToSupabase(updatedCustomer);
+          await supabase.from('settings').upsert({ id: 'customers', data: customers });
+        } catch (sbErr) {
+          console.warn('adjustCustomerBalance supabase warn:', sbErr.message);
+        }
+      }
       return customers[idx];
     }
     return null;
@@ -2829,18 +2855,18 @@ const dataStore = {
       console.error('❌ خطأ في استعادة المنتجات:', pErr.message);
     }
 
-    // 6. استعادة الزبائن الدائمين (من جدول customers مباشرة مع fallback لـ settings)
+    // 6. استعادة الزبائن — settings.customers أولاً (snapshot المزامنة الكامل مع تاريخ الفروقات) ثم جدول customers المباشر
     try {
       let custData = null;
-      const { data: cTable, error: cErr } = await supabase.from('customers').select('*').order('name');
-      if (!cErr && Array.isArray(cTable) && cTable.length > 0) {
-        custData = cTable;
-        console.log(`✅ تم استعادة ${custData.length} زبون من جدول customers الأساسي في Supabase`);
+      const { data: cRow } = await supabase.from('settings').select('data').eq('id', 'customers').maybeSingle();
+      if (cRow && Array.isArray(cRow.data) && cRow.data.length > 0) {
+        custData = cRow.data;
+        console.log(`✅ تم استعادة ${custData.length} زبون بأرصدتهم وتواريخ حركاتهم الدائمة من settings`);
       } else {
-        const { data: cRow } = await supabase.from('settings').select('data').eq('id', 'customers').maybeSingle();
-        if (cRow && Array.isArray(cRow.data) && cRow.data.length > 0) {
-          custData = cRow.data;
-          console.log(`✅ تم استعادة ${custData.length} زبون بأرصدتهم الدائمة من snapshot في settings`);
+        const { data: cTable, error: cErr } = await supabase.from('customers').select('*').order('name');
+        if (!cErr && Array.isArray(cTable) && cTable.length > 0) {
+          custData = cTable;
+          console.log(`✅ تم استعادة ${custData.length} زبون من جدول customers الأساسي في Supabase`);
         }
       }
       if (custData && custData.length > 0) {

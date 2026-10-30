@@ -36,26 +36,26 @@
     "lastSyncAt": null,
     "shamelCode": "S00000006",
     "shamelBalance": 0,
-    "lastBalanceDiffDate": "2026-10-30T19:00:30.560Z",
-    "lastBalanceChangeDate": "2026-10-30T19:00:30.560Z",
-    "previousBalance": -500,
-    "balanceDifference": 500,
     "balanceHistory": [
       {
         "date": "2026-10-30T19:00:30.560Z",
-        "oldBalance": -500,
-        "newBalance": 0,
+        "source": "shamel_sync",
         "difference": 500,
-        "source": "shamel_sync"
+        "newBalance": 0,
+        "oldBalance": -500
       },
       {
         "date": "2026-10-30T19:00:19.042Z",
-        "oldBalance": 0,
-        "newBalance": -500,
+        "source": "shamel_sync",
         "difference": -500,
-        "source": "shamel_sync"
+        "newBalance": -500,
+        "oldBalance": 0
       }
-    ]
+    ],
+    "previousBalance": -500,
+    "balanceDifference": 500,
+    "lastBalanceDiffDate": "2026-10-30T19:00:30.560Z",
+    "lastBalanceChangeDate": "2026-10-30T19:00:30.560Z"
   },
   {
     "id": "supp-shamel-S00000002-1792427001986",
@@ -75,26 +75,26 @@
     "lastSyncAt": null,
     "shamelCode": "S00000002",
     "shamelBalance": 0,
-    "lastBalanceDiffDate": "2026-10-30T19:08:11.014Z",
-    "lastBalanceChangeDate": "2026-10-30T19:08:11.014Z",
-    "previousBalance": 1200,
-    "balanceDifference": -1200,
     "balanceHistory": [
       {
         "date": "2026-10-30T19:08:11.014Z",
-        "oldBalance": 1200,
-        "newBalance": 0,
+        "source": "shamel_sync",
         "difference": -1200,
-        "source": "shamel_sync"
+        "newBalance": 0,
+        "oldBalance": 1200
       },
       {
         "date": "2026-10-30T19:07:02.584Z",
-        "oldBalance": 0,
-        "newBalance": 1200,
+        "source": "shamel_sync",
         "difference": 1200,
-        "source": "shamel_sync"
+        "newBalance": 1200,
+        "oldBalance": 0
       }
-    ]
+    ],
+    "previousBalance": 1200,
+    "balanceDifference": -1200,
+    "lastBalanceDiffDate": "2026-10-30T19:08:11.014Z",
+    "lastBalanceChangeDate": "2026-10-30T19:08:11.014Z"
   },
   {
     "id": "supp-shamel-S00000015-1793127285437",
@@ -152,26 +152,26 @@
     "lastSyncAt": null,
     "shamelCode": "S00000012",
     "shamelBalance": 22378,
-    "lastBalanceDiffDate": "2026-10-30T19:00:30.560Z",
-    "lastBalanceChangeDate": "2026-10-30T19:00:30.560Z",
-    "previousBalance": 25000,
-    "balanceDifference": -2622,
     "balanceHistory": [
       {
         "date": "2026-10-30T19:00:30.560Z",
-        "oldBalance": 25000,
-        "newBalance": 22378,
+        "source": "shamel_sync",
         "difference": -2622,
-        "source": "shamel_sync"
+        "newBalance": 22378,
+        "oldBalance": 25000
       },
       {
         "date": "2026-10-30T19:00:19.042Z",
-        "oldBalance": 22378,
-        "newBalance": 25000,
+        "source": "shamel_sync",
         "difference": 2622,
-        "source": "shamel_sync"
+        "newBalance": 25000,
+        "oldBalance": 22378
       }
-    ]
+    ],
+    "previousBalance": 25000,
+    "balanceDifference": -2622,
+    "lastBalanceDiffDate": "2026-10-30T19:00:30.560Z",
+    "lastBalanceChangeDate": "2026-10-30T19:00:30.560Z"
   },
   {
     "id": "supp-shamel-S00000004-1792427001986",
@@ -206,38 +206,38 @@
     "syncedBy": "مزامنة حية مباشرة",
     "createdAt": "2026-10-19T16:23:21.984+00:00",
     "isStopped": false,
-    "updatedAt": "2026-10-30T19:08:19.192Z",
+    "updatedAt": "2026-10-30T19:18:06.001Z",
     "lastSyncAt": null,
     "shamelCode": "S00000001",
     "shamelBalance": 468958.36,
     "balanceHistory": [
       {
         "date": "2026-10-30T19:08:11.014Z",
-        "oldBalance": 5000,
-        "newBalance": 468958.36,
+        "source": "shamel_sync",
         "difference": 463958.36,
-        "source": "shamel_sync"
+        "newBalance": 468958.36,
+        "oldBalance": 5000
       },
       {
         "date": "2026-10-30T19:07:02.584Z",
-        "oldBalance": 468958.36,
-        "newBalance": 5000,
+        "source": "shamel_sync",
         "difference": -463958.36,
-        "source": "shamel_sync"
+        "newBalance": 5000,
+        "oldBalance": 468958.36
       },
       {
         "date": "2026-10-30T19:00:30.560Z",
-        "oldBalance": 500000,
-        "newBalance": 468958.36,
+        "source": "shamel_sync",
         "difference": -31041.64,
-        "source": "shamel_sync"
+        "newBalance": 468958.36,
+        "oldBalance": 500000
       },
       {
         "date": "2026-10-30T19:00:19.042Z",
-        "oldBalance": 468958.36,
-        "newBalance": 500000,
+        "source": "shamel_sync",
         "difference": 31041.64,
-        "source": "shamel_sync"
+        "newBalance": 500000,
+        "oldBalance": 468958.36
       },
       {
         "date": "2026-10-30T18:50:11.808Z",
@@ -269,7 +269,20 @@
     "updatedAt": "2026-10-30T18:58:59.082Z",
     "lastSyncAt": null,
     "shamelCode": "S00000010",
-    "shamelBalance": 2570
+    "shamelBalance": 2570,
+    "balanceHistory": [
+      {
+        "date": "2026-10-30T18:58:59.082Z",
+        "source": "initial_balance",
+        "difference": 2570,
+        "newBalance": 2570,
+        "oldBalance": 0
+      }
+    ],
+    "previousBalance": 0,
+    "balanceDifference": 2570,
+    "lastBalanceDiffDate": "2026-10-30T18:58:59.082Z",
+    "lastBalanceChangeDate": "2026-10-30T18:58:59.082Z"
   },
   {
     "id": "supp-shamel-S00000013-1792427001986",
@@ -358,7 +371,20 @@
     "updatedAt": "2026-10-30T18:58:59.082Z",
     "lastSyncAt": null,
     "shamelCode": "S00000014",
-    "shamelBalance": 700
+    "shamelBalance": 700,
+    "balanceHistory": [
+      {
+        "date": "2026-10-30T18:58:59.082Z",
+        "source": "initial_balance",
+        "difference": 700,
+        "newBalance": 700,
+        "oldBalance": 0
+      }
+    ],
+    "previousBalance": 0,
+    "balanceDifference": 700,
+    "lastBalanceDiffDate": "2026-10-30T18:58:59.082Z",
+    "lastBalanceChangeDate": "2026-10-30T18:58:59.082Z"
   },
   {
     "id": "supp-shamel-S00000005-1792427001986",
