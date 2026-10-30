@@ -710,10 +710,12 @@ textarea.form-control {
   opacity: 0.85;
 }
 
-/* Product Cards */
+/* Product Cards — شبكة متجاوبة مع تكبير الصفحة:
+   عند zoom 100% على شاشة عادية (≥600px) → عمودان
+   عند التكبير يضيق الـ viewport → ينهار لعمود واحد */
 .products-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
   gap: 1.25rem;
 }
 
@@ -7326,6 +7328,33 @@ body.role-cashier #tab-create-invoice .summary-row:has(.col-profit),
 body.role-cashier button[onclick*="openProductModalForEdit"],
 body.role-cashier button[onclick*="confirmDeleteProduct"] {
   display: none !important;
+}
+
+/* =========================================================
+   نافذة تفاصيل الصنف السريعة
+   ========================================================= */
+#productDetailSheet {
+  z-index: 9999;
+}
+
+#productDetailSheetBox {
+  animation: pdsSlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes pdsSlideIn {
+  from { transform: translateY(30px) scale(0.97); opacity: 0; }
+  to   { transform: translateY(0) scale(1);       opacity: 1; }
+}
+
+/* إخفاء حقلي التكلفة والربح عن الكاشير في نافذة التفاصيل */
+body.role-cashier .pds-cost-field,
+body.role-cashier #pdsProfitBox {
+  display: none !important;
+}
+
+/* عند الكاشير: حقول الأسعار تملأ العرض كاملاً بدل عمودين */
+body.role-cashier .pds-prices-grid {
+  grid-template-columns: 1fr !important;
 }
 
 /* =========================================================
