@@ -1,8 +1,11 @@
 {
-  "lastSyncAt": "2026-10-19T16:35:21.179Z",
-  "mode": "full_clean_rebuild",
-  "itemsReceived": 1431,
-  "created": 1431,
+  "mode": "full",
+  "created": 0,
   "updated": 0,
-  "unchanged": 0
+  "suspended": 0,
+  "unchanged": 182,
+  "editorName": "برنامج مزامنة الشامل",
+  "lastSyncAt": "2026-10-30T18:23:10.137Z",
+  "itemsReceived": 182,
+  "totalCatalogProducts": 1436
 }

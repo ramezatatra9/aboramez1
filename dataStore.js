@@ -1233,7 +1233,7 @@ const dataStore = {
       var shamelBal = c.shamelBalance !== undefined
         ? (typeof c.shamelBalance === 'number' ? c.shamelBalance : (parseFloat(String(c.shamelBalance || '0').replace(/,/g, '')) || 0))
         : rawBal;
-      return Object.assign({}, c, { shamelBalance: shamelBal, balance: rawBal });
+      return Object.assign({}, c, { shamelBalance: shamelBal, balance: shamelBal });
     });
   },
 
@@ -2198,7 +2198,9 @@ const dataStore = {
         if (exists) {
           const cur = updatedCustomers[existingIdx];
           const curBal = parseFloat(cur.balance) || 0;
-          const hasBalDiff = itemBal !== undefined && Math.abs(curBal - itemBal) > 0.01;
+          const curShamelBal = parseFloat(cur.shamelBalance !== undefined ? cur.shamelBalance : cur.balance) || 0;
+          // مقارنة الرصيد مع shamelBalance أيضاً لضمان عدم تجاهل التغييرات
+          const hasBalDiff = itemBal !== undefined && Math.abs(curShamelBal - itemBal) > 0.01;
           const changed =
             cur.name !== name ||
             (phone && cur.phone !== phone) ||
@@ -2211,17 +2213,17 @@ const dataStore = {
 
           if (!dryRun) {
             let lastBalanceDiffDate = cur.lastBalanceDiffDate || cur.lastBalanceChangeDate || null;
-            let previousBalance = cur.previousBalance !== undefined ? cur.previousBalance : curBal;
+            let previousBalance = cur.previousBalance !== undefined ? cur.previousBalance : curShamelBal;
             let balanceDifference = cur.balanceDifference || 0;
             let balanceHistory = Array.isArray(cur.balanceHistory) ? [...cur.balanceHistory] : [];
 
             if (hasBalDiff) {
               lastBalanceDiffDate = now;
-              previousBalance = curBal;
-              balanceDifference = Math.round((itemBal - curBal) * 100) / 100;
+              previousBalance = curShamelBal;
+              balanceDifference = Math.round((itemBal - curShamelBal) * 100) / 100;
               balanceHistory.unshift({
                 date: now,
-                oldBalance: curBal,
+                oldBalance: curShamelBal,
                 newBalance: itemBal,
                 difference: balanceDifference,
                 source: 'shamel_sync'
@@ -2229,6 +2231,8 @@ const dataStore = {
               if (balanceHistory.length > 50) balanceHistory = balanceHistory.slice(0, 50);
             }
 
+            // دائماً نحدّث shamelBalance و balance معاً من قيمة الشامل
+            const newBal = itemBal !== undefined ? itemBal : curShamelBal;
             updatedCustomers[existingIdx] = {
               ...cur,
               name,
@@ -2238,8 +2242,8 @@ const dataStore = {
               address: address || cur.address || '',
               notes: notes || cur.notes || '',
               isStopped,
-              shamelBalance: itemBal !== undefined ? itemBal : (parseFloat(cur.shamelBalance !== undefined ? cur.shamelBalance : cur.balance) || 0),
-              balance: itemBal !== undefined ? itemBal : (parseFloat(cur.balance) || 0),
+              shamelBalance: newBal,
+              balance: newBal,
               lastBalanceDiffDate,
               lastBalanceChangeDate: lastBalanceDiffDate,
               previousBalance,
@@ -2248,7 +2252,8 @@ const dataStore = {
               shamelCode,
               systemNumber: cur.systemNumber || shamelCode,
               syncedAt: now,
-              syncedBy: editorName
+              syncedBy: editorName,
+              updatedAt: now
             };
           }
           summary.updated++;
@@ -2394,7 +2399,7 @@ const dataStore = {
         var shamelBal = s.shamelBalance !== undefined
           ? (typeof s.shamelBalance === 'number' ? s.shamelBalance : (parseFloat(String(s.shamelBalance || '0').replace(/,/g, '')) || 0))
           : rawBal;
-        return Object.assign({}, s, { shamelBalance: shamelBal, balance: rawBal });
+        return Object.assign({}, s, { shamelBalance: shamelBal, balance: shamelBal });
       });
   },
 
@@ -2484,8 +2489,9 @@ const dataStore = {
 
         if (exists) {
           const cur = updatedSuppliers[existingIdx];
-          const curBal = parseFloat(cur.balance) || 0;
-          const hasBalDiff = itemBal !== undefined && Math.abs(curBal - itemBal) > 0.01;
+          const curShamelBal = parseFloat(cur.shamelBalance !== undefined ? cur.shamelBalance : cur.balance) || 0;
+          // مقارنة مع shamelBalance لضمان اكتشاف الفروقات الحقيقية من الشامل
+          const hasBalDiff = itemBal !== undefined && Math.abs(curShamelBal - itemBal) > 0.01;
           const changed =
             cur.name !== name ||
             (phone && cur.phone !== phone) ||
@@ -2498,17 +2504,17 @@ const dataStore = {
 
           if (!dryRun) {
             let lastBalanceDiffDate = cur.lastBalanceDiffDate || cur.lastBalanceChangeDate || null;
-            let previousBalance = cur.previousBalance !== undefined ? cur.previousBalance : curBal;
+            let previousBalance = cur.previousBalance !== undefined ? cur.previousBalance : curShamelBal;
             let balanceDifference = cur.balanceDifference || 0;
             let balanceHistory = Array.isArray(cur.balanceHistory) ? [...cur.balanceHistory] : [];
 
             if (hasBalDiff) {
               lastBalanceDiffDate = now;
-              previousBalance = curBal;
-              balanceDifference = Math.round((itemBal - curBal) * 100) / 100;
+              previousBalance = curShamelBal;
+              balanceDifference = Math.round((itemBal - curShamelBal) * 100) / 100;
               balanceHistory.unshift({
                 date: now,
-                oldBalance: curBal,
+                oldBalance: curShamelBal,
                 newBalance: itemBal,
                 difference: balanceDifference,
                 source: 'shamel_sync'
@@ -2516,6 +2522,8 @@ const dataStore = {
               if (balanceHistory.length > 50) balanceHistory = balanceHistory.slice(0, 50);
             }
 
+            // دائماً نحدّث shamelBalance و balance معاً بالقيمة القادمة من الشامل
+            const newBal = itemBal !== undefined ? itemBal : curShamelBal;
             updatedSuppliers[existingIdx] = {
               ...cur,
               name,
@@ -2525,8 +2533,8 @@ const dataStore = {
               address: address || cur.address || '',
               notes: notes || cur.notes || '',
               isStopped,
-              shamelBalance: itemBal !== undefined ? itemBal : (parseFloat(cur.shamelBalance !== undefined ? cur.shamelBalance : cur.balance) || 0),
-              balance: itemBal !== undefined ? itemBal : (parseFloat(cur.balance) || 0),
+              shamelBalance: newBal,
+              balance: newBal,
               lastBalanceDiffDate,
               lastBalanceChangeDate: lastBalanceDiffDate,
               previousBalance,

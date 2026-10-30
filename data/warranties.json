@@ -4,27 +4,28 @@
     "warrantyNumber": 1004,
     "invoiceId": "INV-1004",
     "invoiceNumber": 1004,
-    "createdAt": "2026-10-04T18:58:56.869Z",
-    "purchaseDate": "2026-10-04T00:00:00.000Z",
+    "createdAt": "2026-10-04T18:58:56.869+00:00",
+    "purchaseDate": "2026-10-04T00:00:00+00:00",
     "durationMonths": 24,
-    "durationText": "سنتان (24 شهراً)",
-    "expiryDate": "2028-10-04T00:00:00.000Z",
+    "expiryDate": "2028-10-04T00:00:00+00:00",
     "customerName": "زبون تجربة عرض سعر",
-    "customerId": "cust-1791140336866-575",
-    "customerSystemNumber": "",
     "customerPhone": "0591234567",
-    "customerAddress": "",
+    "customerAddress": null,
     "items": [
       {
+        "code": "PRD-9902",
+        "brand": "هايسنس",
+        "notes": "",
+        "quantity": 2,
         "productId": "prod-1791140260129",
         "productName": "شاشة هايسنس",
-        "brand": "هايسنس",
-        "code": "PRD-9902",
-        "quantity": 2,
-        "serialNumber": "",
-        "notes": ""
+        "serialNumber": ""
       }
     ],
+    "status": "active",
+    "customerId": "cust-1791140336866-575",
+    "customerSystemNumber": null,
+    "durationText": "سنتان (24 شهراً)",
     "terms": [
       "الرجاء قراءة الكفالة وكتيب التعليمات قبل الاستخدام.",
       "الكفالة لا تشمل الكسر وسوء الاستخدام للمنتج.",
@@ -34,39 +35,39 @@
       "الاصلاحات التي تتم في اطار مدة الكفالة تكون مجانا.",
       "القطع واليد العاملة بدون مقابل."
     ],
-    "status": "active",
     "companyName": "شركة أبو رامز",
     "companyPhone": "0595979592",
     "companyAddress": "يعبد",
     "notes": "",
-    "updatedAt": "2026-10-04T19:04:26.094Z"
+    "updatedAt": "2026-10-04T19:04:26.094+00:00"
   },
   {
     "id": "WAR-1003",
     "warrantyNumber": 1003,
     "invoiceId": "INV-1003",
     "invoiceNumber": 1003,
-    "createdAt": "2026-10-04T18:57:58.412Z",
-    "purchaseDate": "2026-10-04T18:57:58.404Z",
+    "createdAt": "2026-10-04T18:57:58.412+00:00",
+    "purchaseDate": "2026-10-04T18:57:58.404+00:00",
     "durationMonths": 12,
-    "durationText": "سنة واحدة (12 شهراً)",
-    "expiryDate": "2027-10-04T18:57:58.404Z",
+    "expiryDate": "2027-10-04T18:57:58.404+00:00",
     "customerName": "زبون عرض سعر",
-    "customerId": "cust-1791140278410-434",
-    "customerSystemNumber": "",
     "customerPhone": "0590000000",
-    "customerAddress": "",
+    "customerAddress": null,
     "items": [
       {
+        "code": "PRD-9902",
+        "brand": "هايسنس",
+        "notes": "",
+        "quantity": 1,
         "productId": "prod-1791140260129",
         "productName": "شاشة هايسنس",
-        "brand": "هايسنس",
-        "code": "PRD-9902",
-        "quantity": 1,
-        "serialNumber": "",
-        "notes": ""
+        "serialNumber": ""
       }
     ],
+    "status": "active",
+    "customerId": "cust-1791140278410-434",
+    "customerSystemNumber": null,
+    "durationText": "سنة واحدة (12 شهراً)",
     "terms": [
       "الرجاء قراءة الكفالة وكتيب التعليمات قبل الاستخدام.",
       "الكفالة لا تشمل الكسر وسوء الاستخدام للمنتج.",
@@ -76,38 +77,39 @@
       "الاصلاحات التي تتم في اطار مدة الكفالة تكون مجانا.",
       "القطع واليد العاملة بدون مقابل."
     ],
-    "status": "active",
     "companyName": "شركة أبو رامز",
     "companyPhone": "0595979592",
     "companyAddress": "يعبد",
-    "notes": ""
+    "notes": "",
+    "updatedAt": "2026-10-27T16:36:00.581+00:00"
   },
   {
     "id": "WAR-1002",
     "warrantyNumber": 1002,
-    "invoiceId": null,
+    "invoiceId": "",
     "invoiceNumber": null,
-    "createdAt": "2026-10-04T18:56:44.219Z",
-    "purchaseDate": "2026-10-04T18:56:44.219Z",
+    "createdAt": "2026-10-04T18:56:44.219+00:00",
+    "purchaseDate": "2026-10-04T18:56:44.219+00:00",
     "durationMonths": 36,
-    "durationText": "3 سنوات (36 شهراً)",
-    "expiryDate": "2029-10-04T18:56:44.219Z",
+    "expiryDate": "2029-10-04T18:56:44.219+00:00",
     "customerName": "أحمد كمال",
-    "customerId": null,
-    "customerSystemNumber": "",
     "customerPhone": "0599112233",
     "customerAddress": "رام الله",
     "items": [
       {
+        "code": "",
+        "brand": "Beko",
+        "notes": "",
+        "quantity": 1,
         "productId": "",
         "productName": "غسالة بيكو",
-        "brand": "Beko",
-        "code": "",
-        "quantity": 1,
-        "serialNumber": "SN-9988",
-        "notes": ""
+        "serialNumber": "SN-9988"
       }
     ],
+    "status": "active",
+    "customerId": null,
+    "customerSystemNumber": null,
+    "durationText": "3 سنوات (36 شهراً)",
     "terms": [
       "الرجاء قراءة الكفالة وكتيب التعليمات قبل الاستخدام.",
       "الكفالة لا تشمل الكسر وسوء الاستخدام للمنتج.",
@@ -117,58 +119,57 @@
       "الاصلاحات التي تتم في اطار مدة الكفالة تكون مجانا.",
       "القطع واليد العاملة بدون مقابل."
     ],
-    "status": "active",
     "companyName": "شركة أبو رامز",
     "companyPhone": "0595979592",
     "companyAddress": "يعبد",
     "notes": "تم تعديل المدة لـ 3 سنوات",
-    "manual": true,
-    "updatedAt": "2026-10-04T18:56:49.325Z"
+    "updatedAt": "2026-10-04T18:56:49.325+00:00"
   },
   {
     "id": "WAR-1001",
     "warrantyNumber": 1001,
     "invoiceId": "INV-1002",
     "invoiceNumber": 1002,
-    "createdAt": "2026-09-27T18:34:37.418Z",
-    "purchaseDate": "2026-09-27T18:34:37.418Z",
+    "createdAt": "2026-09-27T18:34:37.418+00:00",
+    "purchaseDate": "2026-09-27T18:34:37.418+00:00",
     "durationMonths": 12,
-    "durationText": "سنة واحدة (12 شهراً)",
-    "expiryDate": "2027-09-27T18:34:37.418Z",
+    "expiryDate": "2027-09-27T18:34:37.418+00:00",
     "customerName": "استاذ رضا حرزالله",
-    "customerId": "cust-1791127655268-70506",
-    "customerSystemNumber": "C00000001",
     "customerPhone": "0599123456",
     "customerAddress": "يعبد - جنين",
     "items": [
       {
+        "code": "UNI-32-NET",
+        "brand": "Universal",
+        "notes": "",
+        "quantity": 1,
         "productId": "prod-i00001217",
         "productName": "شاشة يونيفرسال 32 بوصة نت",
-        "brand": "Universal",
-        "code": "UNI-32-NET",
-        "quantity": 1,
-        "serialNumber": "SN-UNI-2026-88392",
-        "notes": ""
+        "serialNumber": "SN-UNI-2026-88392"
       },
       {
+        "code": "BRK-SML",
+        "brand": "عام",
+        "notes": "",
+        "quantity": 1,
         "productId": "prod-i00000397",
         "productName": "حمالة متحركة صغيرة",
-        "brand": "عام",
-        "code": "BRK-SML",
-        "quantity": 1,
-        "serialNumber": "SN-BRK-9912",
-        "notes": ""
+        "serialNumber": "SN-BRK-9912"
       },
       {
+        "code": "LNB-QUAD",
+        "brand": "عام",
+        "notes": "",
+        "quantity": 1,
         "productId": "prod-i00000407",
         "productName": "لاقط صحن رباعي",
-        "brand": "عام",
-        "code": "LNB-QUAD",
-        "quantity": 1,
-        "serialNumber": "SN-LNB-4482",
-        "notes": ""
+        "serialNumber": "SN-LNB-4482"
       }
     ],
+    "status": "active",
+    "customerId": "cust-1791127655268-70506",
+    "customerSystemNumber": "C00000001",
+    "durationText": "سنة واحدة (12 شهراً)",
     "terms": [
       "الرجاء قراءة الكفالة وكتيب التعليمات قبل الاستخدام.",
       "الكفالة لا تشمل الكسر وسوء الاستخدام للمنتج.",
@@ -178,9 +179,10 @@
       "الاصلاحات التي تتم في اطار مدة الكفالة تكون مجانا.",
       "القطع واليد العاملة بدون مقابل."
     ],
-    "status": "active",
     "companyName": "شركة أبو رامز للأجهزة الكهربائية",
     "companyPhone": "059-1234567",
-    "notes": "تسليم وتركيب معتمد من المعرض"
+    "companyAddress": null,
+    "notes": "تسليم وتركيب معتمد من المعرض",
+    "updatedAt": "2026-10-27T16:36:00.582+00:00"
   }
 ]

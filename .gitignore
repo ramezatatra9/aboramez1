@@ -14,3 +14,5 @@ uploads/
 .DS_Store
 Thumbs.db
 
+
+data/live_shamel_*.json

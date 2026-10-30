@@ -1,9 +1,11 @@
 {
-  "lastSyncAt": "2026-10-19T16:23:21.984Z",
-  "mode": "full_clean_rebuild",
-  "itemsReceived": 483,
-  "created": 483,
+  "lastSyncAt": "2026-10-30T18:46:31.197Z",
+  "mode": "upsert",
+  "itemsReceived": 484,
+  "created": 0,
   "updated": 0,
-  "unchanged": 0,
-  "failed": 0
+  "unchanged": 484,
+  "failed": 0,
+  "totalCustomers": 487,
+  "editorName": "مزامنة حية مباشرة"
 }
