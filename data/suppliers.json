@@ -67,14 +67,34 @@
     "source": "shamel_sync",
     "address": "",
     "balance": 0,
-    "syncedAt": "2026-10-30T18:58:59.082Z",
-    "syncedBy": "إصلاح كامل Supabase",
+    "syncedAt": "2026-10-30T19:08:11.014Z",
+    "syncedBy": "مزامنة حية مباشرة",
     "createdAt": "2026-10-19T16:23:21.984+00:00",
     "isStopped": false,
-    "updatedAt": "2026-10-30T18:58:59.082Z",
+    "updatedAt": "2026-10-30T19:08:11.014Z",
     "lastSyncAt": null,
     "shamelCode": "S00000002",
-    "shamelBalance": 0
+    "shamelBalance": 0,
+    "lastBalanceDiffDate": "2026-10-30T19:08:11.014Z",
+    "lastBalanceChangeDate": "2026-10-30T19:08:11.014Z",
+    "previousBalance": 1200,
+    "balanceDifference": -1200,
+    "balanceHistory": [
+      {
+        "date": "2026-10-30T19:08:11.014Z",
+        "oldBalance": 1200,
+        "newBalance": 0,
+        "difference": -1200,
+        "source": "shamel_sync"
+      },
+      {
+        "date": "2026-10-30T19:07:02.584Z",
+        "oldBalance": 0,
+        "newBalance": 1200,
+        "difference": 1200,
+        "source": "shamel_sync"
+      }
+    ]
   },
   {
     "id": "supp-shamel-S00000015-1793127285437",
@@ -182,15 +202,29 @@
     "source": "shamel_sync",
     "address": "",
     "balance": 468958.36,
-    "syncedAt": "2026-10-30T19:00:30.560Z",
-    "syncedBy": "برنامج مزامنة الشامل",
+    "syncedAt": "2026-10-30T19:08:11.014Z",
+    "syncedBy": "مزامنة حية مباشرة",
     "createdAt": "2026-10-19T16:23:21.984+00:00",
     "isStopped": false,
-    "updatedAt": "2026-10-30T19:00:30.560Z",
+    "updatedAt": "2026-10-30T19:08:19.192Z",
     "lastSyncAt": null,
     "shamelCode": "S00000001",
     "shamelBalance": 468958.36,
     "balanceHistory": [
+      {
+        "date": "2026-10-30T19:08:11.014Z",
+        "oldBalance": 5000,
+        "newBalance": 468958.36,
+        "difference": 463958.36,
+        "source": "shamel_sync"
+      },
+      {
+        "date": "2026-10-30T19:07:02.584Z",
+        "oldBalance": 468958.36,
+        "newBalance": 5000,
+        "difference": -463958.36,
+        "source": "shamel_sync"
+      },
       {
         "date": "2026-10-30T19:00:30.560Z",
         "oldBalance": 500000,
@@ -213,10 +247,10 @@
         "oldBalance": 5000
       }
     ],
-    "previousBalance": 500000,
-    "balanceDifference": -31041.64,
-    "lastBalanceDiffDate": "2026-10-30T19:00:30.560Z",
-    "lastBalanceChangeDate": "2026-10-30T19:00:30.560Z"
+    "previousBalance": 5000,
+    "balanceDifference": 463958.36,
+    "lastBalanceDiffDate": "2026-10-30T19:08:11.014Z",
+    "lastBalanceChangeDate": "2026-10-30T19:08:11.014Z"
   },
   {
     "id": "supp-shamel-S00000010-1792427001986",

@@ -33,11 +33,45 @@
     "isStopped": false,
     "notes": "دين عليه: 200 شيكل",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-19T16:23:21.984+00:00",
-    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
+    "syncedAt": "2026-10-30T19:08:20.139Z",
+    "syncedBy": "مزامنة الشامل لايت",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-19T16:23:21.984+00:00",
-    "lastSyncAt": null
+    "updatedAt": "2026-10-30T19:08:20.139Z",
+    "lastSyncAt": null,
+    "lastBalanceDiffDate": "2026-10-30T19:08:20.139Z",
+    "lastBalanceChangeDate": "2026-10-30T19:08:20.139Z",
+    "previousBalance": 250,
+    "balanceDifference": -50,
+    "balanceHistory": [
+      {
+        "date": "2026-10-30T19:08:20.139Z",
+        "oldBalance": 250,
+        "newBalance": 200,
+        "difference": -50,
+        "source": "shamel_sync"
+      },
+      {
+        "date": "2026-10-30T19:08:18.095Z",
+        "oldBalance": 200,
+        "newBalance": 250,
+        "difference": 50,
+        "source": "shamel_sync"
+      },
+      {
+        "date": "2026-10-30T19:08:11.619Z",
+        "oldBalance": 850,
+        "newBalance": 200,
+        "difference": -650,
+        "source": "shamel_sync"
+      },
+      {
+        "date": "2026-10-30T19:07:03.600Z",
+        "oldBalance": 200,
+        "newBalance": 850,
+        "difference": 650,
+        "source": "shamel_sync"
+      }
+    ]
   },
   {
     "id": "cust-1791127655299-12957",
