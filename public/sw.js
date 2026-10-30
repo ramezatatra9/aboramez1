@@ -1,5 +1,5 @@
 // Service Worker لنظام مبيعات وجرد أبو رامز (PWA Service Worker)
-const CACHE_VERSION = 'aboramez-pos-v3.8.0';
+const CACHE_VERSION = 'aboramez-pos-v3.9.0';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `dynamic-${CACHE_VERSION}`;
 
@@ -57,7 +57,27 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 2. طلبات الـ API: Network-First (الأولوية للشبكة دائماً لضمان دقة الأسعار والمخزون)
+  // 2. تسريع فوري لكتالوج المنتجات: Stale-While-Revalidate
+  // يفتح الكتالوج فوراً (0ms) من الكاش المحلي ثم يحدثه صامتاً في الخلفية
+  if (url.pathname === '/api/products' || url.pathname === '/api/settings') {
+    event.respondWith(
+      caches.open(DYNAMIC_CACHE).then((cache) => {
+        return cache.match(request).then((cachedResponse) => {
+          const fetchPromise = fetch(request).then((networkResponse) => {
+            if (networkResponse && networkResponse.status === 200) {
+              cache.put(request, networkResponse.clone());
+            }
+            return networkResponse;
+          }).catch(() => cachedResponse);
+
+          return cachedResponse || fetchPromise;
+        });
+      })
+    );
+    return;
+  }
+
+  // 3. باقي طلبات الـ API: Network-First
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(
       fetch(request)

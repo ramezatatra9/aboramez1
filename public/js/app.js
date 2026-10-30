@@ -3465,17 +3465,20 @@ function updateInvoiceDropdown() {
   const datalist = document.getElementById('productsDataList');
   const currency = state.settings.currency || 'شيكل';
 
+  // تحسين كبير للذاكرة وسرعة المعالجة: تحديد القائمة المبدئية لأهم وأحدث الأصناف لتفادي تجميد DOM
+  const topProducts = state.products.slice(0, 100);
+
   if (datalist) {
-    datalist.innerHTML = state.products.map(p => `
+    datalist.innerHTML = topProducts.map(p => `
       <option value="${p.code} - ${p.name}">سعر: ${p.sellPrice.toLocaleString('en-US')} ${currency} (ربح: ${(p.sellPrice - p.costPrice).toLocaleString('en-US')})</option>
     `).join('');
   }
 
   if (select) {
     const currentVal = select.value;
-    select.innerHTML = '<option value="">-- أو تصفح القائمة الكاملة للأصناف (' + state.products.length.toLocaleString('en-US') + ' صنف) --</option>' +
-      state.products.map(p => `
-        <option value="${p.id}">[${p.code}] ${p.name} - سعر البيع: ${p.sellPrice.toLocaleString('en-US')} ${currency} (ربح: ${(p.sellPrice - p.costPrice).toLocaleString('en-US')})</option>
+    select.innerHTML = '<option value="">-- اختر من قائمة الأصناف (' + state.products.length.toLocaleString('en-US') + ' صنف) أو ابحث في المربع أعلاه --</option>' +
+      topProducts.map(p => `
+        <option value="${p.id}">[${p.code}] ${p.name} - سعر البيع: ${p.sellPrice.toLocaleString('en-US')} ${currency}</option>
       `).join('');
     select.value = currentVal;
   }
