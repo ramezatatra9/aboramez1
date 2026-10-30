@@ -1042,35 +1042,22 @@
   {
     "id": "cust-1791127655282-2838",
     "systemNumber": "C00000296",
-    "shamelCode": "C",
+    "shamelCode": "C00000296",
     "name": "اسعد ابو شقرة عرابة",
     "phone": "",
     "mobile": "",
     "email": "",
     "address": "",
     "balance": 0,
-    "shamelBalance": 0,
+    "shamelBalance": 700,
     "isStopped": false,
     "notes": "دين عليه: 700 شيكل",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-30T18:44:47.390Z",
-    "syncedBy": "مزامنة حية مباشرة",
+    "syncedAt": "2026-10-19T16:23:21.984+00:00",
+    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-30T18:44:47.390Z",
-    "lastSyncAt": null,
-    "lastBalanceDiffDate": "2026-10-30T18:44:47.390Z",
-    "lastBalanceChangeDate": "2026-10-30T18:44:47.390Z",
-    "previousBalance": 700,
-    "balanceDifference": -700,
-    "balanceHistory": [
-      {
-        "date": "2026-10-30T18:44:47.390Z",
-        "oldBalance": 700,
-        "newBalance": 0,
-        "difference": -700,
-        "source": "shamel_sync"
-      }
-    ]
+    "updatedAt": "2026-10-19T16:23:21.984+00:00",
+    "lastSyncAt": null
   },
   {
     "id": "cust-1791127655270-9553",
@@ -1335,35 +1322,22 @@
   {
     "id": "cust-1791127655270-82150",
     "systemNumber": "C00000078",
-    "shamelCode": "C",
+    "shamelCode": "C00000078",
     "name": "الدكتور نظام سيريس",
     "phone": "",
     "mobile": "",
     "email": "",
     "address": "",
     "balance": 1700,
-    "shamelBalance": 1700,
+    "shamelBalance": 2000,
     "isStopped": false,
     "notes": "دين عليه: 2000 شيكل",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-30T18:44:47.390Z",
-    "syncedBy": "مزامنة حية مباشرة",
+    "syncedAt": "2026-10-19T16:23:21.984+00:00",
+    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-30T18:44:47.390Z",
-    "lastSyncAt": null,
-    "lastBalanceDiffDate": "2026-10-30T18:44:47.390Z",
-    "lastBalanceChangeDate": "2026-10-30T18:44:47.390Z",
-    "previousBalance": 2000,
-    "balanceDifference": -300,
-    "balanceHistory": [
-      {
-        "date": "2026-10-30T18:44:47.390Z",
-        "oldBalance": 2000,
-        "newBalance": 1700,
-        "difference": -300,
-        "source": "shamel_sync"
-      }
-    ]
+    "updatedAt": "2026-10-19T16:23:21.984+00:00",
+    "lastSyncAt": null
   },
   {
     "id": "cust-1791127655272-19951",
@@ -1547,8 +1521,8 @@
   },
   {
     "id": "cust-1793382394053-343",
-    "systemNumber": null,
-    "shamelCode": null,
+    "systemNumber": "",
+    "shamelCode": "",
     "name": "امير عطعوط",
     "phone": "",
     "mobile": "",
@@ -1568,35 +1542,22 @@
   {
     "id": "cust-1791127655277-71840",
     "systemNumber": "C00000219",
-    "shamelCode": "C",
+    "shamelCode": "C00000219",
     "name": "امير عطية زيد",
     "phone": "",
     "mobile": "",
     "email": "",
     "address": "",
     "balance": -1700,
-    "shamelBalance": -1700,
+    "shamelBalance": -2300,
     "isStopped": false,
     "notes": "رصيد خالص",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-30T18:44:47.390Z",
-    "syncedBy": "مزامنة حية مباشرة",
+    "syncedAt": "2026-10-19T16:23:21.984+00:00",
+    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-30T18:44:47.390Z",
-    "lastSyncAt": null,
-    "lastBalanceDiffDate": "2026-10-30T18:44:47.390Z",
-    "lastBalanceChangeDate": "2026-10-30T18:44:47.390Z",
-    "previousBalance": -2300,
-    "balanceDifference": 600,
-    "balanceHistory": [
-      {
-        "date": "2026-10-30T18:44:47.390Z",
-        "oldBalance": -2300,
-        "newBalance": -1700,
-        "difference": 600,
-        "source": "shamel_sync"
-      }
-    ]
+    "updatedAt": "2026-10-19T16:23:21.984+00:00",
+    "lastSyncAt": null
   },
   {
     "id": "cust-1791127655270-30920",
@@ -1821,35 +1782,22 @@
   {
     "id": "cust-1791127655283-47537",
     "systemNumber": "C00000307",
-    "shamelCode": "C",
+    "shamelCode": "C00000307",
     "name": "ايسر ابو سبك قبها",
     "phone": "",
     "mobile": "",
     "email": "",
     "address": "",
     "balance": -870,
-    "shamelBalance": -870,
+    "shamelBalance": -270,
     "isStopped": false,
     "notes": "رصيد دائن له: 270 شيكل",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-30T18:44:47.390Z",
-    "syncedBy": "مزامنة حية مباشرة",
+    "syncedAt": "2026-10-19T16:23:21.984+00:00",
+    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-30T18:44:47.390Z",
-    "lastSyncAt": null,
-    "lastBalanceDiffDate": "2026-10-30T18:44:47.390Z",
-    "lastBalanceChangeDate": "2026-10-30T18:44:47.390Z",
-    "previousBalance": -270,
-    "balanceDifference": -600,
-    "balanceHistory": [
-      {
-        "date": "2026-10-30T18:44:47.390Z",
-        "oldBalance": -270,
-        "newBalance": -870,
-        "difference": -600,
-        "source": "shamel_sync"
-      }
-    ]
+    "updatedAt": "2026-10-19T16:23:21.984+00:00",
+    "lastSyncAt": null
   },
   {
     "id": "cust-1791127655270-40844",
@@ -1894,7 +1842,7 @@
   {
     "id": "cust-shamel-C00000485-1793127276787",
     "systemNumber": "C00000485",
-    "shamelCode": null,
+    "shamelCode": "C00000485",
     "name": "ايهاب محمد رضا زيد",
     "phone": "",
     "mobile": "",
@@ -1994,35 +1942,22 @@
   {
     "id": "cust-1791127655272-79756",
     "systemNumber": "C00000151",
-    "shamelCode": "C",
+    "shamelCode": "C00000151",
     "name": "باسل مازن السعدة عطاطرة",
     "phone": "",
     "mobile": "",
     "email": "",
     "address": "",
     "balance": 150,
-    "shamelBalance": 150,
+    "shamelBalance": 0,
     "isStopped": false,
     "notes": "رصيد خالص",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-30T18:44:47.390Z",
-    "syncedBy": "مزامنة حية مباشرة",
+    "syncedAt": "2026-10-19T16:23:21.984+00:00",
+    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-30T18:44:47.390Z",
-    "lastSyncAt": null,
-    "lastBalanceDiffDate": "2026-10-30T18:44:47.390Z",
-    "lastBalanceChangeDate": "2026-10-30T18:44:47.390Z",
-    "previousBalance": 0,
-    "balanceDifference": 150,
-    "balanceHistory": [
-      {
-        "date": "2026-10-30T18:44:47.390Z",
-        "oldBalance": 0,
-        "newBalance": 150,
-        "difference": 150,
-        "source": "shamel_sync"
-      }
-    ]
+    "updatedAt": "2026-10-19T16:23:21.984+00:00",
+    "lastSyncAt": null
   },
   {
     "id": "cust-1791127655270-89829",
@@ -2367,35 +2302,22 @@
   {
     "id": "cust-1791127655301-94072",
     "systemNumber": "C00000467",
-    "shamelCode": "C",
+    "shamelCode": "C00000467",
     "name": "ثائر جمال ابو بكر الكيوان",
     "phone": "",
     "mobile": "",
     "email": "",
     "address": "",
     "balance": 1000,
-    "shamelBalance": 1000,
+    "shamelBalance": 1300,
     "isStopped": false,
     "notes": "دين عليه: 1300 شيكل",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-30T18:44:47.390Z",
-    "syncedBy": "مزامنة حية مباشرة",
+    "syncedAt": "2026-10-19T16:23:21.984+00:00",
+    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-30T18:44:47.390Z",
-    "lastSyncAt": null,
-    "lastBalanceDiffDate": "2026-10-30T18:44:47.390Z",
-    "lastBalanceChangeDate": "2026-10-30T18:44:47.390Z",
-    "previousBalance": 1300,
-    "balanceDifference": -300,
-    "balanceHistory": [
-      {
-        "date": "2026-10-30T18:44:47.390Z",
-        "oldBalance": 1300,
-        "newBalance": 1000,
-        "difference": -300,
-        "source": "shamel_sync"
-      }
-    ]
+    "updatedAt": "2026-10-19T16:23:21.984+00:00",
+    "lastSyncAt": null
   },
   {
     "id": "cust-1791127655277-30367",
@@ -2520,35 +2442,22 @@
   {
     "id": "cust-1791127655281-89130",
     "systemNumber": "C00000280",
-    "shamelCode": "C",
+    "shamelCode": "C00000280",
     "name": "جمال الشكعة",
     "phone": "",
     "mobile": "",
     "email": "",
     "address": "",
     "balance": 550,
-    "shamelBalance": 550,
+    "shamelBalance": 800,
     "isStopped": false,
     "notes": "دين عليه: 800 شيكل",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-30T18:44:47.390Z",
-    "syncedBy": "مزامنة حية مباشرة",
+    "syncedAt": "2026-10-19T16:23:21.984+00:00",
+    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-30T18:44:47.390Z",
-    "lastSyncAt": null,
-    "lastBalanceDiffDate": "2026-10-30T18:44:47.390Z",
-    "lastBalanceChangeDate": "2026-10-30T18:44:47.390Z",
-    "previousBalance": 800,
-    "balanceDifference": -250,
-    "balanceHistory": [
-      {
-        "date": "2026-10-30T18:44:47.390Z",
-        "oldBalance": 800,
-        "newBalance": 550,
-        "difference": -250,
-        "source": "shamel_sync"
-      }
-    ]
+    "updatedAt": "2026-10-19T16:23:21.984+00:00",
+    "lastSyncAt": null
   },
   {
     "id": "cust-1791127655269-86723",
@@ -2920,28 +2829,15 @@
     "email": "",
     "address": "",
     "balance": 1200,
-    "shamelBalance": 1200,
+    "shamelBalance": 0,
     "isStopped": false,
     "notes": "رصيد خالص",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-30T18:32:50.436Z",
-    "syncedBy": "مزامنة الشامل لايت",
+    "syncedAt": "2026-10-19T16:23:21.984+00:00",
+    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
     "updatedAt": "2026-10-19T16:23:21.984+00:00",
-    "lastSyncAt": null,
-    "lastBalanceDiffDate": "2026-10-30T18:32:50.436Z",
-    "lastBalanceChangeDate": "2026-10-30T18:32:50.436Z",
-    "previousBalance": 0,
-    "balanceDifference": 1200,
-    "balanceHistory": [
-      {
-        "date": "2026-10-30T18:32:50.436Z",
-        "oldBalance": 0,
-        "newBalance": 1200,
-        "difference": 1200,
-        "source": "shamel_sync"
-      }
-    ]
+    "lastSyncAt": null
   },
   {
     "id": "cust-1791127655288-7603",
@@ -3506,35 +3402,22 @@
   {
     "id": "cust-1791127655302-31",
     "systemNumber": "C00000481",
-    "shamelCode": "C",
+    "shamelCode": "C00000481",
     "name": "ربيع زكي حمدان",
     "phone": "",
     "mobile": "",
     "email": "",
     "address": "",
     "balance": 0,
-    "shamelBalance": 0,
+    "shamelBalance": 4000,
     "isStopped": false,
     "notes": "دين عليه: 4000 شيكل",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-30T18:44:47.390Z",
-    "syncedBy": "مزامنة حية مباشرة",
+    "syncedAt": "2026-10-19T16:23:21.984+00:00",
+    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-30T18:44:47.390Z",
-    "lastSyncAt": null,
-    "lastBalanceDiffDate": "2026-10-30T18:44:47.390Z",
-    "lastBalanceChangeDate": "2026-10-30T18:44:47.390Z",
-    "previousBalance": 4000,
-    "balanceDifference": -4000,
-    "balanceHistory": [
-      {
-        "date": "2026-10-30T18:44:47.390Z",
-        "oldBalance": 4000,
-        "newBalance": 0,
-        "difference": -4000,
-        "source": "shamel_sync"
-      }
-    ]
+    "updatedAt": "2026-10-19T16:23:21.984+00:00",
+    "lastSyncAt": null
   },
   {
     "id": "cust-1791127655280-40011",
@@ -3559,35 +3442,22 @@
   {
     "id": "cust-shamel-C00000486-1793127276787",
     "systemNumber": "C00000486",
-    "shamelCode": "C",
+    "shamelCode": "C00000486",
     "name": "رجاء حلمي حرزالله",
     "phone": "",
     "mobile": "",
     "email": "",
     "address": "",
     "balance": 150,
-    "shamelBalance": 150,
+    "shamelBalance": 0,
     "isStopped": false,
     "notes": "",
     "source": "",
-    "syncedAt": "2026-10-30T18:44:47.390Z",
-    "syncedBy": "مزامنة حية مباشرة",
+    "syncedAt": null,
+    "syncedBy": null,
     "createdAt": "2026-10-27T18:54:36.786+00:00",
-    "updatedAt": "2026-10-30T18:44:47.390Z",
-    "lastSyncAt": null,
-    "lastBalanceDiffDate": "2026-10-30T18:44:47.390Z",
-    "lastBalanceChangeDate": "2026-10-30T18:44:47.390Z",
-    "previousBalance": 0,
-    "balanceDifference": 150,
-    "balanceHistory": [
-      {
-        "date": "2026-10-30T18:44:47.390Z",
-        "oldBalance": 0,
-        "newBalance": 150,
-        "difference": 150,
-        "source": "shamel_sync"
-      }
-    ]
+    "updatedAt": "2026-10-27T18:54:37.403322+00:00",
+    "lastSyncAt": null
   },
   {
     "id": "cust-1791127655270-18601",
@@ -4012,35 +3882,22 @@
   {
     "id": "cust-1791127655274-56529",
     "systemNumber": "C00000179",
-    "shamelCode": "C",
+    "shamelCode": "C00000179",
     "name": "سامي عمارنة النجار",
     "phone": "",
     "mobile": "",
     "email": "",
     "address": "",
     "balance": 0,
-    "shamelBalance": 0,
+    "shamelBalance": 500,
     "isStopped": false,
     "notes": "دين عليه: 500 شيكل",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-30T18:44:47.390Z",
-    "syncedBy": "مزامنة حية مباشرة",
+    "syncedAt": "2026-10-19T16:23:21.984+00:00",
+    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-30T18:44:47.390Z",
-    "lastSyncAt": null,
-    "lastBalanceDiffDate": "2026-10-30T18:44:47.390Z",
-    "lastBalanceChangeDate": "2026-10-30T18:44:47.390Z",
-    "previousBalance": 500,
-    "balanceDifference": -500,
-    "balanceHistory": [
-      {
-        "date": "2026-10-30T18:44:47.390Z",
-        "oldBalance": 500,
-        "newBalance": 0,
-        "difference": -500,
-        "source": "shamel_sync"
-      }
-    ]
+    "updatedAt": "2026-10-19T16:23:21.984+00:00",
+    "lastSyncAt": null
   },
   {
     "id": "cust-1791127655269-5698",
@@ -4545,35 +4402,22 @@
   {
     "id": "cust-1791127655291-14941",
     "systemNumber": "C00000389",
-    "shamelCode": "C",
+    "shamelCode": "C00000389",
     "name": "صالح السوري",
     "phone": "",
     "mobile": "",
     "email": "",
     "address": "",
     "balance": 750,
-    "shamelBalance": 750,
+    "shamelBalance": 850,
     "isStopped": false,
     "notes": "دين عليه: 850 شيكل",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-30T18:44:47.390Z",
-    "syncedBy": "مزامنة حية مباشرة",
+    "syncedAt": "2026-10-19T16:23:21.984+00:00",
+    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-30T18:44:47.390Z",
-    "lastSyncAt": null,
-    "lastBalanceDiffDate": "2026-10-30T18:44:47.390Z",
-    "lastBalanceChangeDate": "2026-10-30T18:44:47.390Z",
-    "previousBalance": 850,
-    "balanceDifference": -100,
-    "balanceHistory": [
-      {
-        "date": "2026-10-30T18:44:47.390Z",
-        "oldBalance": 850,
-        "newBalance": 750,
-        "difference": -100,
-        "source": "shamel_sync"
-      }
-    ]
+    "updatedAt": "2026-10-19T16:23:21.984+00:00",
+    "lastSyncAt": null
   },
   {
     "id": "cust-1791127655287-92367",
@@ -4838,35 +4682,22 @@
   {
     "id": "cust-1791127655282-26242",
     "systemNumber": "C00000299",
-    "shamelCode": "C",
+    "shamelCode": "C00000299",
     "name": "طلال صوص تركمان",
     "phone": "",
     "mobile": "",
     "email": "",
     "address": "",
     "balance": 9450,
-    "shamelBalance": 9450,
+    "shamelBalance": 10250,
     "isStopped": false,
     "notes": "دين عليه: 10250 شيكل",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-30T18:44:47.390Z",
-    "syncedBy": "مزامنة حية مباشرة",
+    "syncedAt": "2026-10-19T16:23:21.984+00:00",
+    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-30T18:44:47.390Z",
-    "lastSyncAt": null,
-    "lastBalanceDiffDate": "2026-10-30T18:44:47.390Z",
-    "lastBalanceChangeDate": "2026-10-30T18:44:47.390Z",
-    "previousBalance": 10250,
-    "balanceDifference": -800,
-    "balanceHistory": [
-      {
-        "date": "2026-10-30T18:44:47.390Z",
-        "oldBalance": 10250,
-        "newBalance": 9450,
-        "difference": -800,
-        "source": "shamel_sync"
-      }
-    ]
+    "updatedAt": "2026-10-19T16:23:21.984+00:00",
+    "lastSyncAt": null
   },
   {
     "id": "cust-1791127655270-35216",
@@ -5991,35 +5822,22 @@
   {
     "id": "cust-1791127655298-2210",
     "systemNumber": "C00000449",
-    "shamelCode": "C",
+    "shamelCode": "C00000449",
     "name": "عمر ضياء عمارنة زبدة",
     "phone": "",
     "mobile": "",
     "email": "",
     "address": "",
     "balance": 0,
-    "shamelBalance": 0,
+    "shamelBalance": 300,
     "isStopped": false,
     "notes": "دين عليه: 300 شيكل",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-30T18:44:47.390Z",
-    "syncedBy": "مزامنة حية مباشرة",
+    "syncedAt": "2026-10-19T16:23:21.984+00:00",
+    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-30T18:44:47.390Z",
-    "lastSyncAt": null,
-    "lastBalanceDiffDate": "2026-10-30T18:44:47.390Z",
-    "lastBalanceChangeDate": "2026-10-30T18:44:47.390Z",
-    "previousBalance": 300,
-    "balanceDifference": -300,
-    "balanceHistory": [
-      {
-        "date": "2026-10-30T18:44:47.390Z",
-        "oldBalance": 300,
-        "newBalance": 0,
-        "difference": -300,
-        "source": "shamel_sync"
-      }
-    ]
+    "updatedAt": "2026-10-19T16:23:21.984+00:00",
+    "lastSyncAt": null
   },
   {
     "id": "cust-1791127655297-42564",
@@ -6204,35 +6022,22 @@
   {
     "id": "cust-1791127655275-38639",
     "systemNumber": "C00000201",
-    "shamelCode": "C",
+    "shamelCode": "C00000201",
     "name": "فادي عدنان عطاطرة",
     "phone": "",
     "mobile": "",
     "email": "",
     "address": "",
     "balance": 100,
-    "shamelBalance": 100,
+    "shamelBalance": 200,
     "isStopped": false,
     "notes": "دين عليه: 200 شيكل",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-30T18:44:47.390Z",
-    "syncedBy": "مزامنة حية مباشرة",
+    "syncedAt": "2026-10-19T16:23:21.984+00:00",
+    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-30T18:44:47.390Z",
-    "lastSyncAt": null,
-    "lastBalanceDiffDate": "2026-10-30T18:44:47.390Z",
-    "lastBalanceChangeDate": "2026-10-30T18:44:47.390Z",
-    "previousBalance": 200,
-    "balanceDifference": -100,
-    "balanceHistory": [
-      {
-        "date": "2026-10-30T18:44:47.390Z",
-        "oldBalance": 200,
-        "newBalance": 100,
-        "difference": -100,
-        "source": "shamel_sync"
-      }
-    ]
+    "updatedAt": "2026-10-19T16:23:21.984+00:00",
+    "lastSyncAt": null
   },
   {
     "id": "cust-1791127655271-36101",
@@ -6597,35 +6402,22 @@
   {
     "id": "cust-1791127655295-46387",
     "systemNumber": "C00000423",
-    "shamelCode": "C",
+    "shamelCode": "C00000423",
     "name": "مامون سعيد عبادي",
     "phone": "",
     "mobile": "",
     "email": "",
     "address": "",
     "balance": 600,
-    "shamelBalance": 600,
+    "shamelBalance": 900,
     "isStopped": false,
     "notes": "دين عليه: 900 شيكل",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-30T18:44:47.390Z",
-    "syncedBy": "مزامنة حية مباشرة",
+    "syncedAt": "2026-10-19T16:23:21.984+00:00",
+    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-30T18:44:47.390Z",
-    "lastSyncAt": null,
-    "lastBalanceDiffDate": "2026-10-30T18:44:47.390Z",
-    "lastBalanceChangeDate": "2026-10-30T18:44:47.390Z",
-    "previousBalance": 900,
-    "balanceDifference": -300,
-    "balanceHistory": [
-      {
-        "date": "2026-10-30T18:44:47.390Z",
-        "oldBalance": 900,
-        "newBalance": 600,
-        "difference": -300,
-        "source": "shamel_sync"
-      }
-    ]
+    "updatedAt": "2026-10-19T16:23:21.984+00:00",
+    "lastSyncAt": null
   },
   {
     "id": "cust-1791127655269-74148",
@@ -7490,35 +7282,22 @@
   {
     "id": "cust-1791127655301-49066",
     "systemNumber": "C00000471",
-    "shamelCode": "C",
+    "shamelCode": "C00000471",
     "name": "محمد فايز بلال ابو بكر",
     "phone": "",
     "mobile": "",
     "email": "",
     "address": "",
     "balance": 6500,
-    "shamelBalance": 6500,
+    "shamelBalance": 7500,
     "isStopped": false,
     "notes": "دين عليه: 7500 شيكل",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-30T18:44:47.390Z",
-    "syncedBy": "مزامنة حية مباشرة",
+    "syncedAt": "2026-10-19T16:23:21.984+00:00",
+    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-30T18:44:47.390Z",
-    "lastSyncAt": null,
-    "lastBalanceDiffDate": "2026-10-30T18:44:47.390Z",
-    "lastBalanceChangeDate": "2026-10-30T18:44:47.390Z",
-    "previousBalance": 7500,
-    "balanceDifference": -1000,
-    "balanceHistory": [
-      {
-        "date": "2026-10-30T18:44:47.390Z",
-        "oldBalance": 7500,
-        "newBalance": 6500,
-        "difference": -1000,
-        "source": "shamel_sync"
-      }
-    ]
+    "updatedAt": "2026-10-19T16:23:21.984+00:00",
+    "lastSyncAt": null
   },
   {
     "id": "cust-1791127655297-535",
@@ -8163,35 +7942,22 @@
   {
     "id": "cust-1791127655301-11448",
     "systemNumber": "C00000469",
-    "shamelCode": "C",
+    "shamelCode": "C00000469",
     "name": "محمود يوسف اسماعيل الطبش",
     "phone": "",
     "mobile": "",
     "email": "",
     "address": "",
     "balance": 2050,
-    "shamelBalance": 2050,
+    "shamelBalance": 2550,
     "isStopped": false,
     "notes": "دين عليه: 2550 شيكل",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-30T18:44:47.390Z",
-    "syncedBy": "مزامنة حية مباشرة",
+    "syncedAt": "2026-10-19T16:23:21.984+00:00",
+    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-30T18:44:47.390Z",
-    "lastSyncAt": null,
-    "lastBalanceDiffDate": "2026-10-30T18:44:47.390Z",
-    "lastBalanceChangeDate": "2026-10-30T18:44:47.390Z",
-    "previousBalance": 2550,
-    "balanceDifference": -500,
-    "balanceHistory": [
-      {
-        "date": "2026-10-30T18:44:47.390Z",
-        "oldBalance": 2550,
-        "newBalance": 2050,
-        "difference": -500,
-        "source": "shamel_sync"
-      }
-    ]
+    "updatedAt": "2026-10-19T16:23:21.984+00:00",
+    "lastSyncAt": null
   },
   {
     "id": "cust-1791127655302-36209",
@@ -8376,35 +8142,22 @@
   {
     "id": "cust-1791127655276-46367",
     "systemNumber": "C00000208",
-    "shamelCode": "C",
+    "shamelCode": "C00000208",
     "name": "مصطفى فتحي النصار / اخو سامي",
     "phone": "",
     "mobile": "",
     "email": "",
     "address": "",
     "balance": 0,
-    "shamelBalance": 0,
+    "shamelBalance": 1000,
     "isStopped": false,
     "notes": "دين عليه: 1000 شيكل",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-30T18:44:47.390Z",
-    "syncedBy": "مزامنة حية مباشرة",
+    "syncedAt": "2026-10-19T16:23:21.984+00:00",
+    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-30T18:44:47.390Z",
-    "lastSyncAt": null,
-    "lastBalanceDiffDate": "2026-10-30T18:44:47.390Z",
-    "lastBalanceChangeDate": "2026-10-30T18:44:47.390Z",
-    "previousBalance": 1000,
-    "balanceDifference": -1000,
-    "balanceHistory": [
-      {
-        "date": "2026-10-30T18:44:47.390Z",
-        "oldBalance": 1000,
-        "newBalance": 0,
-        "difference": -1000,
-        "source": "shamel_sync"
-      }
-    ]
+    "updatedAt": "2026-10-19T16:23:21.984+00:00",
+    "lastSyncAt": null
   },
   {
     "id": "cust-1791127655269-43888",
@@ -9249,35 +9002,22 @@
   {
     "id": "cust-1791127655302-99002",
     "systemNumber": "C00000476",
-    "shamelCode": "C",
+    "shamelCode": "C00000476",
     "name": "نورس عبد الرحمن ابو بكر",
     "phone": "",
     "mobile": "",
     "email": "",
     "address": "",
     "balance": 500,
-    "shamelBalance": 500,
+    "shamelBalance": 1000,
     "isStopped": false,
     "notes": "دين عليه: 1000 شيكل",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-30T18:44:47.390Z",
-    "syncedBy": "مزامنة حية مباشرة",
+    "syncedAt": "2026-10-19T16:23:21.984+00:00",
+    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-30T18:44:47.390Z",
-    "lastSyncAt": null,
-    "lastBalanceDiffDate": "2026-10-30T18:44:47.390Z",
-    "lastBalanceChangeDate": "2026-10-30T18:44:47.390Z",
-    "previousBalance": 1000,
-    "balanceDifference": -500,
-    "balanceHistory": [
-      {
-        "date": "2026-10-30T18:44:47.390Z",
-        "oldBalance": 1000,
-        "newBalance": 500,
-        "difference": -500,
-        "source": "shamel_sync"
-      }
-    ]
+    "updatedAt": "2026-10-19T16:23:21.984+00:00",
+    "lastSyncAt": null
   },
   {
     "id": "cust-1791127655275-61603",
@@ -9422,35 +9162,22 @@
   {
     "id": "cust-1791127655271-156",
     "systemNumber": "C00000128",
-    "shamelCode": "C",
+    "shamelCode": "C00000128",
     "name": "هيثم حسن الديك عبادي",
     "phone": "",
     "mobile": "",
     "email": "",
     "address": "",
     "balance": 1100,
-    "shamelBalance": 1100,
+    "shamelBalance": 800,
     "isStopped": false,
     "notes": "دين عليه: 800 شيكل",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-30T18:44:47.390Z",
-    "syncedBy": "مزامنة حية مباشرة",
+    "syncedAt": "2026-10-19T16:23:21.984+00:00",
+    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-30T18:44:47.390Z",
-    "lastSyncAt": null,
-    "lastBalanceDiffDate": "2026-10-30T18:44:47.390Z",
-    "lastBalanceChangeDate": "2026-10-30T18:44:47.390Z",
-    "previousBalance": 800,
-    "balanceDifference": 300,
-    "balanceHistory": [
-      {
-        "date": "2026-10-30T18:44:47.390Z",
-        "oldBalance": 800,
-        "newBalance": 1100,
-        "difference": 300,
-        "source": "shamel_sync"
-      }
-    ]
+    "updatedAt": "2026-10-19T16:23:21.984+00:00",
+    "lastSyncAt": null
   },
   {
     "id": "cust-1791127655285-28907",
@@ -9515,35 +9242,22 @@
   {
     "id": "cust-1791127655291-67725",
     "systemNumber": "C00000391",
-    "shamelCode": "C",
+    "shamelCode": "C00000391",
     "name": "واصف الشيخ علي",
     "phone": "",
     "mobile": "",
     "email": "",
     "address": "",
     "balance": 1500,
-    "shamelBalance": 1500,
+    "shamelBalance": 2000,
     "isStopped": false,
     "notes": "رصيد خالص",
     "source": "shamel_sync",
-    "syncedAt": "2026-10-30T18:44:47.390Z",
-    "syncedBy": "مزامنة حية مباشرة",
+    "syncedAt": "2026-10-19T16:23:21.984+00:00",
+    "syncedBy": "مزامنة الشامل لايت (ShamelRealData)",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
-    "updatedAt": "2026-10-30T18:44:47.390Z",
-    "lastSyncAt": null,
-    "lastBalanceDiffDate": "2026-10-30T18:44:47.390Z",
-    "lastBalanceChangeDate": "2026-10-30T18:44:47.390Z",
-    "previousBalance": 2000,
-    "balanceDifference": -500,
-    "balanceHistory": [
-      {
-        "date": "2026-10-30T18:44:47.390Z",
-        "oldBalance": 2000,
-        "newBalance": 1500,
-        "difference": -500,
-        "source": "shamel_sync"
-      }
-    ]
+    "updatedAt": "2026-10-19T16:23:21.984+00:00",
+    "lastSyncAt": null
   },
   {
     "id": "cust-1791127655297-62196",

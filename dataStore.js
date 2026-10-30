@@ -2632,7 +2632,7 @@ const dataStore = {
             verifiedSample = readBack.data.slice(0, 3).map(s => ({ code: s.shamelCode, name: s.name, balance: s.balance }));
           }
 
-          // محاولة اختيارية لتحديث جدول suppliers إن وجد
+          // محاولة اختيارية لتحديث جدول suppliers إن وجد — نحفظ shamelBalance و balance معاً
           try {
             const sb = updatedSuppliers.map(s => ({
               id: String(s.id),
@@ -2643,7 +2643,8 @@ const dataStore = {
               address: String(s.address || ''),
               notes: String(s.notes || ''),
               isStopped: Boolean(s.isStopped),
-              balance: parseFloat(s.balance) || 0,
+              balance: parseFloat(s.shamelBalance !== undefined ? s.shamelBalance : s.balance) || 0,
+              shamelBalance: parseFloat(s.shamelBalance !== undefined ? s.shamelBalance : s.balance) || 0,
               createdAt: s.createdAt || now
             }));
             if (sb.length > 0) await supabase.from('suppliers').upsert(sb);
@@ -2849,23 +2850,27 @@ const dataStore = {
       console.warn('⚠️ تعذر استعادة الزبائن من Supabase:', cErr.message);
     }
 
-    // 7. استعادة الموردين (من جدول suppliers مباشرة مع fallback لـ settings واستبعاد مورد بضاعة قديمة)
+        // 7. استعادة الموردين — settings.suppliers أولاً (يُحدَّث عند كل مزامنة) ثم جدول suppliers
     try {
       const EXCLUDED_SUPPLIER_CODES = ['S00000003'];
       let suppData = null;
-      const { data: sTable, error: sErr } = await supabase.from('suppliers').select('*').order('name');
-      if (!sErr && Array.isArray(sTable) && sTable.length > 0) {
-        suppData = sTable;
-        console.log(`✅ تم استعادة ${suppData.length} مورد من جدول suppliers الأساسي في Supabase`);
+
+      // المصدر الأول: settings.suppliers — يُحدَّث تلقائياً عند كل مزامنة من ShamelSyncPro
+      const { data: sRow } = await supabase.from('settings').select('data').eq('id', 'suppliers').maybeSingle();
+      if (sRow && Array.isArray(sRow.data) && sRow.data.length > 0) {
+        suppData = sRow.data;
+        console.log('✅ تم استعادة ' + suppData.length + ' مورد بأرصدتهم الحديثة من settings (snapshot مزامنة الشامل)');
       } else {
-        const { data: sRow } = await supabase.from('settings').select('data').eq('id', 'suppliers').maybeSingle();
-        if (sRow && Array.isArray(sRow.data) && sRow.data.length > 0) {
-          suppData = sRow.data;
-          console.log(`✅ تم استعادة ${suppData.length} مورد من snapshot في settings`);
+        // المصدر الثاني: جدول suppliers المباشر (fallback)
+        const { data: sTable, error: sErr } = await supabase.from('suppliers').select('*').order('name');
+        if (!sErr && Array.isArray(sTable) && sTable.length > 0) {
+          suppData = sTable;
+          console.log('✅ تم استعادة ' + suppData.length + ' مورد من جدول suppliers الأساسي في Supabase');
         }
       }
+
       if (suppData && suppData.length > 0) {
-        const cleanSuppliers = suppData.filter(s => {
+        const cleanSuppliers = suppData.filter(function(s) {
           const code = String(s.shamelCode || '').toUpperCase();
           const name = String(s.name || '');
           return !EXCLUDED_SUPPLIER_CODES.includes(code) && !name.includes('بضاعة قديمة');

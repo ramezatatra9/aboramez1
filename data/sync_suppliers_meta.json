@@ -1,12 +1,12 @@
 {
-  "lastSyncAt": "2026-10-30T18:46:30.589Z",
+  "lastSyncAt": "2026-10-30T19:00:30.560Z",
   "mode": "upsert",
   "itemsReceived": 15,
   "created": 0,
-  "updated": 0,
-  "unchanged": 15,
+  "updated": 3,
+  "unchanged": 12,
   "failed": 0,
   "totalSuppliers": 14,
   "excludedDummyCount": 0,
-  "editorName": "مزامنة حية مباشرة"
+  "editorName": "برنامج مزامنة الشامل"
 }
