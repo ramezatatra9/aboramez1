@@ -388,8 +388,9 @@ const defaultSettings = {
   invoiceFooterText: "شكراً لتعاملكم معنا - بضاعة الشركة مكفولة حسب شروط الضمان",
   pinLockEnabled: true,
   securityUsers: [
-    { id: 'u-admin', name: 'المدير العام (أبو رامز)', pin: '1234', role: 'admin' },
-    { id: 'u-cashier', name: 'موظف مبيعات / كاشير', pin: '1111', role: 'cashier' }
+    { id: 'u-admin', name: 'المدير العام (أبو رامز)', pin: '8802', role: 'admin' },
+    { id: 'u-cashier-1', name: 'موظف مبيعات (1111)', pin: '1111', role: 'cashier' },
+    { id: 'u-cashier-2', name: 'موظف مبيعات (1234)', pin: '1234', role: 'cashier' }
   ]
 };
 

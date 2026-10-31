@@ -5,5 +5,26 @@
   "companyAddress": "يعبد",
   "telegramChatId": "-5562183330",
   "telegramBotToken": "8796168868:AAGmJPZWGM_s0Z8FhDVNjFu1IuLPS92s0mk",
-  "invoiceFooterText": "شكراً لتعاملكم معنا - بضاعة الشركة مكفولة حسب شروط الضمان"
+  "invoiceFooterText": "شكراً لتعاملكم معنا - بضاعة الشركة مكفولة حسب شروط الضمان",
+  "pinLockEnabled": true,
+  "securityUsers": [
+    {
+      "id": "u-admin",
+      "name": "المدير العام (أبو رامز)",
+      "pin": "8802",
+      "role": "admin"
+    },
+    {
+      "id": "u-cashier-1",
+      "name": "موظف مبيعات (1111)",
+      "pin": "1111",
+      "role": "cashier"
+    },
+    {
+      "id": "u-cashier-2",
+      "name": "موظف مبيعات (1234)",
+      "pin": "1234",
+      "role": "cashier"
+    }
+  ]
 }

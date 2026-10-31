@@ -15,8 +15,9 @@ const PIN_SESSION_TTL  = 45 * 60 * 1000; // 45 دقيقة
 
 // المستخدمون الافتراضيون (الأدمن والكاشير)
 const DEFAULT_SECURITY_USERS = [
-  { id: 'u-admin',   name: 'المدير العام (رامز)', pin: '8802', role: 'admin' },
-  { id: 'u-cashier', name: 'موظف مبيعات / كاشير',     pin: '1111', role: 'cashier' }
+  { id: 'u-admin',     name: 'المدير العام (أبو رامز)', pin: '8802', role: 'admin' },
+  { id: 'u-cashier-1', name: 'موظف مبيعات (1111)',      pin: '1111', role: 'cashier' },
+  { id: 'u-cashier-2', name: 'موظف مبيعات (1234)',      pin: '1234', role: 'cashier' }
 ];
 
 let appSecurityUsers = [...DEFAULT_SECURITY_USERS];
@@ -400,16 +401,17 @@ function verifyEnteredPin() {
 //  [5] إعدادات الأمان وإدارة الرموز من صفحة الإعدادات
 // ─────────────────────────────────────────────
 function initSecuritySettingsForm() {
-  const adminUser   = appSecurityUsers.find(u => u.role === 'admin') || DEFAULT_SECURITY_USERS[0];
-  const cashierUser = appSecurityUsers.find(u => u.role === 'cashier') || DEFAULT_SECURITY_USERS[1];
+  const adminUser    = appSecurityUsers.find(u => u.role === 'admin') || DEFAULT_SECURITY_USERS[0];
+  const cashierUsers = appSecurityUsers.filter(u => u.role === 'cashier');
+  const cashierPins  = cashierUsers.length > 0 ? cashierUsers.map(u => u.pin).join(' و ') : '1111 و 1234';
 
   const adminInput   = document.getElementById('adminPinInput');
   const cashierInput = document.getElementById('cashierPinInput');
   const lockCheckbox = document.getElementById('chkPinLockEnabled');
   const hideCheckbox = document.getElementById('chkHideCostsFromCashier');
 
-  if (adminInput)   adminInput.value   = adminUser.pin   || '1234';
-  if (cashierInput) cashierInput.value = cashierUser.pin || '1111';
+  if (adminInput)   adminInput.value   = adminUser.pin   || '8802';
+  if (cashierInput) cashierInput.value = cashierPins;
   if (lockCheckbox) lockCheckbox.checked = isPinLockActive;
   if (hideCheckbox) hideCheckbox.checked = hideCostsForCashier;
 }
@@ -434,20 +436,24 @@ async function saveUserSecuritySettings() {
     showMsg('❌ رمز المدير العام يجب أن يتكون من 4 أرقام بالضبط', true);
     return;
   }
-  if (!cashierPin || cashierPin.length !== 4 || !/^\d{4}$/.test(cashierPin)) {
-    showMsg('❌ رمز موظف المبيعات يجب أن يتكون من 4 أرقام بالضبط', true);
-    return;
-  }
-  if (adminPin === cashierPin) {
+
+  const pinMatches = cashierPin ? (cashierPin.match(/\d{4}/g) || []) : [];
+  const validCashierPins = pinMatches.length > 0 ? [...new Set(pinMatches)] : ['1111', '1234'];
+
+  if (validCashierPins.includes(adminPin)) {
     showMsg('❌ لا يمكن استخدام نفس الرمز للمدير والموظف! يرجى اختيار رمز مختلف لكل منهما', true);
     return;
   }
 
   const updatedUsers = [
-    { id: 'u-admin',   name: 'المدير العام (رامز)', pin: adminPin,   role: 'admin' },
-    { id: 'u-cashier', name: 'موظف مبيعات / كاشير',     pin: cashierPin, role: 'cashier' }
+    { id: 'u-admin', name: 'المدير العام (أبو رامز)', pin: adminPin, role: 'admin' },
+    ...validCashierPins.map((p, idx) => ({
+      id: `u-cashier-${idx + 1}`,
+      name: `موظف مبيعات (${p})`,
+      pin: p,
+      role: 'cashier'
+    }))
   ];
-
   try {
     const res = await fetch('/api/settings', {
       method: 'POST',

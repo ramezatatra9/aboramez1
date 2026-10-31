@@ -164,22 +164,28 @@ async function generatePdfBlobFromHtml(htmlContent, fileName = 'document.pdf', o
   const isLandscape = options.orientation === 'landscape';
   const targetWidthPx = isLandscape ? 1120 : 794;
 
-  // بناء حاوية محتوى نظيفة ومستقلة بدون أي تموضع شاذ (-10000px) لمنع الشاشات البيضاء أو قطع المحتوى
+  // حفظ موضع التمرير الحالي ثم التمرير لأعلى الصفحة لضمان دقة لقطة html2canvas بدون أي فراغ أو انحراف
+  const originalScrollY = window.pageYOffset || document.documentElement.scrollTop || 0;
+  const originalScrollX = window.pageXOffset || document.documentElement.scrollLeft || 0;
+  window.scrollTo(0, 0);
+
+  // بناء حاوية محتوى نظيفة ومستقلة عند موضع (0, 0) تماماً لضمان تصيير حقيقي وكامل للألوان والنصوص
   const wrapper = document.createElement('div');
   wrapper.className = 'pdf-render-root';
   wrapper.style.width = targetWidthPx + 'px';
   wrapper.style.maxWidth = targetWidthPx + 'px';
-  wrapper.style.margin = '0 auto';
+  wrapper.style.margin = '0';
   wrapper.style.padding = '0';
   wrapper.style.backgroundColor = '#ffffff';
   wrapper.style.color = '#0f172a';
   wrapper.style.direction = 'rtl';
   wrapper.style.display = 'block';
   wrapper.style.boxSizing = 'border-box';
-  wrapper.style.position = 'fixed';
+  wrapper.style.position = 'absolute';
   wrapper.style.top = '0';
-  wrapper.style.left = '-10000px';
-  wrapper.style.zIndex = '-9999';
+  wrapper.style.left = '0';
+  wrapper.style.zIndex = '999999';
+  wrapper.style.pointerEvents = 'none';
   wrapper.style.fontFamily = "'Cairo', 'IBM Plex Sans Arabic', 'Segoe UI', Tahoma, sans-serif";
   wrapper.innerHTML = resolvedHtml;
   document.body.appendChild(wrapper);
@@ -227,18 +233,22 @@ async function generatePdfBlobFromHtml(htmlContent, fileName = 'document.pdf', o
       }));
     }
 
-    // 3. تأخير زمني بسيط (setTimeout) قبل التحويل للسماح للمتصفح برسم عناصر الـ DOM بالكامل وحساب الأبعاد بدقة
-    await new Promise(resolve => setTimeout(resolve, options.delay || 300));
+    // 3. تأخير زمني بسيط للسماح للمتصفح برسم عناصر الـ DOM بالكامل وحساب الأبعاد بدقة
+    await new Promise(resolve => setTimeout(resolve, options.delay || 350));
 
-    // الهامش الافتراضي 0 لإزالة أي فراغ علوي غير مرغوب فيه لأن قوالب النظام تحتوي على مسافات padding كافية
     const optMargin = options.margin !== undefined ? options.margin : 0;
+    const contentHeight = wrapper.scrollHeight || wrapper.offsetHeight || 1000;
+    // تحديد مقياس الرسم بذكاء لمنع تجاوز حدود الكانفاس في المتصفح
+    let autoScale = 1.8;
+    if (contentHeight > 10000) autoScale = 1.25;
+    else if (contentHeight > 5000) autoScale = 1.5;
 
     const opt = {
       margin: optMargin,
       filename: fileName,
       image: { type: 'jpeg', quality: 0.98 },
       html2canvas: {
-        scale: 2,
+        scale: options.scale || autoScale,
         useCORS: true,
         allowTaint: true,
         letterRendering: true,
@@ -250,7 +260,6 @@ async function generatePdfBlobFromHtml(htmlContent, fileName = 'document.pdf', o
         y: 0,
         windowWidth: targetWidthPx,
         onclone: function(clonedDoc) {
-          // التأكد من أن جميع الحاويات في المستند المستنسخ ظاهرة بدقة وبدون أي فراغ علوي
           const overlays = clonedDoc.querySelectorAll('.html2pdf__overlay');
           overlays.forEach(o => {
             o.style.opacity = '1';
@@ -276,12 +285,6 @@ async function generatePdfBlobFromHtml(htmlContent, fileName = 'document.pdf', o
       }
     };
 
-    // ضمان الخصائص المطلوبة دائماً
-    opt.image = { type: 'jpeg', quality: 0.98 };
-    opt.html2canvas.scale = 2;
-    opt.html2canvas.scrollX = 0;
-    opt.html2canvas.scrollY = 0;
-
     // توليد ملف PDF واستخراج الـ Blob المعتمد
     const worker = html2pdf().set(opt).from(wrapper);
     await worker.toPdf();
@@ -306,10 +309,11 @@ async function generatePdfBlobFromHtml(htmlContent, fileName = 'document.pdf', o
 
     return blob;
   } finally {
-    // التنظيف
-    if (wrapper.parentNode) {
+    // التنظيف وإزالة حاوية العرض واستعادة موقع التمرير للمستخدم
+    if (wrapper && wrapper.parentNode) {
       wrapper.parentNode.removeChild(wrapper);
     }
+    window.scrollTo(originalScrollX, originalScrollY);
   }
 }
 
@@ -7696,11 +7700,17 @@ async function sendStocktakeSheetToTelegram(format = 'auto') {
   const scopeSelect = document.getElementById('stocktakeScopeSelect');
   const scopeLabel = scopeSelect && scopeSelect.options[scopeSelect.selectedIndex] ? scopeSelect.options[scopeSelect.selectedIndex].text : 'كامل المخزون';
 
-  // إذا تم طلب الإكسل مباشرة، أو إذا كان عدد الأصناف أكبر من 200 صنف لمنع تجمد المتصفح
-  const shouldSendExcel = format === 'excel' || (format === 'auto' && items.length > 200);
+  // إذا تم طلب الإكسل مباشرة، أو إذا كان عدد الأصناف أكبر من 150 صنف (لتفادي قيود الكانفاس بالمتصفح وضمان وصول كافة الأصناف)
+  const isLargeSet = items.length > 150;
+  const shouldSendExcel = format === 'excel' || (isLargeSet && format !== 'force_pdf');
 
   if (shouldSendExcel) {
-    showToast('جاري تجهيز كشف الجرد Excel وإرساله مباشرة لتيليجرام...', 'info');
+    if (isLargeSet && format === 'pdf') {
+      showToast(`⚠️ الكشف يحتوي على ${items.length.toLocaleString('en-US')} صنف (حجم ضخم). يتم إرساله بصيغة Excel الشاملة لتيليجرام لضمان وضوح كامل بدون تجمد المتصفح.`, 'info');
+    } else {
+      showToast('جاري تجهيز كشف الجرد Excel وإرساله مباشرة لتيليجرام...', 'info');
+    }
+
     try {
       const res = await fetch('/api/inventory/send-stocktake-excel-telegram', {
         method: 'POST',
@@ -7737,8 +7747,8 @@ async function sendStocktakeSheetToTelegram(format = 'auto') {
     return;
   }
 
-  // إرسال كشف الجرد بصيغة PDF
-  showToast('جاري تجهيز استمارة كشف الجرد للموظفين بصيغة PDF وإرسالها لتيليجرام...', 'info');
+  // إرسال كشف الجرد بصيغة PDF (للأقسام المحددة أو عند الطلب)
+  showToast('جاري تجهيز استمارة كشف الجرد الملونة بصيغة PDF وإرسالها لتيليجرام...', 'info');
   try {
     const now = new Date();
     const dateFormatted = `${now.getDate()}-${now.getMonth() + 1}-${now.getFullYear()}`;
@@ -8946,3 +8956,139 @@ function closeProductDetailSheet() {
   document.body.style.overflow = '';
   _pdsCurrentProductId = null;
 }
+
+
+// =============================================================
+// نظام التنقل بالرجوع الذكي (Smart Back Button & History Navigation)
+// يمنع خروج المستخدم غير المقصود من الموقع عند الضغط على زر الرجوع في الهاتف أو المتصفح
+// ويقوم بإغلاق النوافذ المنبثقة أولاً، ثم التبديل للتبويب الرئيسي، ثم التأكيد قبل الخروج
+// =============================================================
+(function initSmartHistoryNavigation() {
+  let isNavigatingBack = false;
+  let lastBackPressTime = 0;
+
+  // تهيئة نقطة البداية في سجل التصفح
+  try {
+    if (!history.state || !history.state.posAppRoot) {
+      history.replaceState({ posAppRoot: true, page: 'home' }, '');
+    }
+  } catch (e) {}
+
+  window.pushModalHistoryState = function(modalId) {
+    try {
+      history.pushState({ posModalOpen: true, modalId: modalId, timestamp: Date.now() }, '');
+    } catch (e) {}
+  };
+
+  // مراقبة ظهور النوافذ المنبثقة تلقائياً لدفع حالة في السجل
+  const activeModalSet = new Set();
+  const observer = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      const target = mutation.target;
+      if (!target || !(target instanceof HTMLElement)) return;
+
+      const isModal = target.classList.contains('modal-backdrop') || 
+                      target.classList.contains('modal-overlay') ||
+                      target.id === 'modalStocktakeSheet' ||
+                      target.id === 'productDetailSheet';
+
+      if (!isModal || target.id === 'pinLockScreen') return;
+
+      const isVisible = target.classList.contains('active') || 
+                        target.style.display === 'flex' || 
+                        target.style.display === 'block';
+
+      if (isVisible && !activeModalSet.has(target)) {
+        activeModalSet.add(target);
+        if (!isNavigatingBack) {
+          window.pushModalHistoryState(target.id);
+        }
+      } else if (!isVisible && activeModalSet.has(target)) {
+        activeModalSet.delete(target);
+      }
+    });
+  });
+
+  try {
+    if (document.body) {
+      observer.observe(document.body, {
+        attributes: true,
+        subtree: true,
+        attributeFilter: ['class', 'style']
+      });
+    } else {
+      document.addEventListener('DOMContentLoaded', () => {
+        observer.observe(document.body, {
+          attributes: true,
+          subtree: true,
+          attributeFilter: ['class', 'style']
+        });
+      });
+    }
+  } catch (e) {}
+
+  // الاستماع لزر الرجوع الفعلي بهواتف أندرويد وآيفون والمتصفح
+  window.addEventListener('popstate', (event) => {
+    isNavigatingBack = true;
+
+    // 1. فحص هل توجد أي نافذة منبثقة مفتوحة حالياً؟
+    const openModals = Array.from(document.querySelectorAll(
+      '.modal-backdrop.active, .modal-backdrop[style*="display: flex"], .modal-backdrop[style*="display: block"], ' +
+      '.modal-overlay.active, .modal-overlay[style*="display: flex"], .modal-overlay[style*="display: block"], ' +
+      '#modalStocktakeSheet.active, #customerDebtsModal.active, #inventoryReportModal.active, #productDetailSheet[style*="display: block"]'
+    )).filter(m => m.id !== 'pinLockScreen' && getComputedStyle(m).display !== 'none');
+
+    if (openModals.length > 0) {
+      // إغلاق النافذة العلوية المفتوحة
+      const topModal = openModals[openModals.length - 1];
+
+      // إغلاق مخصص لبعض النوافذ المعروفة
+      if (topModal.id === 'modalStocktakeSheet' && typeof closeStocktakeSheetModal === 'function') {
+        closeStocktakeSheetModal();
+      } else if (topModal.id === 'productDetailSheet' && typeof closeProductDetailSheet === 'function') {
+        closeProductDetailSheet();
+      } else {
+        const closeBtn = topModal.querySelector('.close-btn, .modal-close, button[onclick*="close"], .btn-close');
+        if (closeBtn && typeof closeBtn.click === 'function') {
+          closeBtn.click();
+        } else {
+          topModal.classList.remove('active');
+          topModal.style.display = 'none';
+        }
+      }
+
+      setTimeout(() => { isNavigatingBack = false; }, 80);
+      return;
+    }
+
+    // 2. إذا لم تكن هناك أي نافذة منبثقة مفتوحة، فحص التبويب الحالي
+    // إذا كان في شاشة فرعية مثل الجرد، التقارير، الزبائن، الإعدادات -> العودة للمبيعات الرئيسية
+    const activeTab = document.querySelector('.tab-content.active');
+    if (activeTab && activeTab.id !== 'tab-pos' && activeTab.id !== 'tab-catalog') {
+      if (typeof switchTab === 'function') {
+        switchTab('pos');
+      } else if (typeof actuallySwitchTab === 'function') {
+        actuallySwitchTab('catalog');
+      }
+      history.pushState({ posAppRoot: true, page: 'home' }, '');
+      setTimeout(() => { isNavigatingBack = false; }, 80);
+      return;
+    }
+
+    // 3. إذا كان المستخدم في الشاشة الرئيسية ولا توجد نوافذ
+    // حماية الخروج العرضي (Double tap back to exit)
+    const now = Date.now();
+    if (now - lastBackPressTime < 2200) {
+      // ضغطتين متتاليتين -> السماح بالخروج
+      return;
+    }
+
+    // الضغطة الأولى: منع الخروج وإظهار إشعار تأكيد
+    lastBackPressTime = now;
+    history.pushState({ posAppRoot: true, page: 'home' }, '');
+    if (typeof showToast === 'function') {
+      showToast('اضغط رجوع مرة أخرى خلال ثانيتين للخروج من النظام ↩️', 'info');
+    }
+    setTimeout(() => { isNavigatingBack = false; }, 80);
+  });
+})();
