@@ -174,11 +174,15 @@ async function generatePdfBlobFromHtml(htmlContent, fileName = 'document.pdf', o
   wrapper.style.backgroundColor = '#ffffff';
   wrapper.style.color = '#0f172a';
   wrapper.style.direction = 'rtl';
-  wrapper.style.display = 'flow-root';
+  wrapper.style.display = 'block';
   wrapper.style.boxSizing = 'border-box';
-  wrapper.style.position = 'relative';
+  wrapper.style.position = 'fixed';
+  wrapper.style.top = '0';
+  wrapper.style.left = '-10000px';
+  wrapper.style.zIndex = '-9999';
   wrapper.style.fontFamily = "'Cairo', 'IBM Plex Sans Arabic', 'Segoe UI', Tahoma, sans-serif";
   wrapper.innerHTML = resolvedHtml;
+  document.body.appendChild(wrapper);
 
   // إظهار وتجهيز العناصر المخبأة في النوافذ المنبثقة (Modals/Popups)
   wrapper.querySelectorAll('.modal, .modal-backdrop, .modal-card, .modal-body, .modal-content').forEach(m => {
@@ -7655,8 +7659,8 @@ function exportStocktakeToExcel() {
   showToast('تم تصدير كشف الجرد للإكسل بنجاح', 'success');
 }
 
-// إرسال استمارة كشف الجرد الفعلي للموظفين (يدوي) إلى تيليجرام بصيغة PDF
-async function sendStocktakeSheetToTelegram() {
+// إرسال استمارة كشف الجرد الفعلي للموظفين (يدوي) إلى تيليجرام (PDF أو Excel)
+async function sendStocktakeSheetToTelegram(format = 'auto') {
   const modal = document.getElementById('modalStocktakeSheet');
   const printableArea = document.getElementById('printableStocktakeSheetArea');
   if (!modal || !modal.classList.contains('active')) {
@@ -7671,25 +7675,71 @@ async function sendStocktakeSheetToTelegram() {
 
   const btnQuick = document.getElementById('btnStocktakeTelegramQuick');
   const btnFooter = document.getElementById('btnStocktakeTelegramFooter');
+  const btnExcelQuick = document.getElementById('btnStocktakeTelegramExcelQuick');
+  const btnExcelFooter = document.getElementById('btnStocktakeTelegramExcelFooter');
+  
   if (btnQuick) btnQuick.disabled = true;
   if (btnFooter) btnFooter.disabled = true;
+  if (btnExcelQuick) btnExcelQuick.disabled = true;
+  if (btnExcelFooter) btnExcelFooter.disabled = true;
 
+  const sizeSelect = document.getElementById('stocktakeTableSizeSelect');
+  const sizeMode = sizeSelect ? sizeSelect.value : (localStorage.getItem('stocktake_table_size') || 'normal');
+  const sizeLabels = {
+    large: 'كبير (13px)',
+    normal: 'متوسط قياسي (11.5px)',
+    compact: 'مدمج (10px)',
+    xcompact: 'مدمج جداً (8.5px)'
+  };
+  const sizeLabel = sizeLabels[sizeMode] || 'متوسط (قياسي)';
+
+  const scopeSelect = document.getElementById('stocktakeScopeSelect');
+  const scopeLabel = scopeSelect && scopeSelect.options[scopeSelect.selectedIndex] ? scopeSelect.options[scopeSelect.selectedIndex].text : 'كامل المخزون';
+
+  // إذا تم طلب الإكسل مباشرة، أو إذا كان عدد الأصناف أكبر من 200 صنف لمنع تجمد المتصفح
+  const shouldSendExcel = format === 'excel' || (format === 'auto' && items.length > 200);
+
+  if (shouldSendExcel) {
+    showToast('جاري تجهيز كشف الجرد Excel وإرساله مباشرة لتيليجرام...', 'info');
+    try {
+      const res = await fetch('/api/inventory/send-stocktake-excel-telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: items.map(p => ({
+            code: p.code,
+            name: p.name,
+            brand: p.brand,
+            mainCategory: p.mainCategory,
+            category: p.category,
+            stock: state.inventoryPendingUpdates.has(p.id) ? state.inventoryPendingUpdates.get(p.id) : (p.stock || 0)
+          })),
+          scopeLabel,
+          sizeLabel
+        })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        showToast('✈️ تم إرسال كشف الجرد للموظفين بصيغة Excel بنجاح إلى تيليجرام!', 'success');
+      } else {
+        showToast('تعذر الإرسال إلى تيليجرام: ' + (data.error || 'خطأ غير معروف'), 'error');
+      }
+    } catch (err) {
+      console.error('sendStocktakeSheetExcel error:', err);
+      showToast('حدث خطأ أثناء إرسال ملف الإكسل لتيليجرام: ' + (err.message || err), 'error');
+    } finally {
+      if (btnQuick) btnQuick.disabled = false;
+      if (btnFooter) btnFooter.disabled = false;
+      if (btnExcelQuick) btnExcelQuick.disabled = false;
+      if (btnExcelFooter) btnExcelFooter.disabled = false;
+    }
+    return;
+  }
+
+  // إرسال كشف الجرد بصيغة PDF
   showToast('جاري تجهيز استمارة كشف الجرد للموظفين بصيغة PDF وإرسالها لتيليجرام...', 'info');
-
   try {
-    const sizeSelect = document.getElementById('stocktakeTableSizeSelect');
-    const sizeMode = sizeSelect ? sizeSelect.value : (localStorage.getItem('stocktake_table_size') || 'normal');
-    const sizeLabels = {
-      large: 'كبير (13px)',
-      normal: 'متوسط قياسي (11.5px)',
-      compact: 'مدمج (10px)',
-      xcompact: 'مدمج جداً (8.5px)'
-    };
-    const sizeLabel = sizeLabels[sizeMode] || 'متوسط (قياسي)';
-
-    const scopeSelect = document.getElementById('stocktakeScopeSelect');
-    const scopeLabel = scopeSelect && scopeSelect.options[scopeSelect.selectedIndex] ? scopeSelect.options[scopeSelect.selectedIndex].text : 'كامل المخزون';
-
     const now = new Date();
     const dateFormatted = `${now.getDate()}-${now.getMonth() + 1}-${now.getFullYear()}`;
     const fileName = `كشف_جرد_الموظفين_يدوي_${dateFormatted}_${Date.now().toString().slice(-4)}.pdf`;
@@ -7723,7 +7773,7 @@ async function sendStocktakeSheetToTelegram() {
     if (res && res.success) {
       showToast('✈️ تم إرسال كشف الجرد للموظفين بنجاح إلى تيليجرام!', 'success');
     } else {
-      showToast(`تعذر الإرسال إلى تيليجرام: ${res?.error || 'خطأ غير معروف'}`, 'error');
+      showToast('تعذر الإرسال إلى تيليجرام: ' + (res?.error || 'خطأ غير معروف'), 'error');
     }
   } catch (err) {
     console.error('sendStocktakeSheetToTelegram error:', err);
@@ -7731,6 +7781,8 @@ async function sendStocktakeSheetToTelegram() {
   } finally {
     if (btnQuick) btnQuick.disabled = false;
     if (btnFooter) btnFooter.disabled = false;
+    if (btnExcelQuick) btnExcelQuick.disabled = false;
+    if (btnExcelFooter) btnExcelFooter.disabled = false;
   }
 }
 

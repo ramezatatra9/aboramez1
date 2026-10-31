@@ -1252,6 +1252,99 @@ app.post('/api/inventory/send-report-telegram', async (req, res) => {
   }
 });
 
+// إرسال استمارة كشف الجرد الفعلي للموظفين (يدوي) إلى تيليجرام كملف Excel احترافي
+app.post('/api/inventory/send-stocktake-excel-telegram', async (req, res) => {
+  try {
+    const { items, scopeLabel, sizeLabel } = req.body;
+    const settings = dataStore.getSettings();
+
+    if (!settings.telegramBotToken || !settings.telegramChatId) {
+      return res.status(400).json({ success: false, error: 'لم يتم ضبط إعدادات تيليجرام (Bot Token أو Chat ID) بعد' });
+    }
+
+    const XLSX = require('xlsx');
+    const telegramService = require('./telegramService');
+
+    const productList = Array.isArray(items) && items.length > 0 ? items : dataStore.getProducts();
+    const headers = [
+      '#',
+      'رقم الصنف (الكود)',
+      'اسم الصنف والمواصفات',
+      'الماركة',
+      'القسم الرئيسي',
+      'الكمية الحالية بالنظام',
+      'الكمية الفعلية (الجديدة) ✍️',
+      'ملاحظات / فروقات'
+    ];
+
+    const rows = [headers];
+    let totalStock = 0;
+
+    productList.forEach((p, idx) => {
+      const stock = parseInt(p.stock) || 0;
+      totalStock += stock;
+      rows.push([
+        idx + 1,
+        p.code || '',
+        p.name || '',
+        p.brand || '',
+        p.mainCategory || p.category || 'أخرى',
+        stock,
+        '',
+        ''
+      ]);
+    });
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [
+      { wch: 6 },
+      { wch: 16 },
+      { wch: 45 },
+      { wch: 15 },
+      { wch: 22 },
+      { wch: 18 },
+      { wch: 25 },
+      { wch: 25 }
+    ];
+    XLSX.utils.book_append_sheet(wb, ws, 'كشف الجرد الفعلي للموظفين');
+    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+    const now = new Date();
+    const dateFormatted = now.getDate() + '-' + (now.getMonth() + 1) + '-' + now.getFullYear();
+    const fileName = 'كشف_جرد_الموظفين_يدوي_' + dateFormatted + '.xlsx';
+
+    const caption = 
+      '📋 <b>استمارة كشف جرد المخزون الفعلي للموظفين (ملف Excel جاهز للتعبئة)</b>\n' +
+      '🏢 <b>' + (settings.companyName || 'معرض رامز عطاطرة') + '</b>\n' +
+      '━━━━━━━━━━━━━━━━━━\n' +
+      '📦 <b>النطاق:</b> ' + (scopeLabel || 'كامل المخزون') + '\n' +
+      '🔢 <b>عدد الأصناف:</b> <b>' + productList.length.toLocaleString('en-US') + ' صنف</b>\n' +
+      '📊 <b>إجمالي القطع بالنظام:</b> <b>' + totalStock.toLocaleString('en-US') + ' قطعة</b>\n' +
+      '📐 <b>حجم الكشف:</b> ' + (sizeLabel || 'قياسي') + '\n' +
+      '🕐 <b>الوقت والتاريخ:</b> ' + formatServerDateTime(now) + '\n' +
+      '<i>📎 مرفق ملف كشف الجرد بصيغة Excel يحتوي على كافة الأعمدة والخانات المخصصة للتعبئة اليدوية.</i>';
+
+    const result = await telegramService.sendDocument(
+      settings.telegramBotToken,
+      settings.telegramChatId,
+      buffer,
+      fileName,
+      caption,
+      'HTML'
+    );
+
+    if (result.ok) {
+      res.json({ success: true, message: 'تم إرسال كشف الجرد Excel بنجاح إلى تيليجرام' });
+    } else {
+      res.status(500).json({ success: false, error: result.error || 'تعذر إرسال الملف لتيليجرام' });
+    }
+  } catch (err) {
+    console.error('Error in send-stocktake-excel-telegram:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // إرسال ملف PDF الفعلي لتقرير الجرد إلى تيليجرام
 app.post('/api/inventory/send-pdf-telegram', pdfUpload.single('pdfFile'), async (req, res) => {
   try {
