@@ -7700,16 +7700,14 @@ async function sendStocktakeSheetToTelegram(format = 'auto') {
   const scopeSelect = document.getElementById('stocktakeScopeSelect');
   const scopeLabel = scopeSelect && scopeSelect.options[scopeSelect.selectedIndex] ? scopeSelect.options[scopeSelect.selectedIndex].text : 'كامل المخزون';
 
-  // إذا تم طلب الإكسل مباشرة، أو إذا كان عدد الأصناف أكبر من 150 صنف (لتفادي قيود الكانفاس بالمتصفح وضمان وصول كافة الأصناف)
+  // إذا تم طلب الإكسل مباشرة → أرسل Excel دائماً
+  // إذا كان format=auto وعدد الأصناف كبير → تحويل تلقائي لـ Excel لمنع تجمد المتصفح
+  // إذا كان format=pdf → احترم اختيار المستخدم وأرسل PDF دائماً بغض النظر عن الحجم
   const isLargeSet = items.length > 150;
-  const shouldSendExcel = format === 'excel' || (isLargeSet && format !== 'force_pdf');
+  const shouldSendExcel = format === 'excel' || (format === 'auto' && isLargeSet);
 
   if (shouldSendExcel) {
-    if (isLargeSet && format === 'pdf') {
-      showToast(`⚠️ الكشف يحتوي على ${items.length.toLocaleString('en-US')} صنف (حجم ضخم). يتم إرساله بصيغة Excel الشاملة لتيليجرام لضمان وضوح كامل بدون تجمد المتصفح.`, 'info');
-    } else {
-      showToast('جاري تجهيز كشف الجرد Excel وإرساله مباشرة لتيليجرام...', 'info');
-    }
+    showToast('جاري تجهيز كشف الجرد Excel وإرساله مباشرة لتيليجرام...', 'info');
 
     try {
       const res = await fetch('/api/inventory/send-stocktake-excel-telegram', {
