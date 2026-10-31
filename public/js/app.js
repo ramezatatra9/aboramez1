@@ -7705,6 +7705,7 @@ async function sendStocktakeSheetToTelegram(format = 'auto') {
   // إذا كان format=pdf → احترم اختيار المستخدم وأرسل PDF دائماً بغض النظر عن الحجم
   const isLargeSet = items.length > 150;
   const shouldSendExcel = format === 'excel' || (format === 'auto' && isLargeSet);
+  console.log('[Stocktake] format=', format, '| items=', items.length, '| shouldSendExcel=', shouldSendExcel);
 
   if (shouldSendExcel) {
     showToast('جاري تجهيز كشف الجرد Excel وإرساله مباشرة لتيليجرام...', 'info');
