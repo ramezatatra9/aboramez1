@@ -7135,9 +7135,202 @@ function printInventoryReport() {
 // ============================================================
 // استمارة كشف الجرد الفعلي للموظفين (تعبئة يدوية - خالي من أي مبالغ مالية)
 // ============================================================
+
+// دالة تحديد سمة ولون القسم لكشف الجرد اليدوي
+// تلوين كل صف حسب القسم الخاص به بدقة وتمايز تام:
+// الأجهزة الكهربائية الكبيرة: أحمر
+// أدوات المطبخ: أزرق
+// أدوات المنزل: أخضر
+// أدوات شخصية: بنفسجي
+// شاشات وإلكترونيات: عنبري / برتقالي
+// مكيفات وتدفئة: فيروزي / سماوي
+// باقي الأقسام: ألوان مميزة وفريدة لكل قسم
+function getStocktakeCategoryTheme(product) {
+  const mainCat = String(product.mainCategory || '').trim();
+  const subCat = String(product.category || '').trim();
+  const rawCat = mainCat || subCat || 'أخرى';
+  const combined = (mainCat + ' ' + subCat).toLowerCase();
+
+  // 1. أجهزة كهربائية كبيرة -> أحمر
+  if (
+    combined.includes('كهربائية كبيرة') || 
+    combined.includes('اجهزة كهربائية كبيرة') || 
+    combined.includes('أجهزة كهربائية كبيرة') ||
+    combined.includes('ثلاجات') ||
+    combined.includes('غسالات') ||
+    combined.includes('نشافات') ||
+    combined.includes('فريزرات') ||
+    combined.includes('جلايات')
+  ) {
+    return {
+      key: 'large-appliances',
+      name: mainCat || 'أجهزة كهربائية كبيرة',
+      bg: '#fee2e2',          // أحمر هادئ مريح للكتابة والقراءة
+      border: '#fca5a5',      // حد أحمر ناعم
+      badgeBg: '#fecaca',     // خلفية الشارة
+      badgeText: '#991b1b',   // نص الشارة أحمر داكن
+      accent: '#dc2626',      // شريط أحمر جانبي مميز
+      badgeBorder: '#ef4444'
+    };
+  }
+
+  // 2. أدوات مطبخ -> أزرق
+  if (
+    combined.includes('مطبخ') ||
+    combined.includes('أدوات مطبخ') ||
+    combined.includes('ادوات مطبخ') ||
+    combined.includes('عجانات') ||
+    combined.includes('خلاطات') ||
+    combined.includes('أفران') ||
+    combined.includes('طناجر') ||
+    combined.includes('قلايات') ||
+    combined.includes('غلايات')
+  ) {
+    return {
+      key: 'kitchen',
+      name: mainCat || 'أدوات مطبخ',
+      bg: '#e0f2fe',          // أزرق هادئ
+      border: '#93c5fd',      // حد أزرق
+      badgeBg: '#bae6fd',     // خلفية الشارة
+      badgeText: '#075985',   // نص أزرق داكن
+      accent: '#0284c7',      // شريط أزرق جانبي مميز
+      badgeBorder: '#0284c7'
+    };
+  }
+
+  // 3. أدوات منزل -> أخضر
+  if (
+    combined.includes('منزل') ||
+    combined.includes('أدوات منزل') ||
+    combined.includes('ادوات منزل') ||
+    combined.includes('مكانس') ||
+    combined.includes('مكاوي') ||
+    combined.includes('مراوح')
+  ) {
+    return {
+      key: 'home',
+      name: mainCat || 'أدوات منزل',
+      bg: '#dcfce7',          // أخضر هادئ
+      border: '#86efac',      // حد أخضر
+      badgeBg: '#bbf7d0',     // خلفية الشارة
+      badgeText: '#166534',   // نص أخضر داكن
+      accent: '#16a34a',      // شريط أخضر جانبي
+      badgeBorder: '#16a34a'
+    };
+  }
+
+  // 4. أدوات شخصية -> بنفسجي / أرجواني
+  if (
+    combined.includes('شخصية') ||
+    combined.includes('أدوات شخصية') ||
+    combined.includes('ادوات شخصية') ||
+    combined.includes('سشوارات') ||
+    combined.includes('حلاقة') ||
+    combined.includes('ستريتر') ||
+    combined.includes('عناية')
+  ) {
+    return {
+      key: 'personal',
+      name: mainCat || 'أدوات شخصية',
+      bg: '#f3e8ff',          // بنفسجي هادئ
+      border: '#d8b4fe',      // حد بنفسجي
+      badgeBg: '#e9d5ff',     // خلفية الشارة
+      badgeText: '#6b21a8',   // نص بنفسجي داكن
+      accent: '#9333ea',      // شريط بنفسجي جانبي
+      badgeBorder: '#9333ea'
+    };
+  }
+
+  // 5. شاشات وتلفزيونات / إلكترونيات -> برتقالي / عنبري
+  if (
+    combined.includes('شاشات') ||
+    combined.includes('تلفزيون') ||
+    combined.includes('إلكترونيات') ||
+    combined.includes('الكترونيات') ||
+    combined.includes('سماعات')
+  ) {
+    return {
+      key: 'screens',
+      name: mainCat || 'شاشات وإلكترونيات',
+      bg: '#fef3c7',          // عنبري هادئ
+      border: '#fde68a',      // حد عنبري
+      badgeBg: '#fde68a',     // خلفية الشارة
+      badgeText: '#92400e',   // نص عنبري داكن
+      accent: '#d97706',      // شريط عنبري
+      badgeBorder: '#d97706'
+    };
+  }
+
+  // 6. صوبات وتدفئة ومكيفات -> فيروزي / سماوي
+  if (
+    combined.includes('مكيف') ||
+    combined.includes('تبريد') ||
+    combined.includes('تدفئة') ||
+    combined.includes('صوبات')
+  ) {
+    return {
+      key: 'climate',
+      name: mainCat || 'مكيفات وتدفئة',
+      bg: '#cffafe',          // فيروزي فاتح
+      border: '#a5f3fc',
+      badgeBg: '#a5f3fc',
+      badgeText: '#155e75',
+      accent: '#0891b2',
+      badgeBorder: '#0891b2'
+    };
+  }
+
+  // 7. باليتة ألوان ديناميكية للأقسام الأخرى
+  const dynamicPalettes = [
+    { bg: '#ffedd5', border: '#fed7aa', badgeBg: '#fed7aa', badgeText: '#9a3412', accent: '#ea580c', badgeBorder: '#ea580c' }, // خوخي برتقالي
+    { bg: '#ecfccb', border: '#d9f99d', badgeBg: '#d9f99d', badgeText: '#3f6212', accent: '#65a30d', badgeBorder: '#65a30d' }, // ليموني نضر
+    { bg: '#fce7f3', border: '#fbcfe8', badgeBg: '#fbcfe8', badgeText: '#9d174d', accent: '#db2777', badgeBorder: '#db2777' }, // وردي ناعم
+    { bg: '#ede9fe', border: '#ddd6fe', badgeBg: '#ddd6fe', badgeText: '#5b21b6', accent: '#7c3aed', badgeBorder: '#7c3aed' }, // أرجواني عميق
+    { bg: '#ccfbf1', border: '#99f6e4', badgeBg: '#99f6e4', badgeText: '#115e59', accent: '#0d9488', badgeBorder: '#0d9488' }, // فيروزي بحري
+    { bg: '#f1f5f9', border: '#cbd5e1', badgeBg: '#e2e8f0', badgeText: '#334155', accent: '#64748b', badgeBorder: '#64748b' }  // رمادي أنيق
+  ];
+
+  let hash = 0;
+  for (let i = 0; i < rawCat.length; i++) {
+    hash = rawCat.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const idx = Math.abs(hash) % dynamicPalettes.length;
+  const chosen = dynamicPalettes[idx];
+
+  return {
+    key: 'custom-' + idx,
+    name: rawCat,
+    bg: chosen.bg,
+    border: chosen.border,
+    badgeBg: chosen.badgeBg,
+    badgeText: chosen.badgeText,
+    accent: chosen.accent,
+    badgeBorder: chosen.badgeBorder
+  };
+}
+
+function onStocktakeTableSizeChange() {
+  const sizeSelect = document.getElementById('stocktakeTableSizeSelect');
+  if (sizeSelect) {
+    try {
+      localStorage.setItem('stocktake_table_size', sizeSelect.value);
+    } catch (e) {}
+  }
+  updateStocktakeSheetPreview();
+}
+
 function openStocktakeSheetModal() {
   const modal = document.getElementById('modalStocktakeSheet');
   if (!modal) return;
+
+  // استرجاع حجم الجدول المفضل المحفوظ مسبقاً
+  const sizeSelect = document.getElementById('stocktakeTableSizeSelect');
+  if (sizeSelect) {
+    try {
+      const savedSize = localStorage.getItem('stocktake_table_size') || 'normal';
+      sizeSelect.value = savedSize;
+    } catch (e) {}
+  }
 
   // تحديث قائمة الماركات في خيارات النطاق
   const brandsGroup = document.getElementById('stocktakeScopeBrandsOptgroup');
@@ -7190,6 +7383,7 @@ function updateStocktakeSheetPreview() {
   const area = document.getElementById('printableStocktakeSheetArea');
   const scopeSelect = document.getElementById('stocktakeScopeSelect');
   const sortSelect = document.getElementById('stocktakeSortSelect');
+  const sizeSelect = document.getElementById('stocktakeTableSizeSelect');
   const hideZero = document.getElementById('stocktakeHideZeroStock')?.checked;
   const includeNotes = document.getElementById('stocktakeIncludeNotesCol')?.checked ?? true;
   const summaryEl = document.getElementById('stocktakeSheetSummaryStats');
@@ -7198,7 +7392,16 @@ function updateStocktakeSheetPreview() {
 
   const scope = scopeSelect ? scopeSelect.value : 'all';
   const sortMode = sortSelect ? sortSelect.value : 'code_asc';
-  const companyName = state.settings.companyName || 'رامز عطاطرة';
+  const sizeMode = sizeSelect ? sizeSelect.value : (localStorage.getItem('stocktake_table_size') || 'normal');
+  const sizeLabels = {
+    large: 'كبير (13px خط مريح)',
+    normal: 'متوسط قياسي (11.5px متوازن)',
+    compact: 'مدمج (10px توفير ورق)',
+    xcompact: 'مدمج جداً (8.5px أقصى استيعاب)'
+  };
+  const sizeLabel = sizeLabels[sizeMode] || 'متوسط (قياسي)';
+
+  const companyName = state.settings.companyName || 'معرض رامز عطاطرة';
   const now = new Date();
   const dateStr = `${now.getDate()}-${now.getMonth() + 1}-${now.getFullYear()}`;
 
@@ -7277,7 +7480,7 @@ function updateStocktakeSheetPreview() {
   const totalUnits = products.reduce((acc, p) => acc + (state.inventoryPendingUpdates.has(p.id) ? state.inventoryPendingUpdates.get(p.id) : (p.stock || 0)), 0);
 
   if (summaryEl) {
-    summaryEl.innerHTML = `عدد الأصناف: <strong>${products.length.toLocaleString('en-US')} صنف</strong> | إجمالي الكميات المسجلة: <strong>${totalUnits.toLocaleString('en-US')} قطعة</strong>`;
+    summaryEl.innerHTML = `عدد الأصناف: <strong>${products.length.toLocaleString('en-US')} صنف</strong> | إجمالي الكميات المسجلة: <strong>${totalUnits.toLocaleString('en-US')} قطعة</strong> | الحجم: <strong>${sizeLabel}</strong>`;
   }
 
   const sortLabelMap = {
@@ -7290,24 +7493,51 @@ function updateStocktakeSheetPreview() {
   };
   const sortLabel = sortLabelMap[sortMode] || 'رقم الصنف تصاعدياً';
 
+  // تجميع الأقسام الفريدة المعروضة لإنشاء دليل ألوان الأقسام (Color Legend)
+  const uniqueThemesMap = new Map();
+  products.forEach(p => {
+    const theme = getStocktakeCategoryTheme(p);
+    const displayName = p.mainCategory || theme.name;
+    if (!uniqueThemesMap.has(displayName)) {
+      uniqueThemesMap.set(displayName, { ...theme, displayName });
+    }
+  });
+
+  const legendItemsHtml = Array.from(uniqueThemesMap.values()).map(th => `
+    <span class="stocktake-legend-pill" style="display: inline-flex; align-items: center; gap: 0.35rem; background-color: ${th.bg} !important; border: 1px solid ${th.border}; border-right: 4px solid ${th.accent} !important; color: ${th.badgeText}; font-weight: 700; padding: 2px 8px; border-radius: 4px; font-size: 0.76rem; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;">
+      <span>${escapeHtml(th.displayName)}</span>
+    </span>
+  `).join('');
+
+  const legendBarHtml = uniqueThemesMap.size > 0 ? `
+    <div class="stocktake-legend-bar" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin-bottom: 0.75rem; padding: 0.45rem 0.75rem; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.78rem; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;">
+      <span style="font-weight: 800; color: #334155; display: inline-flex; align-items: center; gap: 0.3rem;">🎨 دلالة ألوان الأقسام:</span>
+      ${legendItemsHtml}
+    </div>
+  ` : '';
+
   const rowsHtml = products.map((p, idx) => {
     const stock = state.inventoryPendingUpdates.has(p.id) ? state.inventoryPendingUpdates.get(p.id) : (p.stock || 0);
     const isZero = stock === 0;
+    const catTheme = getStocktakeCategoryTheme(p);
+    const catDisplay = p.mainCategory || p.category || catTheme.name;
 
     return `
-      <tr style="${isZero ? 'background-color: #f8fafc;' : ''}">
-        <td style="text-align: center; font-weight: 700; width: 38px; border: 1px solid #cbd5e1; padding: 6px 4px;">${idx + 1}</td>
-        <td style="text-align: center; font-weight: 800; font-family: monospace, sans-serif; font-size: 0.88rem; width: 95px; border: 1px solid #cbd5e1; padding: 6px 4px;">${escapeHtml(p.code || '-')}</td>
-        <td style="font-weight: 700; border: 1px solid #cbd5e1; padding: 6px 8px; line-height: 1.35;">${escapeHtml(p.name)}</td>
-        <td style="text-align: center; border: 1px solid #cbd5e1; padding: 6px 4px; width: 85px;">${escapeHtml(p.brand || '-')}</td>
-        <td style="text-align: center; border: 1px solid #cbd5e1; padding: 6px 4px; width: 100px; font-size: 0.78rem; color: #475569;">${escapeHtml(p.mainCategory || p.category || '-')}</td>
-        <td style="text-align: center; font-weight: 800; font-size: 0.95rem; width: 85px; border: 1px solid #cbd5e1; padding: 6px 4px; color: ${isZero ? '#b91c1c' : '#0f172a'};">
-          ${isZero ? '<span style="color:#dc2626;">0 (نافد)</span>' : stock}
+      <tr class="stocktake-row cat-${catTheme.key}" style="background-color: ${catTheme.bg} !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;">
+        <td style="text-align: center; font-weight: 800; width: 38px; border: 1px solid ${catTheme.border}; border-right: 4px solid ${catTheme.accent} !important; background-color: ${catTheme.bg} !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;">${idx + 1}</td>
+        <td style="text-align: center; font-weight: 800; font-family: monospace, sans-serif; width: 95px; border: 1px solid ${catTheme.border}; background-color: ${catTheme.bg} !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;">${escapeHtml(p.code || '-')}</td>
+        <td style="font-weight: 700; border: 1px solid ${catTheme.border}; background-color: ${catTheme.bg} !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; line-height: 1.35;">${escapeHtml(p.name)}</td>
+        <td style="text-align: center; border: 1px solid ${catTheme.border}; width: 85px; background-color: ${catTheme.bg} !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;">${escapeHtml(p.brand || '-')}</td>
+        <td style="text-align: center; border: 1px solid ${catTheme.border}; width: 110px; background-color: ${catTheme.bg} !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;">
+          <span class="stocktake-cat-badge" style="background-color: ${catTheme.badgeBg} !important; color: ${catTheme.badgeText} !important; border: 1px solid ${catTheme.badgeBorder} !important; font-weight: 800; padding: 2px 6px; border-radius: 4px; font-size: 0.74rem; display: inline-block; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;">${escapeHtml(catDisplay)}</span>
         </td>
-        <td style="text-align: center; width: 105px; border: 1.5px solid #0f172a; padding: 4px; background: #ffffff;">
+        <td style="text-align: center; font-weight: 800; width: 85px; border: 1px solid ${catTheme.border}; background-color: ${catTheme.bg} !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color: ${isZero ? '#b91c1c' : '#0f172a'};">
+          ${isZero ? '<span style="color:#dc2626; font-weight: 900;">0 (نافد)</span>' : stock}
+        </td>
+        <td style="text-align: center; width: 105px; border: 1.5px solid #0f172a; padding: 4px; background: #ffffff !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;">
           <div class="stocktake-write-box" title="خانة فارغة لكتابة الكمية الجديدة بالقلم"></div>
         </td>
-        ${includeNotes ? '<td style="border: 1px solid #cbd5e1; padding: 4px 6px; width: 130px;"><div class="stocktake-notes-line"></div></td>' : ''}
+        ${includeNotes ? `<td style="border: 1px solid ${catTheme.border}; background-color: ${catTheme.bg} !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; padding: 4px 6px; width: 130px;"><div class="stocktake-notes-line"></div></td>` : ''}
       </tr>
     `;
   }).join('');
@@ -7335,19 +7565,23 @@ function updateStocktakeSheetPreview() {
         <div>📦 نطاق الكشف: <strong style="color: #065f46;">${escapeHtml(scopeLabel)}</strong></div>
         <div>🔄 الترتيب: <strong>${escapeHtml(sortLabel)}</strong></div>
         <div>📊 الرصيد المسجل بالنظام: <strong>${totalUnits.toLocaleString('en-US')} قطعة</strong></div>
+        <div>📐 حجم الجدول: <strong>${escapeHtml(sizeLabel)}</strong></div>
         <div style="margin-right: auto;">👤 القائم بالعد: ____________________</div>
         <div>🕵️ المشرف: ____________________</div>
       </div>
 
-      <!-- جدول الأصناف -->
-      <table class="stocktake-table">
+      <!-- دليل ألوان الأقسام في الكشف -->
+      ${legendBarHtml}
+
+      <!-- جدول الأصناف الملون حسب الأقسام -->
+      <table class="stocktake-table size-${sizeMode}">
         <thead>
           <tr>
             <th style="width: 38px;">#</th>
             <th style="width: 95px;">رقم الصنف</th>
             <th>اسم الصنف والمواصفات</th>
             <th style="width: 85px;">الماركة</th>
-            <th style="width: 100px;">القسم</th>
+            <th style="width: 110px;">القسم</th>
             <th style="width: 85px;">الكمية بالنظام</th>
             <th style="width: 105px; background: #065f46 !important; color: white;">الكمية الفعلية (الجديدة) ✍️</th>
             ${includeNotes ? '<th style="width: 130px;">ملاحظات / فروقات</th>' : ''}
@@ -7419,6 +7653,85 @@ function exportStocktakeToExcel() {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
   showToast('تم تصدير كشف الجرد للإكسل بنجاح', 'success');
+}
+
+// إرسال استمارة كشف الجرد الفعلي للموظفين (يدوي) إلى تيليجرام بصيغة PDF
+async function sendStocktakeSheetToTelegram() {
+  const modal = document.getElementById('modalStocktakeSheet');
+  const printableArea = document.getElementById('printableStocktakeSheetArea');
+  if (!modal || !modal.classList.contains('active')) {
+    openStocktakeSheetModal();
+  }
+
+  const items = currentStocktakeSheetItems.length > 0 ? currentStocktakeSheetItems : state.products;
+  if (!items || items.length === 0) {
+    showToast('لا توجد أصناف في الكشف لإرسالها', 'warning');
+    return;
+  }
+
+  const btnQuick = document.getElementById('btnStocktakeTelegramQuick');
+  const btnFooter = document.getElementById('btnStocktakeTelegramFooter');
+  if (btnQuick) btnQuick.disabled = true;
+  if (btnFooter) btnFooter.disabled = true;
+
+  showToast('جاري تجهيز استمارة كشف الجرد للموظفين بصيغة PDF وإرسالها لتيليجرام...', 'info');
+
+  try {
+    const sizeSelect = document.getElementById('stocktakeTableSizeSelect');
+    const sizeMode = sizeSelect ? sizeSelect.value : (localStorage.getItem('stocktake_table_size') || 'normal');
+    const sizeLabels = {
+      large: 'كبير (13px)',
+      normal: 'متوسط قياسي (11.5px)',
+      compact: 'مدمج (10px)',
+      xcompact: 'مدمج جداً (8.5px)'
+    };
+    const sizeLabel = sizeLabels[sizeMode] || 'متوسط (قياسي)';
+
+    const scopeSelect = document.getElementById('stocktakeScopeSelect');
+    const scopeLabel = scopeSelect && scopeSelect.options[scopeSelect.selectedIndex] ? scopeSelect.options[scopeSelect.selectedIndex].text : 'كامل المخزون';
+
+    const now = new Date();
+    const dateFormatted = `${now.getDate()}-${now.getMonth() + 1}-${now.getFullYear()}`;
+    const fileName = `كشف_جرد_الموظفين_يدوي_${dateFormatted}_${Date.now().toString().slice(-4)}.pdf`;
+
+    const html = printableArea ? printableArea.innerHTML : '';
+    if (!html) {
+      showToast('تعذر استخراج بيانات الاستمارة', 'error');
+      return;
+    }
+
+    const blob = await generatePdfBlobFromHtml(html, fileName, {
+      orientation: 'portrait',
+      margin: 4
+    });
+
+    const totalUnits = items.reduce((acc, p) => acc + (state.inventoryPendingUpdates.has(p.id) ? state.inventoryPendingUpdates.get(p.id) : (p.stock || 0)), 0);
+
+    const caption = 
+`📋 <b>استمارة كشف جرد المخزون للموظفين (تعبئة يدوية)</b>
+🏢 <b>${state.settings.companyName || 'معرض رامز عطاطرة'}</b>
+━━━━━━━━━━━━━━━━━━
+📦 <b>النطاق:</b> ${scopeLabel}
+🔢 <b>عدد الأصناف:</b> <b>${items.length.toLocaleString('en-US')} صنف</b>
+📊 <b>إجمالي القطع المسجلة بالنظام:</b> <b>${totalUnits.toLocaleString('en-US')} قطعة</b>
+📐 <b>حجم الجدول:</b> ${sizeLabel}
+🎨 <b>التلوين:</b> ملون حسب الأقسام (أجهزة كهربائية، أدوات مطبخ، أدوات منزل، أدوات شخصية)
+🕐 <b>التاريخ والوقت:</b> ${formatAppDateTime(now)}
+<i>📎 مرفق ملف الاستمارة الملونة بصيغة PDF جاهزة للطباعة والتوزيع على الموظفين لبدء الجرد اليدوي.</i>`;
+
+    const res = await sendPdfDocumentToTelegram(blob, fileName, caption);
+    if (res && res.success) {
+      showToast('✈️ تم إرسال كشف الجرد للموظفين بنجاح إلى تيليجرام!', 'success');
+    } else {
+      showToast(`تعذر الإرسال إلى تيليجرام: ${res?.error || 'خطأ غير معروف'}`, 'error');
+    }
+  } catch (err) {
+    console.error('sendStocktakeSheetToTelegram error:', err);
+    showToast('حدث خطأ أثناء تصدير وإرسال استمارة الجرد: ' + (err.message || err), 'error');
+  } finally {
+    if (btnQuick) btnQuick.disabled = false;
+    if (btnFooter) btnFooter.disabled = false;
+  }
 }
 
 async function sendCurrentInventoryReportTelegram() {
