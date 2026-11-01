@@ -1,4 +1,4 @@
-// صورة المنتج الافتراضية الخفيفة المضمنة (تحميل فوري 0ms بدون استهلاك شبكة)
+﻿// صورة المنتج الافتراضية الخفيفة المضمنة (تحميل فوري 0ms بدون استهلاك شبكة)
 const DEFAULT_PRODUCT_IMG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'%3E%3Crect width='400' height='300' fill='%23f8fafc'/%3E%3Cg fill='%2394a3b8'%3E%3Cpath d='M150 110h100v80H150z' stroke='%23cbd5e1' stroke-width='6' fill='%23ffffff' rx='10'/%3E%3Ccircle cx='180' cy='150' r='16' fill='%23e2e8f0'/%3E%3Cpath d='M215 145h20M215 155h15' stroke='%2394a3b8' stroke-width='4' stroke-linecap='round'/%3E%3C/g%3E%3Ctext x='50%25' y='230' font-family='system-ui, sans-serif' font-size='14' font-weight='700' fill='%2394a3b8' text-anchor='middle'%3Eمعرض أبو رامز%3C/text%3E%3C/svg%3E";
 
 /**
@@ -2451,9 +2451,10 @@ function _doRenderCatalog() {
 
           <!-- مصفوفة الأسعار الشفافة للموظفين -->
           <div class="employee-pricing-box">
-            <div class="price-row prod-cost-field">
-              <span class="price-label">📦 التكلفة:</span>
-              <span class="price-val cost-val">${cost.toLocaleString('en-US')} ${currency}</span>
+            <div class="price-row prod-cost-field" style="cursor:pointer;" onclick="toggleCostPrice(event, '${prod.id}')" title="انقر لإظهار / إخفاء سعر رأس المال">
+              <span class="price-label" style="color:#7c3aed; font-weight:800; text-decoration: underline dotted; user-select:none;">💰 رأس المال</span>
+              <span class="price-val cost-val" id="costVal_${prod.id}" style="display:none; color:#dc2626; font-weight:800; background:#fff5f5; padding:1px 7px; border-radius:6px; border:1.5px dashed #dc2626;"><span style='font-size:0.7em;color:#94a3b8;margin-left:4px;'>👁 اضغط للإخفاء</span>${cost.toLocaleString('en-US')} ${currency}</span>
+              <span class="cost-hidden-hint" id="costHint_${prod.id}" style="color:#a78bfa; font-size:0.78rem; font-weight:700; margin-right:4px;">🔒 اضغط للعرض</span>
             </div>
             <div class="price-row">
               <span class="price-label">🏷️ سعر البيع:</span>
@@ -2513,6 +2514,18 @@ function _doRenderCatalog() {
   container.innerHTML = cardsHtml;
 }
 
+
+
+// 🔒 إظهار / إخفاء سعر رأس المال (التكلفة) في الكتالوج عند النقر على النص
+function toggleCostPrice(event, productId) {
+  event.stopPropagation();
+  const valEl  = document.getElementById(`costVal_${productId}`);
+  const hintEl = document.getElementById(`costHint_${productId}`);
+  if (!valEl) return;
+  const isVisible = valEl.style.display !== 'none';
+  valEl.style.display  = isVisible ? 'none' : 'inline-flex';
+  if (hintEl) hintEl.style.display = isVisible ? 'inline' : 'none';
+}
 
 function loadMoreCatalogProducts() {
   state.catalogCurrentPage++;
@@ -7626,6 +7639,50 @@ function printStocktakeSheetDoc() {
   }, 200);
 }
 
+// ⬇️ تحميل كشف الجرد اليدوي بصيغة PDF مباشرة على الجهاز
+async function downloadStocktakeSheetPdf() {
+  const printableArea = document.getElementById('printableStocktakeSheetArea');
+  if (!printableArea || !printableArea.innerHTML.trim()) {
+    updateStocktakeSheetPreview();
+    await new Promise(r => setTimeout(r, 300));
+  }
+  const html = printableArea ? printableArea.innerHTML : '';
+  if (!html) {
+    showToast('تعذّر توليد محتوى كشف الجرد، حاول مرة أخرى', 'error');
+    return;
+  }
+  const btn = document.getElementById('btnDownloadStocktakePdf');
+  const btnQuick = document.getElementById('btnStocktakeDownloadPdfQuick');
+  if (btnQuick) { btnQuick.disabled = true; btnQuick.style.opacity = '0.7'; }
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.7'; }
+  const now = new Date();
+  const dateFormatted = `${now.getDate()}-${now.getMonth() + 1}-${now.getFullYear()}`;
+  const fileName = `كشف_جرد_الموظفين_${dateFormatted}.pdf`;
+  showToast('⬇️ جاري تجهيز ملف PDF لتحميله على جهازك...', 'info');
+  try {
+    const blob = await generatePdfBlobFromHtml(html, fileName, {
+      orientation: 'portrait',
+      margin: 4
+    });
+    if (!blob || blob.size < 500) throw new Error('الملف الناتج فارغ أو تالف');
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 3000);
+    showToast(`✅ تم تحميل الملف "${fileName}" على جهازك بنجاح!`, 'success');
+  } catch (err) {
+    console.error('downloadStocktakeSheetPdf error:', err);
+    showToast('❌ حدث خطأ أثناء تحميل ملف PDF: ' + (err.message || err), 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+    if (btnQuick) { btnQuick.disabled = false; btnQuick.style.opacity = '1'; }
+  }
+}
+
 function exportStocktakeToExcel() {
   const items = currentStocktakeSheetItems.length > 0 ? currentStocktakeSheetItems : state.products;
   if (!items || items.length === 0) {
@@ -8799,6 +8856,17 @@ function updateCatalogViewModeUI() {
 
 let _pdsCurrentProductId = null;
 
+
+// 🔒 إظهار / إخفاء سعر رأس المال في ورقة تفاصيل المنتج عند النقر
+function togglePdsCostPrice() {
+  const costEl = document.getElementById('pdsCostPriceDisplay');
+  const hintEl = document.getElementById('pdsCostHint');
+  if (!costEl) return;
+  const isHidden = window.getComputedStyle(costEl).display === 'none' || costEl.style.display === 'none';
+  costEl.style.display = isHidden ? 'block' : 'none';
+  if (hintEl) hintEl.textContent = isHidden ? '(👁 اضغط للإخفاء)' : '(🔒 اضغط للعرض)';
+}
+
 function openProductDetailSheet(productId) {
   const prod = state.products.find(p => String(p.id) === String(productId));
   if (!prod) {
@@ -8888,7 +8956,12 @@ function openProductDetailSheet(productId) {
   if (sellEl) sellEl.textContent = `${sell.toLocaleString('en-US')} ${currency}`;
 
   const costEl = document.getElementById('pdsCostPriceDisplay');
-  if (costEl) costEl.textContent = `${cost.toLocaleString('en-US')} ${currency}`;
+  if (costEl) {
+    costEl.textContent = `${cost.toLocaleString('en-US')} ${currency}`;
+    costEl.style.display = 'none';
+  }
+  const pdsHint = document.getElementById('pdsCostHint');
+  if (pdsHint) pdsHint.textContent = '(🔒 اضغط للعرض)';
 
   const profitEl = document.getElementById('pdsProfitDisplay');
   if (profitEl) {

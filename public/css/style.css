@@ -7402,7 +7402,6 @@ html, body {
    ========================================================= */
 body.role-cashier .col-profit,
 body.role-cashier .live-item-profit,
-body.role-cashier .prod-cost-field,
 body.role-cashier .capital-card,
 body.role-cashier .inventory-capital-banner,
 body.role-cashier #invBrandSummaryBanner,
@@ -7430,15 +7429,12 @@ body.role-cashier button[onclick*="confirmDeleteProduct"] {
 }
 
 /* إخفاء حقلي التكلفة والربح عن الكاشير في نافذة التفاصيل */
-body.role-cashier .pds-cost-field,
 body.role-cashier #pdsProfitBox {
   display: none !important;
 }
 
 /* عند الكاشير: حقول الأسعار تملأ العرض كاملاً بدل عمودين */
-body.role-cashier .pds-prices-grid {
-  grid-template-columns: 1fr !important;
-}
+/* pds prices flexible */
 
 /* =========================================================
    أزرار الباركود في بطاقات الجرد
