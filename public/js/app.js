@@ -7664,6 +7664,53 @@ function printStocktakeSheetDoc() {
 }
 
 // دالة مساعدة لتوليد صفحة A4 واحدة معيارية لكشف الجرد لتحويلها لـ PDF
+// دالة الحساب والتوزيع الديناميكي التلقائي لكشف الجرد:
+// تقوم بحساب وتعبئة كل صفحة لأقصى سعة ممكنة دون ترك فراغات ودون تجاوز حدود ورقة A4
+// وتضمن تسلسلاً رقمياً مستمراً 100% بين جميع الصفحات
+async function computeDynamicStocktakePages(items, globalInfo, measureWrap) {
+  const pages = [];
+  let curIndex = 0;
+  const totalItems = items.length;
+
+  // ارتفاع المحتوى الآمن الأقصى داخل صفحة A4 (بالبكسل عند 96 DPI)
+  // الارتفاع الكلي 1122px، ونترك هامش أمان سفلي 45px للفوتر
+  const MAX_SAFE_PAGE_HEIGHT = 1055;
+
+  while (curIndex < totalItems) {
+    const isFirstPage = pages.length === 0;
+    // تقدير أولي ممتلئ: 24 صنف للأولى، 28 للأخرى
+    let batchSize = isFirstPage ? Math.min(24, totalItems - curIndex) : Math.min(28, totalItems - curIndex);
+
+    // قياس الارتفاع الحقيقي في الـ DOM
+    measureWrap.innerHTML = buildSingleStocktakePageHtml(
+      items.slice(curIndex, curIndex + batchSize),
+      {
+        pageIndex: pages.length + 1,
+        totalPages: 999, // مؤقت أثناء الحساب
+        startIndex: curIndex + 1,
+        isFirstPage,
+        isLastPage: (curIndex + batchSize >= totalItems)
+      },
+      globalInfo
+    );
+
+    const pageEl = measureWrap.firstElementChild;
+    const tableBody = pageEl ? pageEl.querySelector('tbody') : null;
+
+    // إذا تجاوز الارتفاع الحد الآمن، نقوم بإنقاص الصفوف الأخيرة حتى يستقر الارتفاع تماماً داخل الصفحة
+    while (tableBody && tableBody.children.length > 1 && pageEl.scrollHeight > MAX_SAFE_PAGE_HEIGHT) {
+      tableBody.removeChild(tableBody.lastElementChild);
+      batchSize--;
+    }
+
+    const finalCount = Math.max(1, batchSize);
+    pages.push(items.slice(curIndex, curIndex + finalCount));
+    curIndex += finalCount;
+  }
+
+  return pages;
+}
+
 // دالة مساعدة لتوليد صفحة A4 واحدة معيارية ملونة لكشف الجرد لتحويلها لـ PDF
 function buildSingleStocktakePageHtml(chunk, pageInfo, globalInfo) {
   const { pageIndex, totalPages, startIndex, isFirstPage, isLastPage } = pageInfo;
@@ -7677,45 +7724,45 @@ function buildSingleStocktakePageHtml(chunk, pageInfo, globalInfo) {
     const catDisplay = p.mainCategory || p.category || catTheme.name;
 
     return `
-      <tr style="background-color: ${catTheme.bg} !important; height: 28px;">
-        <td style="text-align: center; font-weight: 800; font-family: monospace, sans-serif; color: #0f172a; padding: 2.5px 2px; border: 1px solid ${catTheme.border}; border-right: 4px solid ${catTheme.accent} !important; background-color: ${catTheme.bg} !important; font-size: 10.5px; box-sizing: border-box;">${rowNum}</td>
-        <td style="text-align: center; font-weight: 800; font-family: monospace, sans-serif; color: #0f172a; padding: 2.5px 2px; border: 1px solid ${catTheme.border}; background-color: ${catTheme.bg} !important; font-size: 10px; box-sizing: border-box;">${escapeHtml(p.code || '-')}</td>
-        <td style="font-weight: 700; color: #0f172a; padding: 2.5px 4px; border: 1px solid ${catTheme.border}; background-color: ${catTheme.bg} !important; line-height: 1.2; font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; box-sizing: border-box;">${escapeHtml(p.name || '')}</td>
-        <td style="text-align: center; color: #334155; padding: 2.5px 2px; border: 1px solid ${catTheme.border}; background-color: ${catTheme.bg} !important; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; box-sizing: border-box;">${escapeHtml(p.brand || 'أخرى')}</td>
-        <td style="text-align: center; padding: 2px 2px; border: 1px solid ${catTheme.border}; background-color: ${catTheme.bg} !important; box-sizing: border-box;">
-          <span style="background-color: ${catTheme.badgeBg} !important; color: ${catTheme.badgeText} !important; border: 1px solid ${catTheme.badgeBorder} !important; font-weight: 800; padding: 1.5px 5px; border-radius: 4px; font-size: 9px; display: inline-block; white-space: nowrap;">${escapeHtml(catDisplay)}</span>
+      <tr style="background-color: ${catTheme.bg} !important; height: 33px;">
+        <td style="text-align: center; font-weight: 800; font-family: monospace, sans-serif; color: #0f172a; padding: 3px 2px; border: 1px solid ${catTheme.border}; border-right: 4px solid ${catTheme.accent} !important; background-color: ${catTheme.bg} !important; font-size: 11px; box-sizing: border-box;">${rowNum}</td>
+        <td style="text-align: center; font-weight: 800; font-family: monospace, sans-serif; color: #0f172a; padding: 3px 2px; border: 1px solid ${catTheme.border}; background-color: ${catTheme.bg} !important; font-size: 10.5px; box-sizing: border-box;">${escapeHtml(p.code || '-')}</td>
+        <td style="font-weight: 700; color: #0f172a; padding: 3px 5px; border: 1px solid ${catTheme.border}; background-color: ${catTheme.bg} !important; line-height: 1.25; font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; box-sizing: border-box;">${escapeHtml(p.name || '')}</td>
+        <td style="text-align: center; color: #334155; padding: 3px 3px; border: 1px solid ${catTheme.border}; background-color: ${catTheme.bg} !important; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; box-sizing: border-box;">${escapeHtml(p.brand || 'أخرى')}</td>
+        <td style="text-align: center; padding: 2.5px 2px; border: 1px solid ${catTheme.border}; background-color: ${catTheme.bg} !important; box-sizing: border-box;">
+          <span style="background-color: ${catTheme.badgeBg} !important; color: ${catTheme.badgeText} !important; border: 1px solid ${catTheme.badgeBorder} !important; font-weight: 800; padding: 2px 6px; border-radius: 4px; font-size: 10px; display: inline-block; white-space: nowrap;">${escapeHtml(catDisplay)}</span>
         </td>
-        <td style="text-align: center; font-weight: 800; font-size: 11px; color: ${stock > 0 ? '#059669' : '#dc2626'}; padding: 2.5px 2px; border: 1px solid ${catTheme.border}; background-color: ${catTheme.bg} !important; box-sizing: border-box;">${stock === 0 ? '<span style="color:#dc2626; font-weight: 900;">0 (نافد)</span>' : stock}</td>
-        <td style="padding: 2px; text-align: center; border: 1.5px solid #0f172a; background: #ffffff !important; box-sizing: border-box;">
-          <div style="border: 1.5px dashed #059669; background: #ffffff; height: 18px; border-radius: 3px;"></div>
+        <td style="text-align: center; font-weight: 800; font-size: 12px; color: ${stock > 0 ? '#059669' : '#dc2626'}; padding: 3px 2px; border: 1px solid ${catTheme.border}; background-color: ${catTheme.bg} !important; box-sizing: border-box;">${stock === 0 ? '<span style="color:#dc2626; font-weight: 900;">0 (نافد)</span>' : stock}</td>
+        <td style="padding: 2.5px 3px; text-align: center; border: 1.5px solid #0f172a; background: #ffffff !important; box-sizing: border-box;">
+          <div style="border: 1.5px dashed #059669; background: #ffffff; height: 22px; border-radius: 4px;"></div>
         </td>
-        ${includeNotes ? `<td style="border: 1px solid ${catTheme.border}; background-color: ${catTheme.bg} !important; padding: 2px 4px; box-sizing: border-box;"><div style="border-bottom: 1px dotted #94a3b8; height: 16px;"></div></td>` : ''}
+        ${includeNotes ? `<td style="border: 1px solid ${catTheme.border}; background-color: ${catTheme.bg} !important; padding: 3px 4px; box-sizing: border-box;"><div style="border-bottom: 1px dotted #94a3b8; height: 18px;"></div></td>` : ''}
       </tr>
     `;
   }).join('');
 
   return `
-    <div class="stocktake-pdf-single-page" style="width: 794px; min-width: 794px; max-width: 794px; height: 1122px; min-height: 1122px; max-height: 1122px; box-sizing: border-box; padding: 14px 18px; background: #ffffff; color: #0f172a; font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif; direction: rtl; display: flex; flex-direction: column; justify-content: space-between; margin: 0; overflow: hidden;">
+    <div class="stocktake-pdf-single-page" style="width: 794px; min-width: 794px; max-width: 794px; height: 1122px; min-height: 1122px; max-height: 1122px; box-sizing: border-box; padding: 12px 14px; background: #ffffff; color: #0f172a; font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif; direction: rtl; display: flex; flex-direction: column; justify-content: space-between; margin: 0; overflow: hidden;">
       <div>
         ${isFirstPage ? `
           <!-- ترويسة الصفحة الأولى كاملة -->
           <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0f172a; padding-bottom: 6px; margin-bottom: 6px;">
             <div>
-              <div style="font-size: 1.25rem; font-weight: 900; color: #0f172a; line-height: 1.1;">${escapeHtml(companyName)}</div>
-              <div style="font-size: 0.72rem; color: #64748b; margin-top: 2px;">نظام إدارة المستودعات والمخزون</div>
+              <div style="font-size: 1.3rem; font-weight: 900; color: #0f172a; line-height: 1.1;">${escapeHtml(companyName)}</div>
+              <div style="font-size: 0.76rem; color: #64748b; margin-top: 2px;">نظام إدارة المستودعات والمخزون</div>
             </div>
             <div style="text-align: center;">
-              <div style="font-size: 1.1rem; font-weight: 900; color: #065f46; line-height: 1.1;">استمارة كشف جرد المخزون الفعلي (تعبئة يدوية)</div>
-              <div style="font-size: 0.7rem; color: #64748b; margin-top: 2px;">خالية تماماً من الأسعار ورأس المال</div>
+              <div style="font-size: 1.15rem; font-weight: 900; color: #065f46; line-height: 1.1;">استمارة كشف جرد المخزون الفعلي (تعبئة يدوية)</div>
+              <div style="font-size: 0.74rem; color: #64748b; margin-top: 2px;">خالية تماماً من الأسعار ورأس المال</div>
             </div>
-            <div style="text-align: left; font-size: 0.75rem; color: #475569;">
+            <div style="text-align: left; font-size: 0.78rem; color: #475569;">
               <div>📅 ${dateStr}</div>
               <div style="background: #f1f5f9; padding: 2px 8px; border-radius: 5px; font-weight: 800; color: #0f172a; margin-top: 2px; border: 1px solid #cbd5e1;">صفحة ${pageIndex} من ${totalPages}</div>
             </div>
           </div>
 
           <!-- شريط ملخص نطاق الجرد -->
-          <div style="display: flex; gap: 0.5rem; justify-content: space-between; align-items: center; flex-wrap: wrap; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px 8px; font-size: 0.74rem; margin-bottom: 5px;">
+          <div style="display: flex; gap: 0.5rem; justify-content: space-between; align-items: center; flex-wrap: wrap; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px 8px; font-size: 0.78rem; margin-bottom: 5px;">
             <div>📦 النطاق: <strong style="color: #065f46;">${escapeHtml(scopeLabel)}</strong></div>
             <div>📊 إجمالي الأصناف: <strong>${globalInfo.totalCount} صنف</strong></div>
             <div>🔢 القطع المسجلة: <strong>${totalUnits} قطعة</strong></div>
@@ -7724,37 +7771,37 @@ function buildSingleStocktakePageHtml(chunk, pageInfo, globalInfo) {
           </div>
 
           <!-- دليل دلالة ألوان الأقسام الرسمي (أحمر، أزرق، أخضر، أصفر، بنفسجي) -->
-          <div style="display: flex; gap: 0.35rem; align-items: center; flex-wrap: wrap; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 5px; padding: 3px 6px; font-size: 0.7rem; margin-bottom: 5px;">
+          <div style="display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 5px; padding: 3px 6px; font-size: 0.74rem; margin-bottom: 5px;">
             <span style="font-weight: 800; color: #334155; margin-left: 2px;">🎨 دلالة ألوان الأقسام:</span>
-            <span style="background: #fee2e2; border: 1px solid #fca5a5; border-right: 3px solid #dc2626; color: #991b1b; font-weight: 700; padding: 1px 5px; border-radius: 3px;">أجهزة كهربائية كبيرة (أحمر)</span>
-            <span style="background: #e0f2fe; border: 1px solid #93c5fd; border-right: 3px solid #0284c7; color: #075985; font-weight: 700; padding: 1px 5px; border-radius: 3px;">أدوات مطبخ (أزرق)</span>
-            <span style="background: #dcfce7; border: 1px solid #86efac; border-right: 3px solid #16a34a; color: #166534; font-weight: 700; padding: 1px 5px; border-radius: 3px;">أدوات منزل (أخضر)</span>
-            <span style="background: #fef3c7; border: 1px solid #fde68a; border-right: 3px solid #d97706; color: #92400e; font-weight: 700; padding: 1px 5px; border-radius: 3px;">شاشات وإلكترونيات / أخرى (أصفر)</span>
-            <span style="background: #f3e8ff; border: 1px solid #d8b4fe; border-right: 3px solid #9333ea; color: #6b21a8; font-weight: 700; padding: 1px 5px; border-radius: 3px;">أدوات شخصية (بنفسجي)</span>
+            <span style="background: #fee2e2; border: 1px solid #fca5a5; border-right: 3px solid #dc2626; color: #991b1b; font-weight: 700; padding: 1.5px 6px; border-radius: 3px;">أجهزة كهربائية كبيرة (أحمر)</span>
+            <span style="background: #e0f2fe; border: 1px solid #93c5fd; border-right: 3px solid #0284c7; color: #075985; font-weight: 700; padding: 1.5px 6px; border-radius: 3px;">أدوات مطبخ (أزرق)</span>
+            <span style="background: #dcfce7; border: 1px solid #86efac; border-right: 3px solid #16a34a; color: #166534; font-weight: 700; padding: 1.5px 6px; border-radius: 3px;">أدوات منزل (أخضر)</span>
+            <span style="background: #fef3c7; border: 1px solid #fde68a; border-right: 3px solid #d97706; color: #92400e; font-weight: 700; padding: 1.5px 6px; border-radius: 3px;">شاشات وإلكترونيات / أخرى (أصفر)</span>
+            <span style="background: #f3e8ff; border: 1px solid #d8b4fe; border-right: 3px solid #9333ea; color: #6b21a8; font-weight: 700; padding: 1.5px 6px; border-radius: 3px;">أدوات شخصية (بنفسجي)</span>
           </div>
         ` : `
           <!-- ترويسة مدمجة للصفحات التالية -->
           <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0f172a; padding-bottom: 4px; margin-bottom: 5px;">
-            <div style="font-size: 0.95rem; font-weight: 800; color: #0f172a;">${escapeHtml(companyName)} - كشف الجرد الفعلي للموظفين (يدوي)</div>
-            <div style="display: flex; gap: 0.75rem; align-items: center; font-size: 0.74rem; color: #475569;">
+            <div style="font-size: 1rem; font-weight: 800; color: #0f172a;">${escapeHtml(companyName)} - كشف الجرد الفعلي للموظفين (يدوي)</div>
+            <div style="display: flex; gap: 0.75rem; align-items: center; font-size: 0.78rem; color: #475569;">
               <div>📅 ${dateStr}</div>
-              <div style="background: #f1f5f9; padding: 1.5px 7px; border-radius: 4px; font-weight: 800; color: #0f172a; border: 1px solid #cbd5e1;">صفحة ${pageIndex} من ${totalPages}</div>
+              <div style="background: #f1f5f9; padding: 2px 8px; border-radius: 4px; font-weight: 800; color: #0f172a; border: 1px solid #cbd5e1;">صفحة ${pageIndex} من ${totalPages}</div>
             </div>
           </div>
         `}
 
         <!-- جدول الأصناف المقسم والمضبوط هندسياً بنسبة 100% بدون أي قص -->
-        <table style="width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 10px; margin-top: 2px; box-sizing: border-box;">
+        <table style="width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 11.5px; margin-top: 2px; box-sizing: border-box;">
           <thead>
-            <tr style="background: #0f172a; color: #ffffff; height: 28px;">
-              <th style="width: 32px; padding: 4px 2px; border: 1px solid #334155; text-align: center; box-sizing: border-box;">#</th>
-              <th style="width: 78px; padding: 4px 2px; border: 1px solid #334155; text-align: center; box-sizing: border-box;">الكود</th>
-              <th style="padding: 4px 4px; border: 1px solid #334155; text-align: right; box-sizing: border-box;">اسم الصنف والمواصفات</th>
-              <th style="width: 76px; padding: 4px 2px; border: 1px solid #334155; text-align: center; box-sizing: border-box;">الماركة</th>
-              <th style="width: 96px; padding: 4px 2px; border: 1px solid #334155; text-align: center; box-sizing: border-box;">القسم</th>
-              <th style="width: 54px; padding: 4px 2px; border: 1px solid #334155; text-align: center; box-sizing: border-box;">الكمية</th>
-              <th style="width: 80px; padding: 4px 2px; border: 1px solid #334155; background: #065f46; color: #ffffff; text-align: center; box-sizing: border-box;">الكمية الفعلية ✍️</th>
-              ${includeNotes ? '<th style="width: 82px; padding: 4px 2px; border: 1px solid #334155; text-align: center; box-sizing: border-box;">ملاحظات</th>' : ''}
+            <tr style="background: #0f172a; color: #ffffff; height: 32px;">
+              <th style="width: 34px; padding: 4px 2px; border: 1px solid #334155; text-align: center; box-sizing: border-box; font-size: 11px;">#</th>
+              <th style="width: 82px; padding: 4px 2px; border: 1px solid #334155; text-align: center; box-sizing: border-box; font-size: 11px;">الكود</th>
+              <th style="padding: 4px 6px; border: 1px solid #334155; text-align: right; box-sizing: border-box; font-size: 11.5px;">اسم الصنف والمواصفات</th>
+              <th style="width: 80px; padding: 4px 2px; border: 1px solid #334155; text-align: center; box-sizing: border-box; font-size: 11px;">الماركة</th>
+              <th style="width: 104px; padding: 4px 2px; border: 1px solid #334155; text-align: center; box-sizing: border-box; font-size: 11px;">القسم</th>
+              <th style="width: 60px; padding: 4px 2px; border: 1px solid #334155; text-align: center; box-sizing: border-box; font-size: 11px;">الكمية</th>
+              <th style="width: 84px; padding: 4px 2px; border: 1px solid #334155; background: #065f46; color: #ffffff; text-align: center; box-sizing: border-box; font-size: 11px;">الكمية الفعلية ✍️</th>
+              ${includeNotes ? '<th style="width: 82px; padding: 4px 2px; border: 1px solid #334155; text-align: center; box-sizing: border-box; font-size: 11px;">ملاحظات</th>' : ''}
             </tr>
           </thead>
           <tbody>
@@ -7765,13 +7812,13 @@ function buildSingleStocktakePageHtml(chunk, pageInfo, globalInfo) {
 
       <div>
         ${isLastPage ? `
-          <div style="display: flex; justify-content: space-around; border: 1.5px solid #cbd5e1; border-radius: 6px; padding: 5px; font-size: 0.74rem; margin-top: 4px; background: #f8fafc;">
+          <div style="display: flex; justify-content: space-around; border: 1.5px solid #cbd5e1; border-radius: 6px; padding: 5px; font-size: 0.78rem; margin-top: 4px; background: #f8fafc;">
             <div>توقيع الموظف الفاحص: ______________________</div>
             <div>توقيع المشرف / المدقق: ______________________</div>
             <div>تاريخ الاعتماد: _____ / _____ / 2026 م</div>
           </div>
         ` : ''}
-        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.68rem; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 3px; margin-top: 4px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.72rem; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 3px; margin-top: 4px;">
           <span>معرض رامز عطاطرة - استمارة كشف الجرد الفعلي للموظفين (يدوي)</span>
           <span>صفحة ${pageIndex} من ${totalPages}</span>
         </div>
@@ -7853,51 +7900,10 @@ async function downloadStocktakeSheetPdf() {
       includeNotes
     };
 
-    // تقسيم الأصناف إلى صفحات متناسقة ومضمونة الأبعاد:
-    // 16 صنف في الصفحة الأولى (لتوفير مساحة للترويسة ودليل الألوان والملخص دون أي قص)
-    // 22 صنف في الصفحات التالية لضمان عدم حدوث أي تجاوز لأسفل الصفحة
-    const pages = [];
-    let curIdx = 0;
-    while (curIdx < items.length) {
-      const isFirst = pages.length === 0;
-      const pageSize = isFirst ? 16 : 22;
-      pages.push(items.slice(curIdx, curIdx + pageSize));
-      curIdx += pageSize;
-    }
+    // حساب وتوزيع الصفحات ديناميكياً وأوتوماتيكياً لملء كل صفحة بالكامل دون قص أو فراغات
+    if (statusText) statusText.textContent = 'جاري قياس وتوزيع الأصناف ديناميكياً على الصفحات...';
+    const pages = await computeDynamicStocktakePages(items, globalInfo, pageRenderWrap);
     const totalPages = pages.length;
-
-    // تهيئة كائن jsPDF المستقل عبر html2pdf
-    const dummy = document.createElement('div');
-    dummy.style.width = '10px';
-    dummy.style.height = '10px';
-    document.body.appendChild(dummy);
-    const worker = html2pdf().set({
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    }).from(dummy);
-    await worker.toPdf();
-    const pdf = await worker.get('pdf');
-    document.body.removeChild(dummy);
-
-    // حاوية مؤقتة داخل حدود الـ Viewport (top:0, left:0) لضمان دقة التقاط html2canvas الكاملة
-    const pageRenderWrap = document.createElement('div');
-    pageRenderWrap.style.position = 'fixed';
-    pageRenderWrap.style.left = '0';
-    pageRenderWrap.style.top = '0';
-    pageRenderWrap.style.width = '794px';
-    pageRenderWrap.style.minWidth = '794px';
-    pageRenderWrap.style.maxWidth = '794px';
-    pageRenderWrap.style.height = '1122px';
-    pageRenderWrap.style.minHeight = '1122px';
-    pageRenderWrap.style.maxHeight = '1122px';
-    pageRenderWrap.style.boxSizing = 'border-box';
-    pageRenderWrap.style.margin = '0';
-    pageRenderWrap.style.padding = '0';
-    pageRenderWrap.style.overflow = 'hidden';
-    pageRenderWrap.style.zIndex = '99999';
-    pageRenderWrap.style.pointerEvents = 'none';
-    pageRenderWrap.style.opacity = '0.001';
-    pageRenderWrap.style.background = '#ffffff';
-    document.body.appendChild(pageRenderWrap);
 
     let runningIndex = 1;
     for (let pIdx = 0; pIdx < totalPages; pIdx++) {
@@ -7906,15 +7912,17 @@ async function downloadStocktakeSheetPdf() {
         return;
       }
 
+      const chunk = pages[pIdx];
+      const startNum = runningIndex;
+      const endNum = runningIndex + chunk.length - 1;
+
       const currentPercent = Math.round(((pIdx) / totalPages) * 100);
       if (percentText) percentText.textContent = `${currentPercent}%`;
       if (barFill) barFill.style.width = `${currentPercent}%`;
       if (statusText) {
-        const processedCount = Math.min(runningIndex + pages[pIdx].length - 1, items.length);
-        statusText.textContent = `جاري إنشاء صفحة ${pIdx + 1} من ${totalPages} (صنف ${processedCount} من ${items.length})...`;
+        statusText.textContent = `جاري إنشاء صفحة ${pIdx + 1} من ${totalPages} (الأصناف ${startNum} إلى ${endNum})...`;
       }
 
-      const chunk = pages[pIdx];
       const isFirst = pIdx === 0;
       const isLast = pIdx === totalPages - 1;
 
@@ -7928,12 +7936,12 @@ async function downloadStocktakeSheetPdf() {
 
       runningIndex += chunk.length;
 
-      // انتظار بسيط جداً لإنهاء المتصفح من رسم عناصر الصفحة بدقة
+      // انتظار بسيط لضمان انتهاء المتصفح من رندرة الصفحة والخطوط بدقة
       await new Promise(r => setTimeout(r, 45));
 
       const pageEl = pageRenderWrap.firstElementChild;
       const pageWorker = html2pdf().set({
-        image: { type: 'jpeg', quality: 0.95 },
+        image: { type: 'jpeg', quality: 0.96 },
         html2canvas: {
           scale: 1.5,
           useCORS: true,
@@ -7941,11 +7949,36 @@ async function downloadStocktakeSheetPdf() {
           backgroundColor: '#ffffff',
           width: 794,
           height: 1122,
-          windowWidth: 1024,
+          windowWidth: 794,
+          windowHeight: 1122,
           x: 0,
           y: 0,
           scrollX: 0,
-          scrollY: 0
+          scrollY: 0,
+          onclone: function(clonedDoc) {
+            clonedDoc.body.style.width = '794px';
+            clonedDoc.body.style.minWidth = '794px';
+            clonedDoc.body.style.maxWidth = '794px';
+            clonedDoc.body.style.margin = '0';
+            clonedDoc.body.style.padding = '0';
+            clonedDoc.body.style.direction = 'rtl';
+            const overlays = clonedDoc.querySelectorAll('.html2pdf__overlay');
+            overlays.forEach(o => {
+              o.style.left = '0';
+              o.style.top = '0';
+              o.style.width = '794px';
+              o.style.margin = '0';
+              o.style.padding = '0';
+            });
+            const containers = clonedDoc.querySelectorAll('.html2pdf__container');
+            containers.forEach(c => {
+              c.style.left = '0';
+              c.style.top = '0';
+              c.style.width = '794px';
+              c.style.margin = '0';
+              c.style.padding = '0';
+            });
+          }
         }
       }).from(pageEl);
 
