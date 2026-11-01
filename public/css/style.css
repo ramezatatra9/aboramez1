@@ -7489,7 +7489,6 @@ body.role-cashier .live-item-profit,
 body.role-cashier .capital-card,
 body.role-cashier .inventory-capital-banner,
 body.role-cashier #invBrandSummaryBanner,
-body.role-cashier .inv-prod-prices span:nth-child(2),
 body.role-cashier #tab-create-invoice .summary-row:has(.col-profit),
 body.role-cashier button[onclick*="openProductModalForEdit"],
 body.role-cashier button[onclick*="confirmDeleteProduct"] {

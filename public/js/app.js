@@ -2451,10 +2451,18 @@ function _doRenderCatalog() {
 
           <!-- مصفوفة الأسعار الشفافة للموظفين -->
           <div class="employee-pricing-box">
-            <div class="price-row prod-cost-field" style="cursor:pointer;" onclick="toggleCostPrice(event, '${prod.id}')" title="انقر لإظهار / إخفاء سعر رأس المال">
-              <span class="price-label" style="color:#7c3aed; font-weight:800; text-decoration: underline dotted; user-select:none;">💰 رأس المال</span>
-              <span class="price-val cost-val" id="costVal_${prod.id}" style="display:none; color:#dc2626; font-weight:800; background:#fff5f5; padding:1px 7px; border-radius:6px; border:1.5px dashed #dc2626;"><span style='font-size:0.7em;color:#94a3b8;margin-left:4px;'>👁 اضغط للإخفاء</span>${cost.toLocaleString('en-US')} ${currency}</span>
-              <span class="cost-hidden-hint" id="costHint_${prod.id}" style="color:#a78bfa; font-size:0.78rem; font-weight:700; margin-right:4px;">🔒 اضغط للعرض</span>
+            <div class="price-row prod-cost-field" style="cursor: pointer; background: #faf5ff; border: 1.5px dashed #c084fc; border-radius: 8px; padding: 6px 10px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;" onclick="toggleCostPrice(event, '${prod.id}')" title="انقر لإظهار أو إخفاء سعر رأس المال لهذا الصنف">
+              <span class="price-label" style="color: #6b21a8; font-weight: 800; user-select: none; display: flex; align-items: center; gap: 4px;">
+                <span>💰</span>
+                <span>رأس المال:</span>
+              </span>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span class="cost-hidden-hint" id="costHint_${prod.id}" style="color: #7c3aed; font-size: 0.78rem; font-weight: 800; background: #ede9fe; padding: 2px 8px; border-radius: 6px; display: ${_allCatalogCapitalVisible ? 'none' : 'inline-block'};">🔒 اضغط للإظهار</span>
+                <span class="price-val cost-val" id="costVal_${prod.id}" style="display: ${_allCatalogCapitalVisible ? 'inline-flex' : 'none'}; color: #dc2626; font-weight: 900; background: #fff1f2; padding: 2px 8px; border-radius: 6px; border: 1.5px solid #f87171; font-size: 0.95rem;">
+                  ${cost.toLocaleString('en-US')} ${currency}
+                  <span style="font-size: 0.7em; color: #94a3b8; margin-right: 4px;">(👁 اضغط للإخفاء)</span>
+                </span>
+              </div>
             </div>
             <div class="price-row">
               <span class="price-label">🏷️ سعر البيع:</span>
@@ -2517,14 +2525,36 @@ function _doRenderCatalog() {
 
 
 // 🔒 إظهار / إخفاء سعر رأس المال (التكلفة) في الكتالوج عند النقر على النص
+// 🔒 إظهار / إخفاء سعر رأس المال لجميع الأصناف في الكتالوج دفعة واحدة
+let _allCatalogCapitalVisible = false;
+function toggleAllCatalogCapital() {
+  _allCatalogCapitalVisible = !_allCatalogCapitalVisible;
+  const costVals = document.querySelectorAll('.cost-val[id^="costVal_"], .cost-val[id^="invCostVal_"]');
+  const costHints = document.querySelectorAll('.cost-hidden-hint[id^="costHint_"], .cost-hidden-hint[id^="invCostHint_"]');
+
+  costVals.forEach(el => {
+    el.style.display = _allCatalogCapitalVisible ? 'inline-flex' : 'none';
+  });
+  costHints.forEach(el => {
+    el.style.display = _allCatalogCapitalVisible ? 'none' : 'inline-block';
+  });
+
+  const btnTexts = document.querySelectorAll('#btnToggleAllCapitalText, .btnToggleAllCapitalText');
+  const btnIcons = document.querySelectorAll('#btnToggleAllCapitalIcon, .btnToggleAllCapitalIcon');
+  btnTexts.forEach(el => { el.textContent = _allCatalogCapitalVisible ? 'إخفاء سعر رأس المال' : 'إظهار سعر رأس المال'; });
+  btnIcons.forEach(el => { el.textContent = _allCatalogCapitalVisible ? '👁️' : '🔒'; });
+
+  showToast(_allCatalogCapitalVisible ? '👁️ تم إظهار سعر رأس المال لجميع أصناف الكتالوج' : '🔒 تم إخفاء سعر رأس المال لجميع الأصناف', 'info');
+}
+
 function toggleCostPrice(event, productId) {
-  event.stopPropagation();
-  const valEl  = document.getElementById(`costVal_${productId}`);
-  const hintEl = document.getElementById(`costHint_${productId}`);
-  if (!valEl) return;
-  const isVisible = valEl.style.display !== 'none';
-  valEl.style.display  = isVisible ? 'none' : 'inline-flex';
-  if (hintEl) hintEl.style.display = isVisible ? 'inline' : 'none';
+  if (event) event.stopPropagation();
+  const valEls  = document.querySelectorAll(`#costVal_${productId}, #invCostVal_${productId}`);
+  const hintEls = document.querySelectorAll(`#costHint_${productId}, #invCostHint_${productId}`);
+  if (!valEls || valEls.length === 0) return;
+  const isVisible = valEls[0].style.display !== 'none';
+  valEls.forEach(el => { el.style.display = isVisible ? 'none' : 'inline-flex'; });
+  hintEls.forEach(el => { el.style.display = isVisible ? 'inline-block' : 'none'; });
 }
 
 function loadMoreCatalogProducts() {
@@ -5319,7 +5349,11 @@ function renderInventoryList() {
           <div class="inv-prod-name">${escapeHtml(p.name)}</div>
           <div class="inv-prod-prices">
             <span>سعر البيع: <strong>${(p.sellPrice || 0).toLocaleString('en-US')} ${cur}</strong></span>
-            <span>سعر التكلفة: <strong>${(p.costPrice || 0).toLocaleString('en-US')} ${cur}</strong></span>
+            <span class="inv-cost-field" onclick="toggleCostPrice(event, '${p.id}')" style="cursor: pointer; user-select: none;" title="انقر لإظهار أو إخفاء سعر رأس المال لهذا الصنف">
+              <span style="color: #6b21a8; font-weight: 700;">💰 رأس المال:</span>
+              <span class="cost-hidden-hint" id="invCostHint_${p.id}" style="color: #7c3aed; font-size: 0.78rem; font-weight: 800; background: #ede9fe; padding: 2px 7px; border-radius: 4px; display: ${_allCatalogCapitalVisible ? 'none' : 'inline-block'};">🔒 اضغط للإظهار</span>
+              <span class="cost-val" id="invCostVal_${p.id}" style="display: ${_allCatalogCapitalVisible ? 'inline-flex' : 'none'}; color: #dc2626; font-weight: 800; background: #fff1f2; padding: 2px 7px; border-radius: 4px; border: 1px solid #f87171; font-size: 0.88rem;">${(p.costPrice || 0).toLocaleString('en-US')} ${cur}</span>
+            </span>
           </div>
           <!-- لا يوجد زر عرض للعميل هنا - المعاينة تتم عبر الضغط على صورة المنتج في الكتالوج -->
         </div>
@@ -7734,11 +7768,39 @@ function buildSingleStocktakePageHtml(chunk, pageInfo, globalInfo) {
 }
 
 // ⬇️ تحميل كشف الجرد اليدوي بصيغة PDF مباشرة على الجهاز بنظام الصفحات المستقلة الآمن
+let _isPdfDownloadCancelled = false;
+function cancelPdfProgress() {
+  _isPdfDownloadCancelled = true;
+  const modal = document.getElementById('modalPdfProgress');
+  if (modal) modal.style.display = 'none';
+  showToast('تم إلغاء عملية تحميل ملف PDF', 'warning');
+}
+
+// ⬇️ تحميل كشف الجرد اليدوي بصيغة PDF مع عداد نسبة التحميل الحية (0% - 100%)
 async function downloadStocktakeSheetPdf() {
-  const items = currentStocktakeSheetItems.length > 0 ? currentStocktakeSheetItems : state.products;
+  if (!currentStocktakeSheetItems || currentStocktakeSheetItems.length === 0) {
+    if (typeof updateStocktakeSheetPreview === 'function') {
+      updateStocktakeSheetPreview();
+    }
+  }
+  const items = (currentStocktakeSheetItems && currentStocktakeSheetItems.length > 0) ? currentStocktakeSheetItems : state.products;
   if (!items || items.length === 0) {
     showToast('لا توجد أصناف لتصديرها كـ PDF', 'warning');
     return;
+  }
+
+  _isPdfDownloadCancelled = false;
+
+  const progressModal = document.getElementById('modalPdfProgress');
+  const percentText = document.getElementById('pdfProgressPercentText');
+  const barFill = document.getElementById('pdfProgressBarFill');
+  const statusText = document.getElementById('pdfProgressStatusText');
+
+  if (progressModal) {
+    progressModal.style.display = 'flex';
+    if (percentText) percentText.textContent = '0%';
+    if (barFill) barFill.style.width = '0%';
+    if (statusText) statusText.textContent = 'جاري إعداد محرك التوليد والصفحات...';
   }
 
   const btn = document.getElementById('btnDownloadStocktakePdf');
@@ -7749,8 +7811,6 @@ async function downloadStocktakeSheetPdf() {
   const now = new Date();
   const dateFormatted = `${now.getDate()}-${now.getMonth() + 1}-${now.getFullYear()}`;
   const fileName = `كشف_جرد_الموظفين_${dateFormatted}.pdf`;
-
-  showToast('⬇️ جاري تحضير صفحات كشف الجرد لإنشاء ملف PDF...', 'info');
 
   try {
     const scopeSelect = document.getElementById('stocktakeScopeSelect');
@@ -7780,7 +7840,7 @@ async function downloadStocktakeSheetPdf() {
       includeNotes
     };
 
-    // تقسيم الأصناف إلى صفحات متناسقة (28 في الصفحة الأولى و 32 في الصفحات التالية)
+    // تقسيم الأصناف إلى صفحات متناسقة (28 في الأولى و 32 في الصفحات التالية)
     const pages = [];
     let curIdx = 0;
     while (curIdx < items.length) {
@@ -7803,20 +7863,31 @@ async function downloadStocktakeSheetPdf() {
     const pdf = await worker.get('pdf');
     document.body.removeChild(dummy);
 
-    // حاوية مؤقتة غير مرئية لرسم كل صفحة على حدة بأبعاد A4 ثابتة
+    // حاوية مؤقتة داخل حدود الـ Viewport (top:0, left:0) لضمان دقة التقاط html2canvas الكاملة
     const pageRenderWrap = document.createElement('div');
     pageRenderWrap.style.position = 'fixed';
-    pageRenderWrap.style.left = '-9999px';
+    pageRenderWrap.style.left = '0';
     pageRenderWrap.style.top = '0';
     pageRenderWrap.style.width = '794px';
-    pageRenderWrap.style.zIndex = '-9999';
+    pageRenderWrap.style.zIndex = '99999';
+    pageRenderWrap.style.pointerEvents = 'none';
+    pageRenderWrap.style.opacity = '0.001';
     pageRenderWrap.style.background = '#ffffff';
     document.body.appendChild(pageRenderWrap);
 
     let runningIndex = 1;
     for (let pIdx = 0; pIdx < totalPages; pIdx++) {
-      if (totalPages > 1) {
-        showToast(`⏳ جاري معالجة صفحة ${pIdx + 1} من ${totalPages}...`, 'info');
+      if (_isPdfDownloadCancelled) {
+        if (pageRenderWrap && pageRenderWrap.parentNode) pageRenderWrap.parentNode.removeChild(pageRenderWrap);
+        return;
+      }
+
+      const currentPercent = Math.round(((pIdx) / totalPages) * 100);
+      if (percentText) percentText.textContent = `${currentPercent}%`;
+      if (barFill) barFill.style.width = `${currentPercent}%`;
+      if (statusText) {
+        const processedCount = Math.min(runningIndex + pages[pIdx].length - 1, items.length);
+        statusText.textContent = `جاري إنشاء صفحة ${pIdx + 1} من ${totalPages} (صنف ${processedCount} من ${items.length})...`;
       }
 
       const chunk = pages[pIdx];
@@ -7833,18 +7904,21 @@ async function downloadStocktakeSheetPdf() {
 
       runningIndex += chunk.length;
 
-      // انتظار بسيط جداً لضمان انتهاء المتصفح من رسم عناصر الصفحة والخطوط
-      await new Promise(r => setTimeout(r, 60));
+      // انتظار بسيط جداً لإنهاء المتصفح من رسم عناصر الصفحة بدقة
+      await new Promise(r => setTimeout(r, 45));
 
       const pageEl = pageRenderWrap.firstElementChild;
       const pageWorker = html2pdf().set({
         image: { type: 'jpeg', quality: 0.94 },
         html2canvas: {
-          scale: 1.4,
+          scale: 1.35,
           useCORS: true,
           letterRendering: true,
           backgroundColor: '#ffffff',
-          windowWidth: 794
+          width: 794,
+          windowWidth: 1024,
+          scrollX: 0,
+          scrollY: 0
         }
       }).from(pageEl);
 
@@ -7864,12 +7938,46 @@ async function downloadStocktakeSheetPdf() {
       pageRenderWrap.parentNode.removeChild(pageRenderWrap);
     }
 
+    // اكتمال التحميل 100%
+    if (percentText) percentText.textContent = '100%';
+    if (barFill) barFill.style.width = '100%';
+    if (statusText) statusText.textContent = `🎉 تم تجهيز الملف بالكامل 100% (${totalPages} صفحة)! جاري بدء التنزيل...`;
+
+    await new Promise(r => setTimeout(r, 400));
+
     // حفظ وتنزيل ملف PDF كاملاً على الجهاز
-    pdf.save(fileName);
+    try {
+      pdf.save(fileName);
+    } catch (saveErr) {
+      console.warn('pdf.save failed, falling back to blob trigger:', saveErr);
+      const pdfBlob = pdf.output('blob');
+      const blobUrl = URL.createObjectURL(pdfBlob);
+      const dlLink = document.createElement('a');
+      dlLink.href = blobUrl;
+      dlLink.download = fileName;
+      document.body.appendChild(dlLink);
+      dlLink.click();
+      setTimeout(() => {
+        if (dlLink.parentNode) dlLink.parentNode.removeChild(dlLink);
+        URL.revokeObjectURL(blobUrl);
+      }, 5000);
+    }
     showToast(`🎉 تم تحميل كشف الجرد PDF (${totalPages} صفحة) على جهازك بنجاح!`, 'success');
+
+    // إغلاق نافذة التقدم بعد ثانية واحدة
+    setTimeout(() => {
+      if (progressModal) progressModal.style.display = 'none';
+    }, 1200);
+
   } catch (err) {
     console.error('downloadStocktakeSheetPdf error:', err);
-    showToast('خطأ أثناء إنشاء ملف PDF: ' + (err.message || err), 'error');
+    if (statusText) {
+      statusText.style.color = '#dc2626';
+      statusText.style.background = '#fef2f2';
+      statusText.style.borderColor = '#fca5a5';
+      statusText.textContent = '❌ حدث خطأ أثناء التوليد: ' + (err.message || err);
+    }
+    showToast('حدث خطأ أثناء إنشاء ملف PDF: ' + (err.message || err), 'error');
   } finally {
     if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
     if (btnQuick) { btnQuick.disabled = false; btnQuick.style.opacity = '1'; }

@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=7.6">
+  <link rel="stylesheet" href="css/style.css?v=8.0.0">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💼</text></svg>">
   
   <!-- PWA & Mobile Web App Meta Tags -->
@@ -165,6 +165,11 @@
         </div>
 
         <div>
+          
+          <button type="button" class="btn" id="btnToggleAllCapital" onclick="toggleAllCatalogCapital()" style="border: 2px solid #7c3aed; color: #7c3aed; background: #faf5ff; font-weight: 800; display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer; white-space: nowrap; margin-left: 0.5rem;" title="إظهار أو إخفاء سعر رأس المال لجميع الأصناف دفعة واحدة">
+            <span id="btnToggleAllCapitalIcon" style="font-size: 1.15rem;">🔒</span>
+            <span id="btnToggleAllCapitalText">إظهار / إخفاء رأس المال</span>
+          </button>
           <button class="btn btn-primary" onclick="openAddProductModal()">
             <span>➕</span>
             <span>إضافة منتج جديد</span>
@@ -259,7 +264,7 @@
 
       <!-- Products Grid -->
             <!-- شريط خيارات طريقة عرض الأصناف -->
-      <div class="catalog-view-mode-bar" id="catalogViewModeBar">
+      <div class="catalog-view-mode-bar" id="catalogViewModeBar" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.6rem;">
         <span class="view-mode-label">
           <span>👁️</span>
           <span>طريقة عرض الأصناف:</span>
@@ -274,6 +279,11 @@
             <span>شبكة التصنيفات</span>
           </button>
         </div>
+              <!-- زر إظهار وإخفاء سعر رأس المال بالكتالوج على الأصناف من الخارج -->
+        <button type="button" class="btn" id="btnToggleAllCapitalBar" onclick="toggleAllCatalogCapital()" style="border: 2px solid #7c3aed; color: #7c3aed; background: #faf5ff; font-weight: 800; display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.45rem 1rem; border-radius: 8px; cursor: pointer; white-space: nowrap; margin-right: auto; box-shadow: 0 2px 4px rgba(124, 58, 237, 0.1);" title="إظهار أو إخفاء سعر رأس المال لجميع الأصناف بالكتالوج من الخارج">
+          <span class="btnToggleAllCapitalIcon" style="font-size: 1.15rem;">🔒</span>
+          <span class="btnToggleAllCapitalText">إظهار / إخفاء رأس المال</span>
+        </button>
       </div>
 
       <!-- Products Grid -->
@@ -2585,6 +2595,10 @@
             <span>📊</span>
             <span>إرسال Excel إلى تيليجرام</span>
           </button>
+                    <button type="button" class="btn btn-lg" id="btnDownloadStocktakePdf" onclick="downloadStocktakeSheetPdf()" style="background: #7c3aed; border-color: #6d28d9; color: white; font-weight: 800; display: inline-flex; align-items: center; gap: 0.5rem;" title="تحميل ملف PDF كشف الجرد مباشرة على جهازك">
+            <span>⬇️</span>
+            <span>تحميل ملف PDF على الجهاز</span>
+          </button>
           <button type="button" class="btn btn-success btn-lg" onclick="printStocktakeSheetDoc()" style="background: #059669; border-color: #059669; color: white; font-weight: 800;">
             <span>🖨️</span>
             <span>طباعة استمارة الجرد (PDF)</span>
@@ -3864,8 +3878,8 @@
   <script src="js/html2pdf.bundle.min.js"></script>
   <script src="js/warranties.js"></script>
   <script src="js/brandsAudit.js"></script>
-  <script src="js/app.js?v=3.9.8"></script>
-  <script src="js/pwa.js"></script>
+  <script src="js/app.js?v=8.0.0"></script>
+  <script src="js/pwa.js?v=8.0.0"></script>
   <!-- مكتبة مسح الباركود المحلية السريعة -->
   <script src="js/html5-qrcode.min.js?v=3.5.0"></script>
   <script src="js/pin-barcode.js?v=7.8.0"></script>
@@ -3957,6 +3971,40 @@
   </div>
 </div>
 <!-- /نافذة تفاصيل الصنف السريعة -->
+
+
+  <!-- ======================================================= -->
+  <!-- MODAL: عداد ونسبة تحميل ملف PDF بالرمز والشريط الحي -->
+  <!-- ======================================================= -->
+  <div class="modal-backdrop" id="modalPdfProgress" style="z-index: 100000; background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(6px); display: none; align-items: center; justify-content: center;">
+    <div class="modal-card" style="max-width: 480px; width: 92vw; text-align: center; padding: 2.2rem 1.75rem; border-radius: 20px; box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.4); border: 2px solid rgba(255, 255, 255, 0.2); background: #ffffff;">
+      <div style="font-size: 3.2rem; margin-bottom: 0.5rem; display: inline-block;">📄</div>
+      <h3 style="font-weight: 800; color: #0f172a; margin-bottom: 0.35rem; font-size: 1.25rem;" id="pdfProgressTitle">جاري إنشاء وتحميل كشف الجرد (PDF)</h3>
+      <p style="font-size: 0.82rem; color: #64748b; margin-bottom: 1.5rem;" id="pdfProgressSubtitle">يتم إعداد الصفحات وتنسيق الجداول وتجهيز ملف الـ PDF للتنزيل مباشرة على جهازك</p>
+
+      <!-- النسبة المئوية للتحميل -->
+      <div style="display: flex; align-items: baseline; justify-content: center; gap: 0.25rem; margin-bottom: 0.85rem;">
+        <span style="font-size: 3.2rem; font-weight: 900; color: #2563eb; font-variant-numeric: tabular-nums; line-height: 1;" id="pdfProgressPercentText">0%</span>
+      </div>
+
+      <!-- شريط التقدم المرئي الملون -->
+      <div style="background: #e2e8f0; height: 16px; border-radius: 9999px; overflow: hidden; margin-bottom: 1.15rem; padding: 2px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.06);">
+        <div id="pdfProgressBarFill" style="background: linear-gradient(90deg, #2563eb 0%, #3b82f6 50%, #10b981 100%); width: 0%; height: 100%; border-radius: 9999px; transition: width 0.2s ease;"></div>
+      </div>
+
+      <!-- نص الحالة التفصيلي -->
+      <div style="font-size: 0.85rem; font-weight: 700; color: #065f46; background: #ecfdf5; border: 1.5px solid #a7f3d0; border-radius: 10px; padding: 0.65rem 0.85rem; margin-bottom: 1.35rem;" id="pdfProgressStatusText">
+        جاري تهيئة كشف الجرد...
+      </div>
+
+      <!-- زر الإلغاء -->
+      <div style="display: flex; gap: 0.5rem; justify-content: center;">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="cancelPdfProgress()" id="btnCancelPdfProgress" style="border-radius: 8px; font-weight: 700; padding: 0.45rem 1.25rem;">
+          إلغاء التحميل
+        </button>
+      </div>
+    </div>
+  </div>
 
 </body>
 </html>
