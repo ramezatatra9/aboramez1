@@ -7673,13 +7673,13 @@ async function computeDynamicStocktakePages(items, globalInfo, measureWrap) {
   const totalItems = items.length;
 
   // ارتفاع المحتوى الآمن الأقصى داخل صفحة A4 (بالبكسل عند 96 DPI)
-  // الارتفاع الكلي 1122px، ونترك هامش أمان سفلي 45px للفوتر
-  const MAX_SAFE_PAGE_HEIGHT = 1055;
+  // الارتفاع الكلي 1122px، ونترك هامش أمان سفلي 55px للفوتر والتنفس
+  const MAX_SAFE_PAGE_HEIGHT = 1065;
 
   while (curIndex < totalItems) {
     const isFirstPage = pages.length === 0;
-    // تقدير أولي ممتلئ: 24 صنف للأولى، 28 للأخرى
-    let batchSize = isFirstPage ? Math.min(24, totalItems - curIndex) : Math.min(28, totalItems - curIndex);
+    // تقدير أولي ممتلئ: 25 صنف للأولى، 29 للأخرى
+    let batchSize = isFirstPage ? Math.min(25, totalItems - curIndex) : Math.min(29, totalItems - curIndex);
 
     // قياس الارتفاع الحقيقي في الـ DOM
     measureWrap.innerHTML = buildSingleStocktakePageHtml(
@@ -7695,10 +7695,16 @@ async function computeDynamicStocktakePages(items, globalInfo, measureWrap) {
     );
 
     const pageEl = measureWrap.firstElementChild;
+    if (pageEl) {
+      pageEl.style.height = 'auto';
+      pageEl.style.minHeight = 'auto';
+      pageEl.style.maxHeight = 'none';
+      pageEl.style.overflow = 'visible';
+    }
     const tableBody = pageEl ? pageEl.querySelector('tbody') : null;
 
     // إذا تجاوز الارتفاع الحد الآمن، نقوم بإنقاص الصفوف الأخيرة حتى يستقر الارتفاع تماماً داخل الصفحة
-    while (tableBody && tableBody.children.length > 1 && pageEl.scrollHeight > MAX_SAFE_PAGE_HEIGHT) {
+    while (tableBody && tableBody.children.length > 1 && pageEl.offsetHeight > MAX_SAFE_PAGE_HEIGHT) {
       tableBody.removeChild(tableBody.lastElementChild);
       batchSize--;
     }
@@ -7900,6 +7906,27 @@ async function downloadStocktakeSheetPdf() {
       includeNotes
     };
 
+    // حاوية مؤقتة داخل حدود الـ Viewport (top:0, left:0) لضمان دقة قياس html2canvas والـ DOM
+    let pageRenderWrap = document.createElement('div');
+    pageRenderWrap.style.position = 'fixed';
+    pageRenderWrap.style.left = '0';
+    pageRenderWrap.style.top = '0';
+    pageRenderWrap.style.width = '794px';
+    pageRenderWrap.style.minWidth = '794px';
+    pageRenderWrap.style.maxWidth = '794px';
+    pageRenderWrap.style.height = '1122px';
+    pageRenderWrap.style.minHeight = '1122px';
+    pageRenderWrap.style.maxHeight = '1122px';
+    pageRenderWrap.style.boxSizing = 'border-box';
+    pageRenderWrap.style.margin = '0';
+    pageRenderWrap.style.padding = '0';
+    pageRenderWrap.style.overflow = 'hidden';
+    pageRenderWrap.style.zIndex = '99999';
+    pageRenderWrap.style.pointerEvents = 'none';
+    pageRenderWrap.style.opacity = '0.001';
+    pageRenderWrap.style.background = '#ffffff';
+    document.body.appendChild(pageRenderWrap);
+
     // حساب وتوزيع الصفحات ديناميكياً وأوتوماتيكياً لملء كل صفحة بالكامل دون قص أو فراغات
     if (statusText) statusText.textContent = 'جاري قياس وتوزيع الأصناف ديناميكياً على الصفحات...';
     const pages = await computeDynamicStocktakePages(items, globalInfo, pageRenderWrap);
@@ -8039,6 +8066,9 @@ async function downloadStocktakeSheetPdf() {
     }
     showToast('حدث خطأ أثناء إنشاء ملف PDF: ' + (err.message || err), 'error');
   } finally {
+    if (typeof pageRenderWrap !== 'undefined' && pageRenderWrap && pageRenderWrap.parentNode) {
+      pageRenderWrap.parentNode.removeChild(pageRenderWrap);
+    }
     if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
     if (btnQuick) { btnQuick.disabled = false; btnQuick.style.opacity = '1'; }
   }
