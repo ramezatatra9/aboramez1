@@ -7631,52 +7631,245 @@ function printStocktakeSheetDoc() {
   updateStocktakeSheetPreview();
   document.body.classList.add('printing-stocktake-active');
 
+  const cleanup = () => {
+    document.body.classList.remove('printing-stocktake-active');
+    window.removeEventListener('afterprint', cleanup);
+  };
+  window.addEventListener('afterprint', cleanup);
+
+  // احتياطي: إلغاء التفعيل بعد 3 دقائق إن لم يطلق المتصفح afterprint
+  setTimeout(cleanup, 180000);
+
   setTimeout(() => {
     window.print();
-    setTimeout(() => {
-      document.body.classList.remove('printing-stocktake-active');
-    }, 600);
-  }, 200);
+  }, 250);
 }
 
-// ⬇️ تحميل كشف الجرد اليدوي بصيغة PDF مباشرة على الجهاز
+// دالة مساعدة لتوليد صفحة A4 واحدة معيارية لكشف الجرد لتحويلها لـ PDF
+function buildSingleStocktakePageHtml(chunk, pageInfo, globalInfo) {
+  const { pageIndex, totalPages, startIndex, isFirstPage, isLastPage } = pageInfo;
+  const { companyName, dateStr, scopeLabel, sortLabel, totalUnits, includeNotes } = globalInfo;
+
+  const rowsHtml = chunk.map((p, idx) => {
+    const rowNum = startIndex + idx;
+    const stock = state.inventoryPendingUpdates.has(p.id) ? state.inventoryPendingUpdates.get(p.id) : (p.stock || 0);
+    return `
+      <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+        <td style="text-align: center; font-weight: 800; font-family: monospace; color: #64748b; padding: 4px 6px; border: 1px solid #cbd5e1;">${rowNum}</td>
+        <td style="text-align: center; font-weight: 800; font-family: monospace; color: #0f172a; padding: 4px 6px; border: 1px solid #cbd5e1;">${escapeHtml(p.code || '-')}</td>
+        <td style="font-weight: 700; color: #0f172a; padding: 4px 6px; border: 1px solid #cbd5e1;">${escapeHtml(p.name || '')}</td>
+        <td style="text-align: center; color: #334155; padding: 4px 6px; border: 1px solid #cbd5e1;">${escapeHtml(p.brand || 'أخرى')}</td>
+        <td style="text-align: center; color: #475569; padding: 4px 6px; border: 1px solid #cbd5e1;">${escapeHtml(p.mainCategory || p.category || 'أخرى')}</td>
+        <td style="text-align: center; font-weight: 800; font-size: 0.95rem; color: ${stock > 0 ? '#059669' : '#dc2626'}; padding: 4px 6px; border: 1px solid #cbd5e1;">${stock}</td>
+        <td style="padding: 3px 6px; text-align: center; border: 1px solid #cbd5e1; background: #f0fdf4;">
+          <div style="border: 1.5px dashed #059669; background: #fff; height: 20px; border-radius: 4px;"></div>
+        </td>
+        ${includeNotes ? '<td style="border: 1px solid #cbd5e1; padding: 3px 6px;"><div style="border-bottom: 1px dotted #94a3b8; height: 16px;"></div></td>' : ''}
+      </tr>
+    `;
+  }).join('');
+
+  return `
+    <div class="stocktake-pdf-single-page" style="width: 794px; min-height: 1120px; max-height: 1120px; box-sizing: border-box; padding: 22px 26px; background: #ffffff; color: #0f172a; font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif; direction: rtl; display: flex; flex-direction: column; justify-content: space-between;">
+      <div>
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0f172a; padding-bottom: 8px; margin-bottom: 8px;">
+          <div>
+            <div style="font-size: 1.25rem; font-weight: 900; color: #0f172a;">${escapeHtml(companyName)}</div>
+            <div style="font-size: 0.75rem; color: #64748b;">نظام إدارة المستودعات والمخزون</div>
+          </div>
+          <div style="text-align: center;">
+            <div style="font-size: 1.15rem; font-weight: 900; color: #065f46;">استمارة كشف جرد المخزون الفعلي (تعبئة يدوية)</div>
+            <div style="font-size: 0.72rem; color: #64748b;">خالية تماماً من الأسعار ورأس المال</div>
+          </div>
+          <div style="text-align: left; font-size: 0.78rem; color: #475569;">
+            <div>📅 ${dateStr}</div>
+            <div style="background: #f1f5f9; padding: 2px 8px; border-radius: 6px; font-weight: 800; color: #0f172a; margin-top: 2px;">صفحة ${pageIndex} من ${totalPages}</div>
+          </div>
+        </div>
+
+        ${isFirstPage ? `
+          <div style="display: flex; gap: 0.6rem; flex-wrap: wrap; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px 10px; font-size: 0.75rem; margin-bottom: 8px;">
+            <div>📦 النطاق: <strong style="color: #065f46;">${escapeHtml(scopeLabel)}</strong></div>
+            <div>📊 إجمالي الأصناف: <strong>${globalInfo.totalCount} صنف</strong></div>
+            <div>🔢 القطع المسجلة: <strong>${totalUnits} قطعة</strong></div>
+            <div>👤 القائم بالعد: ____________________</div>
+            <div>🕵️ المشرف: ____________________</div>
+          </div>
+        ` : ''}
+
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem; margin-top: 2px;">
+          <thead>
+            <tr style="background: #0f172a; color: #ffffff;">
+              <th style="width: 32px; padding: 5px 4px; border: 1px solid #334155; text-align: center;">#</th>
+              <th style="width: 85px; padding: 5px 4px; border: 1px solid #334155; text-align: center;">الكود</th>
+              <th style="padding: 5px 6px; border: 1px solid #334155; text-align: right;">اسم الصنف والمواصفات</th>
+              <th style="width: 80px; padding: 5px 4px; border: 1px solid #334155; text-align: center;">الماركة</th>
+              <th style="width: 95px; padding: 5px 4px; border: 1px solid #334155; text-align: center;">القسم</th>
+              <th style="width: 70px; padding: 5px 4px; border: 1px solid #334155; text-align: center;">الكمية</th>
+              <th style="width: 95px; padding: 5px 4px; border: 1px solid #334155; background: #065f46; color: #ffffff; text-align: center;">الكمية الفعلية ✍️</th>
+              ${includeNotes ? '<th style="width: 100px; padding: 5px 4px; border: 1px solid #334155; text-align: center;">ملاحظات</th>' : ''}
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+      </div>
+
+      <div>
+        ${isLastPage ? `
+          <div style="display: flex; justify-content: space-around; border: 1px solid #cbd5e1; border-radius: 8px; padding: 6px; font-size: 0.75rem; margin-top: 6px; background: #f8fafc;">
+            <div>توقيع الموظف الفاحص: ______________________</div>
+            <div>توقيع المشرف / المدقق: ______________________</div>
+            <div>تاريخ الاعتماد: _____ / _____ / 2026 م</div>
+          </div>
+        ` : ''}
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.68rem; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 4px; margin-top: 4px;">
+          <span>معرض رامز عطاطرة - استمارة كشف الجرد الفعلي للموظفين (يدوي)</span>
+          <span>صفحة ${pageIndex} من ${totalPages}</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ⬇️ تحميل كشف الجرد اليدوي بصيغة PDF مباشرة على الجهاز بنظام الصفحات المستقلة الآمن
 async function downloadStocktakeSheetPdf() {
-  const printableArea = document.getElementById('printableStocktakeSheetArea');
-  if (!printableArea || !printableArea.innerHTML.trim()) {
-    updateStocktakeSheetPreview();
-    await new Promise(r => setTimeout(r, 300));
-  }
-  const html = printableArea ? printableArea.innerHTML : '';
-  if (!html) {
-    showToast('تعذّر توليد محتوى كشف الجرد، حاول مرة أخرى', 'error');
+  const items = currentStocktakeSheetItems.length > 0 ? currentStocktakeSheetItems : state.products;
+  if (!items || items.length === 0) {
+    showToast('لا توجد أصناف لتصديرها كـ PDF', 'warning');
     return;
   }
+
   const btn = document.getElementById('btnDownloadStocktakePdf');
   const btnQuick = document.getElementById('btnStocktakeDownloadPdfQuick');
-  if (btnQuick) { btnQuick.disabled = true; btnQuick.style.opacity = '0.7'; }
   if (btn) { btn.disabled = true; btn.style.opacity = '0.7'; }
+  if (btnQuick) { btnQuick.disabled = true; btnQuick.style.opacity = '0.7'; }
+
   const now = new Date();
   const dateFormatted = `${now.getDate()}-${now.getMonth() + 1}-${now.getFullYear()}`;
   const fileName = `كشف_جرد_الموظفين_${dateFormatted}.pdf`;
-  showToast('⬇️ جاري تجهيز ملف PDF لتحميله على جهازك...', 'info');
+
+  showToast('⬇️ جاري تحضير صفحات كشف الجرد لإنشاء ملف PDF...', 'info');
+
   try {
-    const blob = await generatePdfBlobFromHtml(html, fileName, {
-      orientation: 'portrait',
-      margin: 4
-    });
-    if (!blob || blob.size < 500) throw new Error('الملف الناتج فارغ أو تالف');
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 3000);
-    showToast(`✅ تم تحميل الملف "${fileName}" على جهازك بنجاح!`, 'success');
+    const scopeSelect = document.getElementById('stocktakeScopeSelect');
+    const sortSelect = document.getElementById('stocktakeSortSelect');
+    const includeNotes = document.getElementById('stocktakeIncludeNotesCol')?.checked ?? true;
+
+    const scopeLabel = scopeSelect && scopeSelect.options[scopeSelect.selectedIndex] ? scopeSelect.options[scopeSelect.selectedIndex].text : 'كامل المخزون';
+    const sortMode = sortSelect ? sortSelect.value : 'code_asc';
+    const sortLabelMap = {
+      code_asc: 'رقم الصنف (تصاعدياً)',
+      code_desc: 'رقم الصنف (تنازلياً)',
+      qty_desc: 'الكمية الأكثر أولاً',
+      qty_asc: 'الكمية الأقل أولاً',
+      name_asc: 'اسم الصنف (أبجدياً)',
+      brand_asc: 'الماركة ثم رقم الصنف'
+    };
+    const sortLabel = sortLabelMap[sortMode] || 'رقم الصنف تصاعدياً';
+    const totalUnits = items.reduce((acc, p) => acc + (state.inventoryPendingUpdates.has(p.id) ? state.inventoryPendingUpdates.get(p.id) : (p.stock || 0)), 0);
+
+    const globalInfo = {
+      companyName: state.settings.companyName || 'معرض رامز عطاطرة',
+      dateStr: dateFormatted,
+      scopeLabel,
+      sortLabel,
+      totalCount: items.length.toLocaleString('en-US'),
+      totalUnits: totalUnits.toLocaleString('en-US'),
+      includeNotes
+    };
+
+    // تقسيم الأصناف إلى صفحات متناسقة (28 في الصفحة الأولى و 32 في الصفحات التالية)
+    const pages = [];
+    let curIdx = 0;
+    while (curIdx < items.length) {
+      const isFirst = pages.length === 0;
+      const pageSize = isFirst ? 28 : 32;
+      pages.push(items.slice(curIdx, curIdx + pageSize));
+      curIdx += pageSize;
+    }
+    const totalPages = pages.length;
+
+    // تهيئة كائن jsPDF المستقل عبر html2pdf
+    const dummy = document.createElement('div');
+    dummy.style.width = '10px';
+    dummy.style.height = '10px';
+    document.body.appendChild(dummy);
+    const worker = html2pdf().set({
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    }).from(dummy);
+    await worker.toPdf();
+    const pdf = await worker.get('pdf');
+    document.body.removeChild(dummy);
+
+    // حاوية مؤقتة غير مرئية لرسم كل صفحة على حدة بأبعاد A4 ثابتة
+    const pageRenderWrap = document.createElement('div');
+    pageRenderWrap.style.position = 'fixed';
+    pageRenderWrap.style.left = '-9999px';
+    pageRenderWrap.style.top = '0';
+    pageRenderWrap.style.width = '794px';
+    pageRenderWrap.style.zIndex = '-9999';
+    pageRenderWrap.style.background = '#ffffff';
+    document.body.appendChild(pageRenderWrap);
+
+    let runningIndex = 1;
+    for (let pIdx = 0; pIdx < totalPages; pIdx++) {
+      if (totalPages > 1) {
+        showToast(`⏳ جاري معالجة صفحة ${pIdx + 1} من ${totalPages}...`, 'info');
+      }
+
+      const chunk = pages[pIdx];
+      const isFirst = pIdx === 0;
+      const isLast = pIdx === totalPages - 1;
+
+      pageRenderWrap.innerHTML = buildSingleStocktakePageHtml(chunk, {
+        pageIndex: pIdx + 1,
+        totalPages,
+        startIndex: runningIndex,
+        isFirstPage: isFirst,
+        isLastPage: isLast
+      }, globalInfo);
+
+      runningIndex += chunk.length;
+
+      // انتظار بسيط جداً لضمان انتهاء المتصفح من رسم عناصر الصفحة والخطوط
+      await new Promise(r => setTimeout(r, 60));
+
+      const pageEl = pageRenderWrap.firstElementChild;
+      const pageWorker = html2pdf().set({
+        image: { type: 'jpeg', quality: 0.94 },
+        html2canvas: {
+          scale: 1.4,
+          useCORS: true,
+          letterRendering: true,
+          backgroundColor: '#ffffff',
+          windowWidth: 794
+        }
+      }).from(pageEl);
+
+      await pageWorker.toCanvas();
+      const canvas = await pageWorker.get('canvas');
+      const imgData = canvas.toDataURL('image/jpeg', 0.92);
+
+      if (pIdx === 0) {
+        pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+      } else {
+        pdf.addPage();
+        pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+      }
+    }
+
+    if (pageRenderWrap && pageRenderWrap.parentNode) {
+      pageRenderWrap.parentNode.removeChild(pageRenderWrap);
+    }
+
+    // حفظ وتنزيل ملف PDF كاملاً على الجهاز
+    pdf.save(fileName);
+    showToast(`🎉 تم تحميل كشف الجرد PDF (${totalPages} صفحة) على جهازك بنجاح!`, 'success');
   } catch (err) {
     console.error('downloadStocktakeSheetPdf error:', err);
-    showToast('❌ حدث خطأ أثناء تحميل ملف PDF: ' + (err.message || err), 'error');
+    showToast('خطأ أثناء إنشاء ملف PDF: ' + (err.message || err), 'error');
   } finally {
     if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
     if (btnQuick) { btnQuick.disabled = false; btnQuick.style.opacity = '1'; }
