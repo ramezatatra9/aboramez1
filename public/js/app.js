@@ -135,6 +135,42 @@ function showConfirmDialog({ title, message, icon = '⚠️', confirmText = 'ت�
 // -------------------------------------------------------------
 // محرك توليد ملفات PDF رسمي وموحد مع إرسال تيليجرام
 // -------------------------------------------------------------
+
+// دالة موحدة ومعتمدة للحصول على كائن jsPDF مستقل وموثوق 100%
+async function getJsPdfInstance(options = { unit: 'mm', format: 'a4', orientation: 'portrait' }) {
+  if (typeof window !== 'undefined') {
+    if (typeof window.jsPDF === 'function') {
+      return new window.jsPDF(options);
+    }
+    if (window.jspdf && typeof window.jspdf.jsPDF === 'function') {
+      return new window.jspdf.jsPDF(options);
+    }
+  }
+
+  if (typeof html2pdf !== 'undefined') {
+    try {
+      const dummy = document.createElement('div');
+      dummy.innerHTML = '&nbsp;';
+      dummy.style.cssText = 'width:20px;height:20px;position:absolute;left:0;top:0;opacity:0.01;pointer-events:none;z-index:-1;';
+      document.body.appendChild(dummy);
+      try {
+        const worker = html2pdf().set({ jsPDF: options }).from(dummy);
+        await worker.toPdf();
+        const instance = await worker.get('pdf');
+        if (instance && typeof instance.addImage === 'function') {
+          return instance;
+        }
+      } finally {
+        if (dummy.parentNode) dummy.parentNode.removeChild(dummy);
+      }
+    } catch (dummyErr) {
+      console.warn('html2pdf worker dummy instance extraction error:', dummyErr);
+    }
+  }
+
+  throw new Error('محرك إنشاء الـ PDF غير متوفر في المتصفح. يرجى إعادة تحميل الصفحة');
+}
+
 async function generatePdfBlobFromHtml(htmlContent, fileName = 'document.pdf', options = {}) {
   if (typeof html2pdf === 'undefined') {
     throw new Error('مكتبة تصدير الـ PDF (html2pdf.js) غير محملة في المتصفح');
@@ -286,24 +322,45 @@ async function generatePdfBlobFromHtml(htmlContent, fileName = 'document.pdf', o
     };
 
     // توليد ملف PDF واستخراج الـ Blob المعتمد
-    const worker = html2pdf().set(opt).from(wrapper);
-    await worker.toPdf();
-    const pdf = await worker.get('pdf');
-
     let blob = null;
-    if (pdf && typeof pdf.output === 'function') {
-      blob = pdf.output('blob');
+
+    // الطريقة الأولى: outputPdf('blob') المباشر
+    try {
+      blob = await html2pdf().set(opt).from(wrapper).outputPdf('blob');
+    } catch (e1) {
+      console.warn('[PDF] outputPdf(blob) failed:', e1);
     }
 
-    if (!blob || !(blob instanceof Blob) || blob.size < 1000) {
+    // الطريقة الثانية: تحويل datauristring إلى Blob
+    if (!blob || !(blob instanceof Blob) || blob.size < 500) {
       try {
-        blob = await worker.outputPdf('blob');
-      } catch (e) {
-        console.warn('outputPdf fallback error:', e);
+        const dataUri = await html2pdf().set(opt).from(wrapper).outputPdf('datauristring');
+        if (dataUri && dataUri.startsWith('data:application/pdf')) {
+          const base64 = dataUri.split(',')[1];
+          const binary = atob(base64);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+          blob = new Blob([bytes], { type: 'application/pdf' });
+        }
+      } catch (e2) {
+        console.warn('[PDF] datauristring fallback failed:', e2);
       }
     }
 
-    if (!blob || blob.size < 500) {
+    // الطريقة الثالثة: worker chain مع get('pdf')
+    if (!blob || !(blob instanceof Blob) || blob.size < 500) {
+      try {
+        const worker = html2pdf().set(opt).from(wrapper);
+        const pdfDoc = await worker.toPdf().get('pdf');
+        if (pdfDoc && typeof pdfDoc.output === 'function') {
+          blob = pdfDoc.output('blob');
+        }
+      } catch (e3) {
+        console.warn('[PDF] worker get(pdf) fallback failed:', e3);
+      }
+    }
+
+    if (!blob || !(blob instanceof Blob) || blob.size < 500) {
       throw new Error('الملف المتولد فارغ، يرجى المحاولة مجدداً');
     }
 
@@ -7926,6 +7983,15 @@ async function downloadStocktakeSheetPdf() {
     pageRenderWrap.style.opacity = '0.001';
     pageRenderWrap.style.background = '#ffffff';
     document.body.appendChild(pageRenderWrap);
+
+    // تهيئة كائن jsPDF المستقل والموثوق
+    let pdf = null;
+    try {
+      pdf = await getJsPdfInstance({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+    } catch (pdfInitErr) {
+      console.error('Failed to initialize jsPDF:', pdfInitErr);
+      throw new Error('تعذر تهيئة محرك PDF: ' + (pdfInitErr.message || pdfInitErr));
+    }
 
     // حساب وتوزيع الصفحات ديناميكياً وأوتوماتيكياً لملء كل صفحة بالكامل دون قص أو فراغات
     if (statusText) statusText.textContent = 'جاري قياس وتوزيع الأصناف ديناميكياً على الصفحات...';
