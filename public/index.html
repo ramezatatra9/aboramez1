@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=8.4.0">
+  <link rel="stylesheet" href="css/style.css?v=8.4.1">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💼</text></svg>">
   
   <!-- PWA & Mobile Web App Meta Tags -->
@@ -238,7 +238,7 @@
         <div class="categories-hub-header">
           <div class="categories-hub-title">
             <span>📂</span>
-            <span>أقسام وتصنيفات المنتجات (1,312 صنف)</span>
+            <span>أقسام وتصنيفات المنتجات <span id="categoriesHubTotalBadge" style="font-size: 0.9em; opacity: 0.9; font-weight: 600;"></span></span>
           </div>
           <div style="font-size: 0.8rem; color: var(--text-muted);">
             اختر قسماً رئيسياً لعرض فروعه
@@ -1027,7 +1027,7 @@
             <div style="display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap;">
               <span class="inventory-stat-pill">
                 <span>📦</span>
-                <span id="invTotalProductsBadge">1,312 صنف</span>
+                <span id="invTotalProductsBadge">-- صنف</span>
               </span>
               <span class="inventory-stat-pill success" id="invPillModified" style="display: none;">
                 <span>⚡</span>
@@ -1626,7 +1626,7 @@
               <p style="margin: 0; font-size: 0.85rem; color: #64748b;">محسوب بدقة بناءً على الكمية المتوفرة × سعر التكلفة ورأس المال الفعلي لكل صنف</p>
             </div>
           </div>
-          <span class="badge badge-primary" id="kpiProductsTotalCountBadge">1,312 صنف بالكتالوج</span>
+          <span class="badge badge-primary" id="kpiProductsTotalCountBadge">-- صنف بالكتالوج</span>
         </div>
 
         <div class="capital-stats-grid">
@@ -3875,11 +3875,11 @@
   </div>
 
   <!-- JavaScript -->
-  <script src="js/html2pdf.bundle.min.js?v=8.4.0"></script>
+  <script src="js/html2pdf.bundle.min.js?v=8.4.1"></script>
   <script src="js/warranties.js"></script>
   <script src="js/brandsAudit.js"></script>
-  <script src="js/app.js?v=8.4.0"></script>
-  <script src="js/pwa.js?v=8.4.0"></script>
+  <script src="js/app.js?v=8.4.1"></script>
+  <script src="js/pwa.js?v=8.4.1"></script>
   <!-- مكتبة مسح الباركود المحلية السريعة -->
   <script src="js/html5-qrcode.min.js?v=3.5.0"></script>
   <script src="js/pin-barcode.js?v=7.8.0"></script>

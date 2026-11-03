@@ -2266,6 +2266,17 @@ function updateCategoryChips() {
 
 function renderHierarchicalCategories() {
   const mainContainer = document.getElementById('mainCategoriesContainer');
+  const totalBadge = document.getElementById('categoriesHubTotalBadge');
+
+  if (totalBadge) {
+    const totalCount = Array.isArray(state.products) ? state.products.length : 0;
+    if (state.activeMainCategory && state.activeMainCategory !== 'all') {
+      const activeCount = state.products.filter(p => (p.mainCategory || 'أخرى') === state.activeMainCategory).length;
+      totalBadge.textContent = `(${activeCount.toLocaleString('en-US')} من ${totalCount.toLocaleString('en-US')} صنف)`;
+    } else {
+      totalBadge.textContent = `(${totalCount.toLocaleString('en-US')} صنف)`;
+    }
+  }
   const subContainer = document.getElementById('subCategoriesContainer');
   const subWrapper = document.getElementById('subCategoriesWrapper');
   const subTitle = document.getElementById('subCategorySectionTitle');
