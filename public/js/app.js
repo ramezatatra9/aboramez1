@@ -1154,14 +1154,108 @@ async function initApp() {
   // تحديث شريط الفاتورة العائم
   updateFloatingCartUI();
 
-  // جلب البيانات الأساسية للكتالوج بالتوازي لتحقيق أقصى سرعة ظهور
-  await Promise.all([loadSettings(), loadProducts()]);
-  updateCatalogViewModeUI();
-  // تحميل باقي الأقسام في الخلفية دون تعطيل تصفح الكتالوج
-  Promise.allSettled([loadInvoices(), loadReceipts(), loadCustomers(), loadDashboard()]).catch(() => {});
+  // قراءة المسار المباشر من المتصفح (SPA Router) لفتح الصفحة المطلوبة فوراً
+  const initialPath = window.location.pathname.replace(/^\/+/, '').split('/')[0].toLowerCase();
+  const initialTab = ROUTE_MAP[initialPath] || 'catalog';
+
+  // تحميل الإعدادات أولاً لتحديد العملة واسم الشركة
+  await loadSettings();
+
+  // تحميل بيانات الواجهة المطلوبة أولاً وبأسرع وقت بحسب الصفحة
+  if (initialTab === 'customers') {
+    actuallySwitchTab('customers', false);
+    await loadCustomers();
+    renderCustomerTab();
+    Promise.allSettled([loadProducts(), loadInvoices(), loadReceipts(), loadDashboard()]).catch(() => {});
+  } else if (initialTab === 'invoices-list') {
+    actuallySwitchTab('invoices-list', false);
+    await loadInvoices();
+    Promise.allSettled([loadProducts(), loadCustomers(), loadReceipts(), loadDashboard()]).catch(() => {});
+  } else if (initialTab === 'receipts') {
+    actuallySwitchTab('receipts', false);
+    await loadReceipts();
+    Promise.allSettled([loadProducts(), loadInvoices(), loadCustomers(), loadDashboard()]).catch(() => {});
+  } else if (initialTab === 'settings') {
+    actuallySwitchTab('settings', false);
+    Promise.allSettled([loadProducts(), loadInvoices(), loadReceipts(), loadCustomers()]).catch(() => {});
+  } else if (initialTab === 'inventory') {
+    actuallySwitchTab('inventory', false);
+    await loadProducts();
+    renderInventoryList();
+    Promise.allSettled([loadInvoices(), loadReceipts(), loadCustomers(), loadDashboard()]).catch(() => {});
+  } else if (initialTab === 'dashboard') {
+    actuallySwitchTab('dashboard', false);
+    await loadDashboard();
+    Promise.allSettled([loadProducts(), loadInvoices(), loadReceipts(), loadCustomers()]).catch(() => {});
+  } else {
+    // الكتالوج أو المبيعات الافتراضية
+    await loadProducts();
+    updateCatalogViewModeUI();
+    if (initialTab && initialTab !== 'catalog') {
+      actuallySwitchTab(initialTab, false);
+    } else {
+      const cleanPath = window.location.pathname === '/' ? '/' : '/home';
+      window.history.replaceState({ tabId: 'catalog', page: cleanPath }, PAGE_TITLES['catalog'], cleanPath);
+      document.title = PAGE_TITLES['catalog'];
+    }
+    Promise.allSettled([loadInvoices(), loadReceipts(), loadCustomers(), loadDashboard()]).catch(() => {});
+  }
 }
 
 // -------------------------------------------------------------
+// =============================================================
+// خريطة المسارات وعناوين الصفحات (SPA Router & Direct Page URLs)
+// =============================================================
+const ROUTE_MAP = {
+  '': 'catalog',
+  'home': 'catalog',
+  'catalog': 'catalog',
+  'products': 'catalog',
+  'pos': 'pos',
+  'customers': 'customers',
+  'suppliers': 'customers',
+  'invoices': 'invoices-list',
+  'invoices-list': 'invoices-list',
+  'create-invoice': 'create-invoice',
+  'new-invoice': 'create-invoice',
+  'receipts': 'receipts',
+  'vouchers': 'receipts',
+  'inventory': 'inventory',
+  'stocktake': 'inventory',
+  'warranties': 'warranties',
+  'dashboard': 'dashboard',
+  'settings': 'settings',
+  'brands-audit': 'brands-audit'
+};
+
+const TAB_TO_ROUTE = {
+  'catalog': '/home',
+  'pos': '/pos',
+  'customers': '/customers',
+  'invoices-list': '/invoices',
+  'create-invoice': '/create-invoice',
+  'receipts': '/receipts',
+  'inventory': '/inventory',
+  'warranties': '/warranties',
+  'dashboard': '/dashboard',
+  'settings': '/settings',
+  'brands-audit': '/brands-audit'
+};
+
+const PAGE_TITLES = {
+  'catalog': 'الكتالوج والأصناف | رامز عطاطرة',
+  'pos': 'نقطة البيع السريعة | رامز عطاطرة',
+  'customers': 'الزبائن والموردين | رامز عطاطرة',
+  'invoices-list': 'أرشيف وسجل الفواتير | رامز عطاطرة',
+  'create-invoice': 'إنشاء فاتورة جديدة | رامز عطاطرة',
+  'receipts': 'سندات القبض والصرف | رامز عطاطرة',
+  'inventory': 'إدارة الجرد والمخزون | رامز عطاطرة',
+  'warranties': 'الكفالات والضمان | رامز عطاطرة',
+  'dashboard': 'لوحة التحكم والتقارير | رامز عطاطرة',
+  'settings': 'إعدادات النظام | رامز عطاطرة',
+  'brands-audit': 'تدقيق الماركات | رامز عطاطرة'
+};
+
 // إدارة التبويبات والتاريخ مع حماية الإعدادات
 // -------------------------------------------------------------
 const SETTINGS_PASSWORD = '99199';
@@ -1234,7 +1328,7 @@ function setupNavigation() {
   });
 }
 
-function switchTab(tabId) {
+function switchTab(tabId, updateUrl = true) {
   // فحص صلاحيات الكاشير والموظفين
   if (window.currentUser && window.currentUser.role === 'cashier') {
     if (tabId === 'dashboard' || tabId === 'settings' || tabId === 'brands-audit') {
@@ -1247,23 +1341,35 @@ function switchTab(tabId) {
     openSettingsPasswordModal();
     return;
   }
-  actuallySwitchTab(tabId);
+  actuallySwitchTab(tabId, updateUrl);
 }
 
-function actuallySwitchTab(tabId) {
+function actuallySwitchTab(tabId, updateUrl = true) {
   if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
     try { window.navigator.vibrate(12); } catch (e) {}
   }
   window.scrollTo({ top: 0, behavior: 'smooth' });
-  // إلغاء تفعيل الأزرار
+
+  // إلغاء وتفعيل أزرار التبويبات
   document.querySelectorAll('.nav-tab-btn, .mob-nav-btn').forEach(btn => {
     btn.classList.toggle('active', btn.getAttribute('data-tab') === tabId);
   });
 
-  // إخفاء وإظهار المحتوى
+  // إخفاء وإظهار المحتوى للتبويب المحدد
   document.querySelectorAll('.tab-content').forEach(content => {
     content.classList.toggle('active', content.id === `tab-${tabId}`);
   });
+
+  // تحديث الرابط النظيف في شريط عنوان المتصفح وعنوان الصفحة
+  const routePath = TAB_TO_ROUTE[tabId] || ('/' + tabId);
+  const pageTitle = PAGE_TITLES[tabId] || 'نظام أبو رامز للمبيعات';
+  document.title = pageTitle;
+
+  if (updateUrl && typeof window !== 'undefined' && window.history) {
+    if (window.location.pathname !== routePath) {
+      window.history.pushState({ tabId: tabId, page: routePath }, pageTitle, routePath);
+    }
+  }
 
   // تحديث البيانات بحسب التبويب
   if (tabId === 'invoices-list') {
@@ -9861,16 +9967,15 @@ function closeProductDetailSheet() {
       return;
     }
 
-    // 2. إذا لم تكن هناك أي نافذة منبثقة مفتوحة، فحص التبويب الحالي
-    // إذا كان في شاشة فرعية مثل الجرد، التقارير، الزبائن، الإعدادات -> العودة للمبيعات الرئيسية
+    // 2. التنقل السلس بين واجهات وصفحات النظام عبر أزرار الرجوع والتقدم في المتصفح
+    const currentPath = window.location.pathname.replace(/^\/+/, '').split('/')[0].toLowerCase();
+    const targetTab = (event.state && event.state.tabId) ? event.state.tabId : (ROUTE_MAP[currentPath] || 'catalog');
+    
     const activeTab = document.querySelector('.tab-content.active');
-    if (activeTab && activeTab.id !== 'tab-pos' && activeTab.id !== 'tab-catalog') {
-      if (typeof switchTab === 'function') {
-        switchTab('pos');
-      } else if (typeof actuallySwitchTab === 'function') {
-        actuallySwitchTab('catalog');
-      }
-      history.pushState({ posAppRoot: true, page: 'home' }, '');
+    const currentTabId = activeTab ? activeTab.id.replace('tab-', '') : '';
+
+    if (targetTab && targetTab !== currentTabId) {
+      actuallySwitchTab(targetTab, false);
       setTimeout(() => { isNavigatingBack = false; }, 80);
       return;
     }

@@ -2441,10 +2441,51 @@ function startAutoBackupSchedule() {
   }, TWENTY_FOUR_HOURS);
 }
 
+// ================================================================
+// دعم مسارات الواجهات والصفحات المباشرة (Multi-page SPA Routing)
+// يتيح فتح روابط الأقسام مباشرة والتنقل السلس مثل:
+// /home, /customers, /settings, /invoices, /pos, /receipts ...
+// ================================================================
+const FRONTEND_ROUTES = [
+  '/',
+  '/home',
+  '/pos',
+  '/catalog',
+  '/products',
+  '/customers',
+  '/suppliers',
+  '/invoices',
+  '/invoices-list',
+  '/receipts',
+  '/vouchers',
+  '/create-invoice',
+  '/new-invoice',
+  '/inventory',
+  '/warranties',
+  '/dashboard',
+  '/settings',
+  '/brands-audit'
+];
+
+FRONTEND_ROUTES.forEach(route => {
+  app.get(route, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  });
+});
+
+// مسار شامل لأي مسار فرعي لصفحات النظام (SPA Fallback) دون التأثير على /api أو /uploads أو الملفات
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api') || req.path.startsWith('/uploads') || req.path.includes('.')) {
+    return next();
+  }
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 // تشغيل الخادم
 
 // ================================================================
 // معالجة الأخطاء الحرجة غير المتوقعة — إشعار فوري عبر Telegram
+// ================================================================ — إشعار فوري عبر Telegram
 // ================================================================
 process.on('uncaughtException', function(err) {
   console.error('💥 uncaughtException:', err.message);

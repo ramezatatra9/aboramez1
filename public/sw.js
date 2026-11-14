@@ -1,5 +1,5 @@
 ﻿// Service Worker Ù„Ù†Ø¸Ø§Ù… Ù…Ø¨ÙŠØ¹Ø§Øª ÙˆØ¬Ø±Ø¯ Ø£Ø¨Ùˆ Ø±Ø§Ù…Ø² (PWA Service Worker)
-const CACHE_VERSION = 'aboramez-pos-v8.7.0';
+const CACHE_VERSION = 'aboramez-pos-v8.8.0';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `dynamic-${CACHE_VERSION}`;
 
