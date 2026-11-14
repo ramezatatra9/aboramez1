@@ -4168,18 +4168,36 @@ function renderInvoicesTable() {
 
   if (!tbody) return;
 
-  let filtered = state.invoices;
+  let filtered = state.invoices || [];
 
-  if (state.invoicesFilter !== 'all') {
-    filtered = filtered.filter(i => i.paymentMethod === state.invoicesFilter);
+  if (state.invoicesFilter && state.invoicesFilter !== 'all') {
+    const f = state.invoicesFilter;
+    if (f === 'sales') {
+      filtered = filtered.filter(i => (i.invoiceType === 'sales' || i.typeCode === 'I') && !i.isQuotation);
+    } else if (f === 'purchase') {
+      filtered = filtered.filter(i => i.invoiceType === 'purchase' || i.typeCode === 'H');
+    } else if (f === 'returns') {
+      filtered = filtered.filter(i => i.invoiceType === 'sales_return' || i.invoiceType === 'purchase_return' || i.typeCode === 'S' || i.typeCode === 'M');
+    } else if (f === 'check') {
+      filtered = filtered.filter(i => i.paymentMethod === 'check' || (i.checkAmount > 0));
+    } else if (f === 'installments') {
+      filtered = filtered.filter(i => i.paymentMethod === 'installments' || i.paymentMethod === 'credit');
+    } else {
+      filtered = filtered.filter(i => i.paymentMethod === f);
+    }
   }
 
   if (state.invoicesSearch) {
+    const s = state.invoicesSearch.toLowerCase();
     filtered = filtered.filter(i =>
-      String(i.invoiceNumber).includes(state.invoicesSearch) ||
-      (i.customerName && i.customerName.toLowerCase().includes(state.invoicesSearch)) ||
-      (i.employeeName && i.employeeName.toLowerCase().includes(state.invoicesSearch)) ||
-      (i.customerPhone && i.customerPhone.includes(state.invoicesSearch))
+      String(i.invoiceNumber || '').toLowerCase().includes(s) ||
+      String(i.customerName || '').toLowerCase().includes(s) ||
+      String(i.partyName || '').toLowerCase().includes(s) ||
+      String(i.partyCode || '').toLowerCase().includes(s) ||
+      String(i.supplierName || '').toLowerCase().includes(s) ||
+      String(i.employeeName || '').toLowerCase().includes(s) ||
+      String(i.customerPhone || '').includes(s) ||
+      (i.items && i.items.some(it => String(it.productName || '').toLowerCase().includes(s) || String(it.code || '').toLowerCase().includes(s)))
     );
   }
 
@@ -4195,49 +4213,86 @@ function renderInvoicesTable() {
     const dateStr = formatAppDateTime(inv.createdAt);
 
     const isQuotation = !!inv.isQuotation || inv.invoiceType === 'quotation';
-    const isSales = !isQuotation && (inv.invoiceType === 'sales');
-    const isPurchase = inv.invoiceType === 'purchase';
+    const isPurchase = inv.invoiceType === 'purchase' || inv.typeCode === 'H';
+    const isSalesReturn = inv.invoiceType === 'sales_return' || inv.typeCode === 'S';
+    const isPurchaseReturn = inv.invoiceType === 'purchase_return' || inv.typeCode === 'M';
+    const isSales = !isQuotation && !isPurchase && !isSalesReturn && !isPurchaseReturn;
 
-    const isInstallments = inv.paymentMethod === 'installments';
+    let typeBadge = '';
+    if (isQuotation) {
+      typeBadge = '<span class="badge" style="background:#7c3aed;color:white;font-weight:700;">📄 عرض سعر</span>';
+    } else if (isPurchase) {
+      typeBadge = '<span class="badge" style="background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;font-weight:700;">📦 مشتريات (H)</span>';
+    } else if (isSalesReturn) {
+      typeBadge = '<span class="badge" style="background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;font-weight:700;">🔄 مردود مبيعات (S)</span>';
+    } else if (isPurchaseReturn) {
+      typeBadge = '<span class="badge" style="background:#f5f3ff;color:#6d28d9;border:1px solid #ddd6fe;font-weight:700;">↩️ مردود مشتريات (M)</span>';
+    } else {
+      typeBadge = '<span class="badge" style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;font-weight:700;">🧾 مبيعات (I)</span>';
+    }
+
+    const isInstallments = inv.paymentMethod === 'installments' || inv.paymentMethod === 'credit';
     const payBadge = isQuotation ? `
-      <span class="badge" style="background:#7c3aed;color:white;font-weight:700;">📄 عرض سعر (تقديري)</span>
+      <span class="badge" style="background:#7c3aed;color:white;font-weight:700;">تقديري</span>
+    ` : (inv.paymentMethod === 'check' || (inv.checkAmount > 0 && !inv.cashAmount)) ? `
+      <span class="badge" style="background:#fef3c7;color:#b45309;border:1px solid #fde68a;font-weight:700;">📝 شيك</span>
+    ` : (inv.paymentMethod === 'mixed' || (inv.checkAmount > 0 && inv.cashAmount > 0)) ? `
+      <span class="badge" style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;font-weight:700;">💵 كاش + شيك</span>
     ` : isInstallments ? `
-      <span class="badge badge-warning" title="الدفعة الأولى: ${inv.installmentDetails?.downPayment} | المتبقي: ${inv.installmentDetails?.remainingAmount} (${inv.installmentDetails?.duration})">
-        ⏳ أقساط (${inv.installmentDetails?.duration || 'مجدولة'})
+      <span class="badge badge-warning" title="الدفعة الأولى: ${inv.installmentDetails?.downPayment || 0} | المتبقي: ${inv.installmentDetails?.remainingAmount || inv.totalAmount || 0}">
+        ⏳ أقساط / ذمم
       </span>
     ` : `<span class="badge badge-success">💵 كاش</span>`;
 
     const tgSent = inv.telegramStatus && inv.telegramStatus.sent;
-    const tgBadge = tgSent ? `
+    const tgBadge = inv.source === 'shamel_sync' ? `
+      <span class="badge" style="background:#e0f2fe;color:#0369a1;font-weight:700;">🔄 الشامل</span>
+    ` : tgSent ? `
       <span class="badge badge-telegram" title="تم الإرسال بنجاح">✈️ تم الإرسال</span>
     ` : `
-      <span class="badge badge-danger" title="${inv.telegramStatus?.error || 'لم يتم الإرسال'}">⚠️ لم يرسل</span>
+      <span class="badge badge-secondary" title="${inv.telegramStatus?.error || 'محلي'}">📄 محلي</span>
     `;
 
-    let numBadge = '';
-    if (isQuotation) numBadge = '<div style="font-size:0.72rem;color:#7c3aed;font-weight:700;">عرض سعر</div>';
-    else if (isPurchase) numBadge = '<div style="font-size:0.72rem;color:#059669;font-weight:700;">مشتريات</div>';
+    const totalProf = inv.summary?.totalProfit || 0;
+    let profitDisplay = '';
+    if (isQuotation) {
+      profitDisplay = '<span style="font-size:0.8rem;color:#7c3aed;">تقديري</span>';
+    } else if (isPurchase) {
+      profitDisplay = '<span style="font-size:0.8rem;color:#64748b;">توريد بضاعة</span>';
+    } else if (isSalesReturn) {
+      profitDisplay = `<span style="color:#c2410c;font-weight:800;">${totalProf.toLocaleString('en-US')} ${currency}</span>`;
+    } else {
+      profitDisplay = totalProf >= 0
+        ? `<span style="color:var(--success-dark);font-weight:800;">+${totalProf.toLocaleString('en-US')} ${currency}</span>`
+        : `<span style="color:#dc2626;font-weight:800;">${totalProf.toLocaleString('en-US')} ${currency}</span>`;
+    }
+
+    const partyDisplay = inv.customerName || inv.partyName || inv.supplierName || 'غير محدد';
+    const partyCode = inv.partyCode || inv.customerSystemNumber || inv.supplierShamelCode;
+    const partyCodeBadge = partyCode ? `<span style="font-family:monospace;font-size:0.75rem;color:#64748b;background:#f1f5f9;padding:1px 5px;border-radius:4px;margin-right:4px;">${escapeHtml(partyCode)}</span>` : '';
+
+    const invTotal = Number(inv.summary?.totalAmount ?? inv.totalAmount) || 0;
 
     return `
-      <tr style="${isQuotation ? 'background:#faf5ff;' : ''}">
+      <tr style="${isQuotation ? 'background:#faf5ff;' : (isPurchase ? 'background:#f0fdf4;' : (isSalesReturn ? 'background:#fff7ed;' : ''))}">
         <td>
           <strong style="color: ${isQuotation ? '#7c3aed' : 'var(--primary-dark)'};">#${inv.invoiceNumber || inv.id}</strong>
-          ${numBadge}
+          <div style="margin-top: 3px;">${typeBadge}</div>
         </td>
         <td style="font-size: 0.82rem; color: var(--text-muted);">${dateStr}</td>
-        <td><strong>${inv.employeeName || 'غير محدد'}</strong></td>
+        <td><strong>${escapeHtml(inv.employeeName || 'الشامل لايت')}</strong></td>
         <td>
-          <div><strong>${inv.customerName}</strong></div>
-          ${inv.customerPhone ? `<div style="font-size: 0.78rem; color: var(--text-muted);">${inv.customerPhone}</div>` : ''}
+          <div>${partyCodeBadge}<strong>${escapeHtml(partyDisplay)}</strong></div>
+          ${inv.customerPhone ? `<div style="font-size: 0.78rem; color: var(--text-muted); direction: ltr; text-align: right;">${escapeHtml(inv.customerPhone)}</div>` : ''}
         </td>
         <td>${payBadge}</td>
-        <td style="font-weight: 800;">${(inv.summary?.totalAmount || 0).toLocaleString('en-US')} ${currency}</td>
-        <td style="color: ${isQuotation ? '#7c3aed' : 'var(--success-dark)'}; font-weight: 800;">${isQuotation ? '<span style="font-size:0.8rem;color:#7c3aed;">تقديري</span>' : '+' + (inv.summary?.totalProfit || 0).toLocaleString('en-US') + ' ' + currency}</td>
+        <td style="font-weight: 800; font-size: 1.05rem;">${invTotal.toLocaleString('en-US')} ${currency}</td>
+        <td>${profitDisplay}</td>
         <td>${tgBadge}</td>
         <td>
           <div style="display: flex; gap: 0.35rem; align-items: center; flex-wrap: wrap;">
             <button class="btn btn-sm btn-primary" onclick="openInvoiceViewModalById('${inv.id}')" title="معاينة وطباعة">
-              🖨️ عرض
+              🖨️ عرض (${(inv.items || []).length})
             </button>
             ${isQuotation ? `
               <button class="btn btn-sm" style="background:#7c3aed;color:white;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:0.78rem;font-weight:700;" onclick="convertQuotationToSales('${inv.id}')" title="تحويل العرض إلى مبيعات فعلية وخصم المخزون">
@@ -4249,11 +4304,6 @@ function renderInvoicesTable() {
                 🛡️ كفالة
               </button>
             ` : ''}
-            ${!tgSent ? `
-              <button class="btn btn-sm btn-telegram" onclick="resendInvoiceTelegram('${inv.id}')" title="إعادة الإرسال لتيليجرام">
-                ✈️
-              </button>
-            ` : ''}
           </div>
         </td>
       </tr>
@@ -4261,11 +4311,13 @@ function renderInvoicesTable() {
   }).join('');
 }
 
-// -------------------------------------------------------------
-// معاينة وطباعة الفاتورة
-// -------------------------------------------------------------
 function openInvoiceViewModalById(id) {
-  const inv = state.invoices.find(i => i.id === id || i.invoiceNumber === parseInt(id));
+  const inv = (state.invoices || []).find(i =>
+    String(i.id) === String(id) ||
+    String(i.invoiceNumber) === String(id) ||
+    String(i.shamelNo) === String(id) ||
+    String(i.shamelId) === String(id)
+  );
   if (inv) openInvoiceViewModal(inv);
 }
 
@@ -4882,6 +4934,15 @@ function handleReceiptsSearch(val) {
   renderReceiptsTable();
 }
 
+function filterVouchersByType(type, btn) {
+  state.vouchersFilter = type;
+  if (btn && btn.parentElement) {
+    btn.parentElement.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+  }
+  renderReceiptsTable();
+}
+
 function renderReceiptsTable() {
   const tbody = document.getElementById('receiptsTableBody');
   const emptyMsg = document.getElementById('emptyReceiptsMessage');
@@ -4892,22 +4953,35 @@ function renderReceiptsTable() {
 
   if (!tbody) return;
 
-  const filtered = state.receipts.filter(r => {
-    if (!state.receiptsSearch) return true;
-    const s = state.receiptsSearch;
-    return (
-      (r.receiptNumber && String(r.receiptNumber).includes(s)) ||
+  const allVouchers = state.receipts || [];
+  let filtered = allVouchers;
+
+  if (state.vouchersFilter && state.vouchersFilter !== 'all') {
+    if (state.vouchersFilter === 'receipt') {
+      filtered = filtered.filter(r => r.voucherType !== 'payment' && r.typeCode !== 'P');
+    } else if (state.vouchersFilter === 'payment') {
+      filtered = filtered.filter(r => r.voucherType === 'payment' || r.typeCode === 'P');
+    }
+  }
+
+  if (state.receiptsSearch) {
+    const s = state.receiptsSearch.toLowerCase();
+    filtered = filtered.filter(r =>
+      (r.receiptNumber && String(r.receiptNumber).toLowerCase().includes(s)) ||
+      (r.voucherNumber && String(r.voucherNumber).toLowerCase().includes(s)) ||
       (r.customerName && r.customerName.toLowerCase().includes(s)) ||
+      (r.partyName && r.partyName.toLowerCase().includes(s)) ||
+      (r.partyCode && r.partyCode.toLowerCase().includes(s)) ||
       (r.employeeName && r.employeeName.toLowerCase().includes(s)) ||
       (r.customerPhone && r.customerPhone.includes(s)) ||
       (r.description && r.description.toLowerCase().includes(s))
     );
-  });
+  }
 
-  const totalSum = state.receipts.reduce((acc, r) => acc + (parseFloat(r.amount) || 0), 0);
+  const totalSum = allVouchers.reduce((acc, r) => acc + (parseFloat(r.amount) || 0), 0);
   if (totalAmountEl) totalAmountEl.textContent = `${totalSum.toLocaleString('en-US')} ${cur}`;
-  if (totalCountEl) totalCountEl.textContent = state.receipts.length;
-  if (countBadge) countBadge.textContent = `${state.receipts.length} سند`;
+  if (totalCountEl) totalCountEl.textContent = allVouchers.length;
+  if (countBadge) countBadge.textContent = `${allVouchers.length} سند`;
 
   if (filtered.length === 0) {
     tbody.innerHTML = '';
@@ -4920,27 +4994,40 @@ function renderReceiptsTable() {
   const methodBadges = {
     cash: '<span class="badge badge-success">💵 نقداً</span>',
     transfer: '<span class="badge badge-primary">🏦 تحويل بنكي</span>',
-    check: '<span class="badge badge-warning">📝 شيك</span>'
+    check: '<span class="badge badge-warning">📝 شيك</span>',
+    mixed: '<span class="badge" style="background:#f0fdf4;color:#15803d;font-weight:700;">💵 كاش + شيك</span>'
   };
 
   tbody.innerHTML = filtered.map(r => {
     const dateStr = formatAppDateTime(r.createdAt);
+    const isPayment = r.voucherType === 'payment' || r.typeCode === 'P';
+    const typeBadge = isPayment
+      ? '<span class="badge" style="background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;font-weight:700;">📤 سند صرف</span>'
+      : '<span class="badge" style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;font-weight:700;">📥 سند قبض</span>';
+
+    const partyName = r.partyName || r.customerName || 'نقداً';
+    const partyCode = r.partyCode || r.customerSystemNumber || r.supplierShamelCode;
+    const partyCodeBadge = partyCode ? `<span style="font-family:monospace;font-size:0.75rem;color:#64748b;background:#f1f5f9;padding:1px 5px;border-radius:4px;margin-right:4px;">${escapeHtml(partyCode)}</span>` : '';
 
     return `
-      <tr>
-        <td style="font-weight: 800; font-family: monospace;">#${r.receiptNumber}</td>
+      <tr style="${isPayment ? 'background:#fff8f8;' : ''}">
+        <td>
+          <strong style="font-family: monospace; font-size: 0.95rem;">#${r.voucherNumber || r.receiptNumber || r.id}</strong>
+          <div style="margin-top: 3px;">${typeBadge}</div>
+        </td>
         <td style="font-size: 0.85rem;">
           <div>${dateStr}</div>
         </td>
         <td>
-          <strong>${escapeHtml(r.customerName)}</strong>
-          ${r.customerPhone ? `<div style="font-size: 0.75rem; color: var(--text-muted);">${r.customerPhone}</div>` : ''}
+          <div>${partyCodeBadge}<strong>${escapeHtml(partyName)}</strong></div>
+          ${r.customerPhone ? `<div style="font-size: 0.75rem; color: var(--text-muted); direction: ltr; text-align: right;">${escapeHtml(r.customerPhone)}</div>` : ''}
+          ${r.notes ? `<div style="font-size: 0.75rem; color: #64748b; margin-top: 2px;">${escapeHtml(r.notes)}</div>` : ''}
         </td>
-        <td style="font-weight: 800; color: var(--success-dark); font-size: 1.05rem;">
-          ${(r.amount || 0).toLocaleString('en-US')} ${cur}
+        <td style="font-weight: 800; color: ${isPayment ? '#b91c1c' : 'var(--success-dark)'}; font-size: 1.05rem;">
+          ${(parseFloat(r.amount) || 0).toLocaleString('en-US')} ${cur}
         </td>
-        <td>${methodBadges[r.paymentMethod] || 'نقداً'}</td>
-        <td style="font-size: 0.88rem;">${escapeHtml(r.employeeName || 'غير محدد')}</td>
+        <td>${methodBadges[r.paymentMethod] || '<span class="badge badge-success">💵 نقداً</span>'}</td>
+        <td style="font-size: 0.88rem;">${escapeHtml(r.employeeName || 'الشامل لايت')}</td>
         <td>
           <div style="display: flex; gap: 0.4rem;">
             <button class="btn btn-sm btn-primary" onclick="viewReceipt('${r.id}')" title="معاينة وطباعة">
@@ -8808,14 +8895,40 @@ function renderCustomerStatementHtml(st) {
   let movementsHtml = '';
   if (st.movements && st.movements.length > 0) {
     movementsHtml = st.movements.map((m, idx) => {
-      const isInvoice = m.type === 'invoice';
-      const typeBadge = isInvoice ? `<span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-weight:700; font-size:0.78rem;">🧾 فاتورة مبيعات</span>` :
-                        `<span style="background:#f0fdf4; color:#15803d; padding:2px 8px; border-radius:4px; font-weight:700; font-size:0.78rem;">💰 سند قبض</span>`;
+      const isSalesInv = m.type === 'sales_invoice' || m.type === 'invoice';
+      const isPurchaseInv = m.type === 'purchase_invoice';
+      const isSalesRet = m.type === 'sales_return';
+      const isPurchaseRet = m.type === 'purchase_return';
+      const isPayment = m.type === 'payment';
+      const isReceipt = m.type === 'receipt';
+
+      let typeBadge = '';
+      if (isSalesInv) {
+        typeBadge = '<span style="background:#eff6ff; color:#1d4ed8; padding:3px 8px; border-radius:4px; font-weight:700; font-size:0.78rem; border:1px solid #bfdbfe;">🧾 فاتورة مبيعات</span>';
+      } else if (isPurchaseInv) {
+        typeBadge = '<span style="background:#ecfdf5; color:#047857; padding:3px 8px; border-radius:4px; font-weight:700; font-size:0.78rem; border:1px solid #a7f3d0;">📦 فاتورة مشتريات</span>';
+      } else if (isSalesRet) {
+        typeBadge = '<span style="background:#fff7ed; color:#c2410c; padding:3px 8px; border-radius:4px; font-weight:700; font-size:0.78rem; border:1px solid #fed7aa;">🔄 مردودات مبيعات</span>';
+      } else if (isPurchaseRet) {
+        typeBadge = '<span style="background:#f5f3ff; color:#6d28d9; padding:3px 8px; border-radius:4px; font-weight:700; font-size:0.78rem; border:1px solid #ddd6fe;">↩️ مردودات مشتريات</span>';
+      } else if (isPayment) {
+        typeBadge = '<span style="background:#fef2f2; color:#b91c1c; padding:3px 8px; border-radius:4px; font-weight:700; font-size:0.78rem; border:1px solid #fecaca;">📤 سند صرف</span>';
+      } else {
+        typeBadge = '<span style="background:#f0fdf4; color:#15803d; padding:3px 8px; border-radius:4px; font-weight:700; font-size:0.78rem; border:1px solid #bbf7d0;">💰 سند قبض</span>';
+      }
+
       return `
         <tr>
           <td style="text-align: center; border: 1px solid #cbd5e1; padding: 7px; font-weight: 700;">${idx + 1}</td>
           <td style="border: 1px solid #cbd5e1; padding: 7px; font-size: 0.8rem; color: #475569;">${formatAppDateTime(m.date)}</td>
-          <td style="border: 1px solid #cbd5e1; padding: 7px;">${typeBadge} <strong>#${escapeHtml(String(m.number))}</strong></td>
+          <td style="border: 1px solid #cbd5e1; padding: 7px;">
+            ${typeBadge} <strong>#${escapeHtml(String(m.number))}</strong>
+            ${(isSalesInv || isPurchaseInv || isSalesRet || isPurchaseRet) ? `
+              <button class="btn btn-xs btn-primary no-print" onclick="openInvoiceViewModalById('${m.id}')" title="عرض تفاصيل الأصناف والربح" style="margin-right: 4px; padding: 2px 7px; font-size: 0.72rem; cursor: pointer;">
+                🔍 الأصناف (${m.itemsCount || 0})
+              </button>
+            ` : ''}
+          </td>
           <td style="border: 1px solid #cbd5e1; padding: 7px; font-size: 0.82rem;">${escapeHtml(m.notes || '--')}</td>
           <td style="border: 1px solid #cbd5e1; padding: 7px; text-align: left; font-weight: 700; color: ${m.debit > 0 ? '#dc2626' : '#94a3b8'};">
             ${m.debit > 0 ? `${m.debit.toLocaleString('en-US')} ${cur}` : '--'}
@@ -8833,7 +8946,7 @@ function renderCustomerStatementHtml(st) {
     movementsHtml = `
       <tr>
         <td colspan="7" style="text-align: center; padding: 1.5rem; color: #64748b; border: 1px solid #cbd5e1;">
-          لا توجد فواتير أو سندات مسجلة بعد لهذا الزبون في النظام. الرصيد الحالي: ${bal.toLocaleString('en-US')} ${cur}
+          لا توجد فواتير أو سندات مسجلة بعد لهذا الحساب في النظام. الرصيد الحالي: ${bal.toLocaleString('en-US')} ${cur}
         </td>
       </tr>
     `;

@@ -843,7 +843,12 @@
 
           <div class="search-box" style="margin-bottom: 1rem;">
             <span>🔍</span>
-            <input type="text" id="receiptsSearchInput" placeholder="بحث باسم الزبون أو الموظف أو رقم السند..." oninput="handleReceiptsSearch(this.value)">
+            <div class="category-chips" style="margin-bottom: 0.75rem;">
+            <button class="chip active" onclick="filterVouchersByType('all', this)">كافة السندات</button>
+            <button class="chip" onclick="filterVouchersByType('receipt', this)">📥 سندات القبض (R)</button>
+            <button class="chip" onclick="filterVouchersByType('payment', this)">📤 سندات الصرف (P)</button>
+          </div>
+          <input type="text" id="receiptsSearchInput" placeholder="بحث باسم الزبون أو الموظف أو رقم السند..." oninput="handleReceiptsSearch(this.value)">
           </div>
 
           <div style="overflow-x: auto; max-height: 480px;">
@@ -1431,8 +1436,12 @@
 
           <div class="category-chips">
             <button class="chip active" onclick="filterInvoicesByPayment('all', this)">جميع الفواتير</button>
-            <button class="chip" onclick="filterInvoicesByPayment('cash', this)">كاش نقدي</button>
-            <button class="chip" onclick="filterInvoicesByPayment('installments', this)">أقساط مجدولة</button>
+            <button class="chip" onclick="filterInvoicesByPayment('sales', this)">🧾 مبيعات (I)</button>
+            <button class="chip" onclick="filterInvoicesByPayment('purchase', this)">📦 مشتريات (H)</button>
+            <button class="chip" onclick="filterInvoicesByPayment('returns', this)">🔄 المردودات (S/M)</button>
+            <button class="chip" onclick="filterInvoicesByPayment('cash', this)">💵 كاش نقدي</button>
+            <button class="chip" onclick="filterInvoicesByPayment('check', this)">📝 شيكات</button>
+            <button class="chip" onclick="filterInvoicesByPayment('installments', this)">⏳ أقساط وذمم</button>
           </div>
         </div>
 

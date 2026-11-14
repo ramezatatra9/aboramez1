@@ -29,16 +29,30 @@
     "source": "shamel_sync",
     "address": "",
     "balance": 200,
-    "syncedAt": "2026-10-30T19:18:07.115Z",
+    "syncedAt": "2026-11-14T13:52:17.818Z",
     "syncedBy": "مزامنة الشامل لايت",
     "createdAt": "2026-10-04T15:27:35.268+00:00",
     "isStopped": false,
-    "updatedAt": "2026-10-30T19:18:07.115Z",
+    "updatedAt": "2026-11-14T13:52:17.818Z",
     "lastSyncAt": null,
     "shamelCode": "C00000093",
     "systemNumber": "C00000093",
     "shamelBalance": 200,
     "balanceHistory": [
+      {
+        "date": "2026-11-14T13:52:17.818Z",
+        "oldBalance": 250,
+        "newBalance": 200,
+        "difference": -50,
+        "source": "shamel_sync"
+      },
+      {
+        "date": "2026-11-14T13:52:15.786Z",
+        "oldBalance": 200,
+        "newBalance": 250,
+        "difference": 50,
+        "source": "shamel_sync"
+      },
       {
         "date": "2026-10-30T19:18:07.115Z",
         "source": "shamel_sync",
@@ -63,8 +77,8 @@
     ],
     "previousBalance": 250,
     "balanceDifference": -50,
-    "lastBalanceDiffDate": "2026-10-30T19:18:07.115Z",
-    "lastBalanceChangeDate": "2026-10-30T19:18:07.115Z"
+    "lastBalanceDiffDate": "2026-11-14T13:52:17.818Z",
+    "lastBalanceChangeDate": "2026-11-14T13:52:17.818Z"
   },
   {
     "id": "cust-1791127655299-12957",

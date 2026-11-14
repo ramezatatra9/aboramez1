@@ -11,6 +11,8 @@ const RECEIPTS_FILE = path.join(DATA_DIR, 'receipts.json');
 const CUSTOMERS_FILE = path.join(DATA_DIR, 'customers.json');
 const SUPPLIERS_FILE = path.join(DATA_DIR, 'suppliers.json');
 const WARRANTIES_FILE = path.join(DATA_DIR, 'warranties.json');
+const SYNC_INVOICES_META_FILE = path.join(DATA_DIR, 'sync_invoices_meta.json');
+const SYNC_VOUCHERS_META_FILE = path.join(DATA_DIR, 'sync_vouchers_meta.json');
 const BACKUPS_DIR = path.join(__dirname, 'backups');
 if (!fs.existsSync(BACKUPS_DIR)) {
   fs.mkdirSync(BACKUPS_DIR, { recursive: true });
@@ -1461,9 +1463,11 @@ const dataStore = {
     let customer = customers.find(c =>
       String(c.id).trim() === strId ||
       String(c.systemNumber || '').trim() === strId ||
+      (c.shamelCode && String(c.shamelCode).trim() === strId) ||
       c.name.trim().toLowerCase() === strId.toLowerCase()
     );
 
+    let isSupplier = false;
     if (!customer) {
       const suppliers = this.getSuppliers();
       const supp = suppliers.find(s =>
@@ -1478,7 +1482,10 @@ const dataStore = {
           isSupplier: true,
           accountType: 'supplier'
         };
+        isSupplier = true;
       }
+    } else {
+      isSupplier = Boolean(customer.isSupplier || customer.accountType === 'supplier');
     }
 
     if (!customer) return null;
@@ -1486,77 +1493,193 @@ const dataStore = {
     const invoices = this.getInvoices();
     const receipts = this.getReceipts();
 
-    const custInvoices = invoices.filter(inv =>
-      (inv.customerId && String(inv.customerId).trim() === String(customer.id).trim()) ||
-      (inv.customerSystemNumber && String(inv.customerSystemNumber).trim() === String(customer.systemNumber).trim()) ||
-      (inv.customerName && inv.customerName.trim().toLowerCase() === customer.name.trim().toLowerCase())
-    );
+    const custCodes = new Set([
+      String(customer.id || '').trim().toUpperCase(),
+      String(customer.systemNumber || '').trim().toUpperCase(),
+      String(customer.shamelCode || '').trim().toUpperCase()
+    ].filter(Boolean));
+    const custName = customer.name.trim().toLowerCase();
 
-    const custReceipts = receipts.filter(rcp =>
-      (rcp.customerId && String(rcp.customerId).trim() === String(customer.id).trim()) ||
-      (rcp.customerSystemNumber && String(rcp.customerSystemNumber).trim() === String(customer.systemNumber).trim()) ||
-      (rcp.customerName && rcp.customerName.trim().toLowerCase() === customer.name.trim().toLowerCase())
-    );
+    // مطابقة كافة فواتير الزبون أو المورد
+    const custInvoices = invoices.filter(inv => {
+      if (inv.customerId && custCodes.has(String(inv.customerId).trim().toUpperCase())) return true;
+      if (inv.customerSystemNumber && custCodes.has(String(inv.customerSystemNumber).trim().toUpperCase())) return true;
+      if (inv.partyCode && custCodes.has(String(inv.partyCode).trim().toUpperCase())) return true;
+      if (inv.supplierShamelCode && custCodes.has(String(inv.supplierShamelCode).trim().toUpperCase())) return true;
+      if (inv.customerName && inv.customerName.trim().toLowerCase() === custName) return true;
+      if (inv.partyName && inv.partyName.trim().toLowerCase() === custName) return true;
+      if (inv.supplierName && inv.supplierName.trim().toLowerCase() === custName) return true;
+      return false;
+    });
+
+    // مطابقة كافة سندات القبض والصرف
+    const custReceipts = receipts.filter(rcp => {
+      if (rcp.customerId && custCodes.has(String(rcp.customerId).trim().toUpperCase())) return true;
+      if (rcp.customerSystemNumber && custCodes.has(String(rcp.customerSystemNumber).trim().toUpperCase())) return true;
+      if (rcp.partyCode && custCodes.has(String(rcp.partyCode).trim().toUpperCase())) return true;
+      if (rcp.supplierShamelCode && custCodes.has(String(rcp.supplierShamelCode).trim().toUpperCase())) return true;
+      if (rcp.customerName && rcp.customerName.trim().toLowerCase() === custName) return true;
+      if (rcp.partyName && rcp.partyName.trim().toLowerCase() === custName) return true;
+      return false;
+    });
 
     // بناء قائمة الحركات المدمجة
-    const transactions = [];
+    const movements = [];
 
     custInvoices.forEach(inv => {
-      const isPurchase = inv.invoiceType === 'purchase';
-      const amount = inv.summary?.totalAmount || 0;
-      transactions.push({
-        type: isPurchase ? 'purchase_invoice' : 'sales_invoice',
-        title: isPurchase ? `فاتورة مشتريات #${inv.invoiceNumber || inv.id}` : `فاتورة مبيعات #${inv.invoiceNumber || inv.id}`,
+      const isPurchase = inv.invoiceType === 'purchase' || inv.typeCode === 'H';
+      const isSalesReturn = inv.invoiceType === 'sales_return' || inv.typeCode === 'S';
+      const isPurchaseReturn = inv.invoiceType === 'purchase_return' || inv.typeCode === 'M';
+      const isSales = !isPurchase && !isSalesReturn && !isPurchaseReturn;
+      const amount = Number(inv.summary?.totalAmount ?? inv.totalAmount) || 0;
+
+      let type = 'sales_invoice';
+      let typeTitle = 'فاتورة مبيعات';
+      let debit = 0;
+      let credit = 0;
+
+      if (!isSupplier) {
+        // حساب زبون: المبيعات تزيد الدين، والمردودات تنقصه
+        if (isSales) {
+          type = 'sales_invoice';
+          typeTitle = 'فاتورة مبيعات';
+          debit = amount;
+        } else if (isSalesReturn) {
+          type = 'sales_return';
+          typeTitle = 'مردودات مبيعات';
+          credit = amount;
+        } else if (isPurchase) {
+          type = 'purchase_invoice';
+          typeTitle = 'فاتورة مشتريات';
+          credit = amount;
+        }
+      } else {
+        // حساب مورد: المشتريات تزيد حقه (دائن)، والمردودات تنقصه (مدين)
+        if (isPurchase) {
+          type = 'purchase_invoice';
+          typeTitle = 'فاتورة مشتريات (توريد)';
+          credit = amount;
+        } else if (isPurchaseReturn) {
+          type = 'purchase_return';
+          typeTitle = 'مردودات مشتريات';
+          debit = amount;
+        } else if (isSales) {
+          type = 'sales_invoice';
+          typeTitle = 'فاتورة مبيعات';
+          debit = amount;
+        }
+      }
+
+      movements.push({
+        type,
+        typeTitle,
+        title: `${typeTitle} #${inv.invoiceNumber || inv.id}`,
         id: inv.id,
         refNumber: inv.invoiceNumber || inv.id,
+        number: inv.invoiceNumber || inv.id,
         date: inv.createdAt,
-        employeeName: inv.employeeName,
-        paymentMethod: inv.paymentMethod,
-        debit: !isPurchase ? amount : 0,  // مبيعات تزيد الدين على الزبون
-        credit: isPurchase ? amount : 0, // مشتريات منه لصالح الزبون
+        employeeName: inv.employeeName || 'الشامل لايت',
+        paymentMethod: inv.paymentMethod || 'cash',
+        debit,
+        credit,
+        amount,
         notes: inv.notes || '',
-        itemsCount: (inv.items || []).length
+        itemsCount: (inv.items || []).length,
+        items: inv.items || [],
+        summary: inv.summary || null,
+        totalProfit: inv.summary?.totalProfit || 0
       });
     });
 
-    custReceipts.forEach(rcp => {
-      transactions.push({
-        type: 'receipt',
-        title: `سند قبض مالي #${rcp.receiptNumber}`,
-        id: rcp.id,
-        refNumber: rcp.receiptNumber,
-        date: rcp.createdAt,
-        employeeName: rcp.employeeName,
-        paymentMethod: rcp.paymentMethod,
-        debit: 0,
-        credit: rcp.amount || 0, // سند القبض ينقص دينه / يسدده
-        notes: rcp.description ? `${rcp.description} ${rcp.notes ? `(${rcp.notes})` : ''}` : (rcp.notes || '')
+    custReceipts.forEach(vch => {
+      const isPayment = vch.voucherType === 'payment' || vch.typeCode === 'P';
+      const amount = Number(vch.amount) || 0;
+
+      let type = isPayment ? 'payment' : 'receipt';
+      let typeTitle = isPayment ? 'سند صرف مالي' : 'سند قبض مالي';
+      let debit = 0;
+      let credit = 0;
+
+      if (!isSupplier) {
+        // زبون: سند القبض يسدد الدين (دائن)، وسند الصرف يزيد الدين (مدين)
+        if (!isPayment) {
+          credit = amount;
+        } else {
+          debit = amount;
+        }
+      } else {
+        // مورد: سند الصرف يسدد حقه (مدين)، وسند القبض يزيد حقه (دائن)
+        if (isPayment) {
+          debit = amount;
+        } else {
+          credit = amount;
+        }
+      }
+
+      movements.push({
+        type,
+        typeTitle,
+        title: `${typeTitle} #${vch.voucherNumber || vch.receiptNumber || vch.id}`,
+        id: vch.id,
+        refNumber: vch.voucherNumber || vch.receiptNumber || vch.id,
+        number: vch.voucherNumber || vch.receiptNumber || vch.id,
+        date: vch.createdAt,
+        employeeName: vch.employeeName || 'الشامل لايت',
+        paymentMethod: vch.paymentMethod || 'cash',
+        debit,
+        credit,
+        amount,
+        notes: vch.description ? `${vch.description} ${vch.notes ? `(${vch.notes})` : ''}` : (vch.notes || ''),
+        itemsCount: 0
       });
     });
 
     // ترتيب الحركات تصاعدياً حسب التاريخ
-    transactions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    movements.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-    const totalSales = custInvoices.filter(i => i.invoiceType !== 'purchase').reduce((s, i) => s + (i.summary?.totalAmount || 0), 0);
-    const totalPaid = custReceipts.reduce((s, r) => s + (r.amount || 0), 0);
-    const balance = parseFloat(customer.balance) || 0;
+    // احتساب الرصيد التراكمي بدقة بعد كل حركة
+    let running = 0;
+    movements.forEach(m => {
+      running += (m.debit - m.credit);
+      m.balanceAfter = Math.round(running * 100) / 100;
+    });
+
+    const totalSales = movements.filter(m => m.type === 'sales_invoice').reduce((s, m) => s + m.amount, 0);
+    const totalPaid = movements.filter(m => m.type === 'receipt').reduce((s, m) => s + m.amount, 0);
+    const totalPayments = movements.filter(m => m.type === 'payment').reduce((s, m) => s + m.amount, 0);
+    const totalReturns = movements.filter(m => m.type.includes('return')).reduce((s, m) => s + m.amount, 0);
+    const lastReceipt = [...movements].reverse().find(m => m.type === 'receipt');
+    const lastInvoice = [...movements].reverse().find(m => m.type.includes('invoice'));
+
+    const balance = parseFloat(customer.balance) || Math.round(running * 100) / 100;
+
+    const summary = {
+      totalSales,
+      totalPaid,
+      totalInvoiced: totalSales,
+      totalPayments,
+      totalReturns,
+      invoicesCount: custInvoices.length,
+      receiptsCount: custReceipts.filter(r => r.voucherType !== 'payment' && r.typeCode !== 'P').length,
+      paymentsCount: custReceipts.filter(r => r.voucherType === 'payment' || r.typeCode === 'P').length,
+      transactionsCount: movements.length,
+      isDebtor: balance > 0,
+      isCreditor: balance < 0,
+      isSettled: balance === 0,
+      lastReceiptDate: lastReceipt ? lastReceipt.date : null,
+      lastReceiptAmount: lastReceipt ? lastReceipt.amount : 0,
+      lastInvoiceDate: lastInvoice ? lastInvoice.date : null,
+      lastInvoiceAmount: lastInvoice ? lastInvoice.amount : 0
+    };
 
     return {
       customer,
       balance,
-      summary: {
-        totalSales,
-        totalPaid,
-        invoicesCount: custInvoices.length,
-        receiptsCount: custReceipts.length,
-        transactionsCount: transactions.length,
-        isDebtor: balance > 0,
-        isCreditor: balance < 0,
-        isSettled: balance === 0
-      },
+      summary,
+      movements,
+      transactions: movements,
       invoices: custInvoices,
-      receipts: custReceipts,
-      transactions
+      receipts: custReceipts
     };
   },
 
@@ -2694,6 +2817,450 @@ const dataStore = {
       dryRun,
       summary,
       totalSuppliers: updatedSuppliers.length,
+      timestamp: now
+    };
+  },
+
+  // -------------------------------------------------------------
+  // مزامنة الفواتير من برنامج الشامل لايت (Invoices Sync)
+  // -------------------------------------------------------------
+  getLastInvoicesSyncMeta() {
+    return readJson(SYNC_INVOICES_META_FILE, null);
+  },
+
+  async syncBatchInvoices(items, options = {}) {
+    const {
+      dryRun = false,
+      syncMode = 'upsert',
+      editorName = 'برنامج مزامنة الشامل'
+    } = options;
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return {
+        success: false,
+        error: 'قائمة الفواتير فارغة أو غير صالحة',
+        summary: { totalReceived: 0, created: 0, updated: 0, unchanged: 0, failed: 0, errors: [] }
+      };
+    }
+
+    const invoices = this.getInvoices();
+    const customers = this.getCustomers();
+    const suppliers = this.getSuppliers();
+    const now = new Date().toISOString();
+
+    const custByCode = new Map();
+    customers.forEach(c => {
+      if (c.systemNumber) custByCode.set(String(c.systemNumber).trim().toUpperCase(), c);
+      if (c.shamelCode) custByCode.set(String(c.shamelCode).trim().toUpperCase(), c);
+      if (c.id) custByCode.set(String(c.id).trim().toUpperCase(), c);
+    });
+
+    const suppByCode = new Map();
+    suppliers.forEach(s => {
+      if (s.shamelCode) suppByCode.set(String(s.shamelCode).trim().toUpperCase(), s);
+      if (s.id) suppByCode.set(String(s.id).trim().toUpperCase(), s);
+    });
+
+    const invLookup = new Map();
+    invoices.forEach((inv, idx) => {
+      if (inv.id) invLookup.set(String(inv.id).trim().toUpperCase(), idx);
+      if (inv.invoiceNumber) invLookup.set(String(inv.invoiceNumber).trim().toUpperCase(), idx);
+      if (inv.shamelNo) invLookup.set(String(inv.shamelNo).trim().toUpperCase(), idx);
+      if (inv.shamelId) invLookup.set(String(inv.shamelId).trim(), idx);
+    });
+
+    const summary = { totalReceived: items.length, created: 0, updated: 0, unchanged: 0, failed: 0, errors: [] };
+    const updatedInvoices = [...invoices];
+
+    for (const raw of items) {
+      try {
+        const shamelId = raw.shamelId || raw.voucherId || raw.id;
+        const invNo = String(raw.invoiceNumber || raw.no || shamelId || '').trim();
+        if (!invNo) {
+          summary.failed++;
+          summary.errors.push('تخطي فاتورة مجهولة الرقم');
+          continue;
+        }
+
+        const partyCode = String(raw.partyCode || raw.accountNo || '').trim();
+        const partyName = String(raw.partyName || raw.customerName || raw.person_name || 'نقداً').trim();
+        const partyType = raw.partyType || (partyCode.startsWith('S') ? 'supplier' : (partyCode.startsWith('C') ? 'customer' : 'cash'));
+
+        const matchedCust = custByCode.get(partyCode.toUpperCase());
+        const matchedSupp = suppByCode.get(partyCode.toUpperCase());
+
+        const typeCode = (raw.typeCode || raw.type || 'I').toUpperCase();
+        let invType = 'sales';
+        let invTypeAr = 'فاتورة مبيعات';
+        if (typeCode === 'H') {
+          invType = 'purchase';
+          invTypeAr = 'فاتورة مشتريات';
+        } else if (typeCode === 'S') {
+          invType = 'sales_return';
+          invTypeAr = 'مردودات مبيعات';
+        } else if (typeCode === 'M') {
+          invType = 'purchase_return';
+          invTypeAr = 'مردودات مشتريات';
+        }
+
+        const invTotal = Number(raw.totalAmount ?? raw.total_amount) || 0;
+        const cashAmt = Number(raw.cashAmount ?? raw.cash_amount) || 0;
+        const checkAmt = Number(raw.checkAmount ?? raw.check_amount) || 0;
+        const discountAmt = Number(raw.discountAmount ?? raw.deduction_amount) || 0;
+        const vatAmt = Number(raw.vatAmount ?? raw.vat) || 0;
+
+        let payMethod = raw.paymentMethod || 'cash';
+        if (checkAmt > 0 && cashAmt === 0) payMethod = 'check';
+        else if (checkAmt > 0 && cashAmt > 0) payMethod = 'mixed';
+        else if (cashAmt === 0 && checkAmt === 0 && partyCode && partyCode !== 'A11111000') payMethod = 'installments';
+
+        // معالجة بنود الأصناف بدقة تامة
+        const processedItems = (raw.items || []).map(it => {
+          const qty = Number(it.quantity) || 1;
+          const uPrice = Number(it.unitPrice ?? it.sellPrice ?? it.unit_price) || 0;
+          const cPrice = Number(it.costPrice ?? it.cost) || 0;
+          const disc = Number(it.discount ?? it.item_discount_amount) || 0;
+          const tSell = (qty * uPrice) - disc;
+          const tCost = qty * cPrice;
+          const uProfit = uPrice - cPrice;
+          const tProfit = tSell - tCost;
+
+          return {
+            itemId: it.itemId || it.item_service_id || null,
+            code: it.code || it.item_no || '',
+            productName: it.productName || it.name || it.item_print_name || 'صنف',
+            quantity: qty,
+            unitPrice: uPrice,
+            sellPrice: uPrice,
+            costPrice: cPrice,
+            discount: disc,
+            totalPrice: tSell,
+            totalSell: tSell,
+            totalCost: tCost,
+            unitProfit: uProfit,
+            totalProfit: tProfit,
+            barcode: it.barcode || it.item_unit_bar_code || ''
+          };
+        });
+
+        const totalItemsCost = processedItems.reduce((acc, it) => acc + (it.totalCost || 0), 0);
+        const totalItemsQty = processedItems.reduce((acc, it) => acc + (it.quantity || 0), 0);
+        const rawProfit = invType === 'purchase' ? 0 : (invTotal - totalItemsCost);
+        const totalProfit = invType === 'sales_return' ? -Math.abs(rawProfit) : rawProfit;
+        const marginPct = (invTotal > 0 && invType === 'sales') ? Math.round((totalProfit / invTotal) * 1000) / 10 : 0;
+
+        const invSummary = {
+          totalAmount: invTotal,
+          totalCost: totalItemsCost,
+          totalProfit: totalProfit,
+          profitMarginPercentage: marginPct,
+          totalQuantity: totalItemsQty,
+          itemsCount: processedItems.length
+        };
+
+        const targetId = 'shamel-inv-' + (shamelId || invNo);
+        const lookupKey = targetId.toUpperCase();
+        const altKey = String(invNo).toUpperCase();
+
+        const existingIdx = invLookup.has(lookupKey) ? invLookup.get(lookupKey) :
+                           (invLookup.has(altKey) ? invLookup.get(altKey) : -1);
+
+        const invRecord = {
+          id: targetId,
+          shamelId: Number(shamelId) || null,
+          shamelNo: invNo,
+          invoiceNumber: invNo,
+          invoiceType: invType,
+          typeCode,
+          invoiceTypeArabic: invTypeAr,
+          createdAt: raw.createdAt || raw.date || now,
+          customerName: partyName,
+          partyName,
+          partyCode,
+          partyType,
+          customerId: matchedCust ? matchedCust.id : (raw.customerId || null),
+          customerSystemNumber: matchedCust ? (matchedCust.systemNumber || matchedCust.shamelCode) : (partyCode || null),
+          customerPhone: matchedCust ? (matchedCust.mobile || matchedCust.phone) : (raw.customerPhone || ''),
+          customerAddress: matchedCust ? (matchedCust.address || '') : '',
+          supplierId: matchedSupp ? matchedSupp.id : (raw.supplierId || null),
+          supplierShamelCode: matchedSupp ? matchedSupp.shamelCode : (partyType === 'supplier' ? partyCode : null),
+          supplierName: matchedSupp ? matchedSupp.name : (partyType === 'supplier' ? partyName : ''),
+          employeeName: raw.employeeName || 'الشامل لايت',
+          paymentMethod: payMethod,
+          totalAmount: invTotal,
+          cashAmount: cashAmt,
+          checkAmount: checkAmt,
+          discountAmount: discountAmt,
+          vatAmount: vatAmt,
+          notes: raw.notes || '',
+          source: 'shamel_sync',
+          syncedAt: now,
+          syncedBy: editorName,
+          summary: invSummary,
+          items: processedItems
+        };
+
+        if (existingIdx !== -1) {
+          const cur = updatedInvoices[existingIdx];
+          if (!dryRun) {
+            updatedInvoices[existingIdx] = {
+              ...cur,
+              ...invRecord,
+              warrantyId: cur.warrantyId || invRecord.warrantyId,
+              warrantyNumber: cur.warrantyNumber || invRecord.warrantyNumber,
+              telegramStatus: cur.telegramStatus || invRecord.telegramStatus,
+              internalNotes: cur.internalNotes || '',
+              updatedAt: now
+            };
+          }
+          summary.updated++;
+        } else {
+          if (!dryRun) {
+            updatedInvoices.push(invRecord);
+            invLookup.set(lookupKey, updatedInvoices.length - 1);
+            invLookup.set(altKey, updatedInvoices.length - 1);
+          }
+          summary.created++;
+        }
+      } catch (err) {
+        summary.failed++;
+        summary.errors.push(`خطأ في معالجة فاتورة: ${err.message}`);
+      }
+    }
+
+    if (!dryRun) {
+      writeJson(INVOICES_FILE, updatedInvoices);
+
+      const invMeta = {
+        lastSyncAt: now,
+        mode: syncMode,
+        itemsReceived: items.length,
+        created: summary.created,
+        updated: summary.updated,
+        unchanged: summary.unchanged,
+        failed: summary.failed,
+        totalInvoices: updatedInvoices.length,
+        editorName
+      };
+      writeJson(SYNC_INVOICES_META_FILE, invMeta);
+
+      if (supabase) {
+        try {
+          await supabase.from('settings').upsert({ id: 'sync_invoices_meta', data: invMeta });
+          const sbInvoices = updatedInvoices.slice(-300).map(inv => ({
+            id: String(inv.id),
+            invoiceNumber: String(inv.invoiceNumber || ''),
+            invoiceType: inv.invoiceType || 'sales',
+            createdAt: inv.createdAt,
+            employeeName: inv.employeeName,
+            customerName: inv.customerName,
+            customerId: inv.customerId,
+            customerSystemNumber: inv.customerSystemNumber,
+            notes: inv.notes,
+            paymentMethod: inv.paymentMethod,
+            summary: inv.summary,
+            items: inv.items
+          }));
+          await supabase.from('invoices').upsert(sbInvoices);
+        } catch (_) {}
+      }
+    }
+
+    return {
+      success: summary.failed === 0 || (summary.created + summary.updated + summary.unchanged) > 0,
+      dryRun,
+      summary,
+      totalInvoices: updatedInvoices.length,
+      timestamp: now
+    };
+  },
+
+  // -------------------------------------------------------------
+  // مزامنة سندات القبض والصرف من الشامل (Vouchers Sync)
+  // -------------------------------------------------------------
+  getLastVouchersSyncMeta() {
+    return readJson(SYNC_VOUCHERS_META_FILE, null);
+  },
+
+  async syncBatchVouchers(items, options = {}) {
+    const {
+      dryRun = false,
+      syncMode = 'upsert',
+      editorName = 'برنامج مزامنة الشامل'
+    } = options;
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return {
+        success: false,
+        error: 'قائمة السندات فارغة أو غير صالحة',
+        summary: { totalReceived: 0, created: 0, updated: 0, unchanged: 0, failed: 0, errors: [] }
+      };
+    }
+
+    const receipts = this.getReceipts();
+    const customers = this.getCustomers();
+    const suppliers = this.getSuppliers();
+    const now = new Date().toISOString();
+
+    const custByCode = new Map();
+    customers.forEach(c => {
+      if (c.systemNumber) custByCode.set(String(c.systemNumber).trim().toUpperCase(), c);
+      if (c.shamelCode) custByCode.set(String(c.shamelCode).trim().toUpperCase(), c);
+      if (c.id) custByCode.set(String(c.id).trim().toUpperCase(), c);
+    });
+
+    const suppByCode = new Map();
+    suppliers.forEach(s => {
+      if (s.shamelCode) suppByCode.set(String(s.shamelCode).trim().toUpperCase(), s);
+      if (s.id) suppByCode.set(String(s.id).trim().toUpperCase(), s);
+    });
+
+    const vchLookup = new Map();
+    receipts.forEach((r, idx) => {
+      if (r.id) vchLookup.set(String(r.id).trim().toUpperCase(), idx);
+      if (r.voucherNumber) vchLookup.set(String(r.voucherNumber).trim().toUpperCase(), idx);
+      if (r.receiptNumber) vchLookup.set(String(r.receiptNumber).trim().toUpperCase(), idx);
+      if (r.shamelNo) vchLookup.set(String(r.shamelNo).trim().toUpperCase(), idx);
+      if (r.shamelId) vchLookup.set(String(r.shamelId).trim(), idx);
+    });
+
+    const summary = { totalReceived: items.length, created: 0, updated: 0, unchanged: 0, failed: 0, errors: [] };
+    const updatedReceipts = [...receipts];
+
+    for (const raw of items) {
+      try {
+        const shamelId = raw.shamelId || raw.voucherId || raw.id;
+        const vchNo = String(raw.voucherNumber || raw.receiptNumber || raw.no || shamelId || '').trim();
+        if (!vchNo) {
+          summary.failed++;
+          summary.errors.push('تخطي سند مجهول الرقم');
+          continue;
+        }
+
+        const partyCode = String(raw.partyCode || raw.accountNo || '').trim();
+        const partyName = String(raw.partyName || raw.customerName || raw.person_name || 'نقداً').trim();
+        const partyType = raw.partyType || (partyCode.startsWith('S') ? 'supplier' : (partyCode.startsWith('C') ? 'customer' : 'other'));
+
+        const typeCode = (raw.typeCode || raw.type || (vchNo.startsWith('P') ? 'P' : 'R')).toUpperCase();
+        const isPayment = typeCode === 'P' || raw.voucherType === 'payment';
+        const vchType = isPayment ? 'payment' : 'receipt';
+        const vchTypeAr = isPayment ? 'سند صرف' : 'سند قبض';
+
+        const matchedCust = custByCode.get(partyCode.toUpperCase());
+        const matchedSupp = suppByCode.get(partyCode.toUpperCase());
+
+        const amt = Number(raw.amount ?? raw.totalAmount ?? raw.total_amount) || 0;
+        const cashAmt = Number(raw.cashAmount ?? raw.cash_amount) || 0;
+        const checkAmt = Number(raw.checkAmount ?? raw.check_amount) || 0;
+
+        let payMethod = raw.paymentMethod || 'cash';
+        if (checkAmt > 0 && cashAmt === 0) payMethod = 'check';
+        else if (checkAmt > 0 && cashAmt > 0) payMethod = 'mixed';
+
+        const targetId = 'shamel-vch-' + (shamelId || vchNo);
+        const lookupKey = targetId.toUpperCase();
+        const altKey = String(vchNo).toUpperCase();
+
+        const existingIdx = vchLookup.has(lookupKey) ? vchLookup.get(lookupKey) :
+                           (vchLookup.has(altKey) ? vchLookup.get(altKey) : -1);
+
+        const vchRecord = {
+          id: targetId,
+          shamelId: Number(shamelId) || null,
+          shamelNo: vchNo,
+          voucherNumber: vchNo,
+          receiptNumber: vchNo,
+          voucherType: vchType,
+          typeCode,
+          voucherTypeArabic: vchTypeAr,
+          createdAt: raw.createdAt || raw.date || now,
+          customerName: partyName,
+          partyName,
+          partyCode,
+          partyType,
+          customerId: matchedCust ? matchedCust.id : (raw.customerId || null),
+          customerSystemNumber: matchedCust ? (matchedCust.systemNumber || matchedCust.shamelCode) : (partyCode || null),
+          customerPhone: matchedCust ? (matchedCust.mobile || matchedCust.phone) : (raw.customerPhone || ''),
+          supplierId: matchedSupp ? matchedSupp.id : (raw.supplierId || null),
+          supplierShamelCode: matchedSupp ? matchedSupp.shamelCode : (partyType === 'supplier' ? partyCode : null),
+          supplierName: matchedSupp ? matchedSupp.name : (partyType === 'supplier' ? partyName : ''),
+          employeeName: raw.employeeName || 'الشامل لايت',
+          paymentMethod: payMethod,
+          amount: amt,
+          cashAmount: cashAmt,
+          checkAmount: checkAmt,
+          description: raw.description || (vchTypeAr + ' #' + vchNo),
+          notes: raw.notes || '',
+          source: 'shamel_sync',
+          syncedAt: now,
+          syncedBy: editorName
+        };
+
+        if (existingIdx !== -1) {
+          const cur = updatedReceipts[existingIdx];
+          if (!dryRun) {
+            updatedReceipts[existingIdx] = {
+              ...cur,
+              ...vchRecord,
+              updatedAt: now
+            };
+          }
+          summary.updated++;
+        } else {
+          if (!dryRun) {
+            updatedReceipts.push(vchRecord);
+            vchLookup.set(lookupKey, updatedReceipts.length - 1);
+            vchLookup.set(altKey, updatedReceipts.length - 1);
+          }
+          summary.created++;
+        }
+      } catch (err) {
+        summary.failed++;
+        summary.errors.push(`خطأ في معالجة سند: ${err.message}`);
+      }
+    }
+
+    if (!dryRun) {
+      writeJson(RECEIPTS_FILE, updatedReceipts);
+
+      const vchMeta = {
+        lastSyncAt: now,
+        mode: syncMode,
+        itemsReceived: items.length,
+        created: summary.created,
+        updated: summary.updated,
+        unchanged: summary.unchanged,
+        failed: summary.failed,
+        totalVouchers: updatedReceipts.length,
+        editorName
+      };
+      writeJson(SYNC_VOUCHERS_META_FILE, vchMeta);
+
+      if (supabase) {
+        try {
+          await supabase.from('settings').upsert({ id: 'sync_vouchers_meta', data: vchMeta });
+          const sbVouchers = updatedReceipts.slice(-300).map(v => ({
+            id: String(v.id),
+            receiptNumber: String(v.receiptNumber || v.voucherNumber || ''),
+            createdAt: v.createdAt,
+            employeeName: v.employeeName,
+            customerName: v.customerName,
+            customerPhone: v.customerPhone,
+            amount: v.amount,
+            description: v.description,
+            notes: v.notes,
+            paymentMethod: v.paymentMethod
+          }));
+          await supabase.from('receipts').upsert(sbVouchers);
+        } catch (_) {}
+      }
+    }
+
+    return {
+      success: summary.failed === 0 || (summary.created + summary.updated + summary.unchanged) > 0,
+      dryRun,
+      summary,
+      totalVouchers: updatedReceipts.length,
       timestamp: now
     };
   },

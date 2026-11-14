@@ -671,6 +671,120 @@ app.get('/api/sync/supplier/:code', requireSyncAuth, (req, res) => {
   }
 });
 
+// 9. فحص حالة مزامنة الفواتير
+app.get('/api/sync/invoices/status', requireSyncAuth, (req, res) => {
+  try {
+    const invoices = dataStore.getInvoices();
+    const meta = dataStore.getLastInvoicesSyncMeta();
+    const salesCount = invoices.filter(i => i.invoiceType === 'sales' || i.typeCode === 'I').length;
+    const purchaseCount = invoices.filter(i => i.invoiceType === 'purchase' || i.typeCode === 'H').length;
+    const salesReturnCount = invoices.filter(i => i.invoiceType === 'sales_return' || i.typeCode === 'S').length;
+    const purchaseReturnCount = invoices.filter(i => i.invoiceType === 'purchase_return' || i.typeCode === 'M').length;
+
+    res.json({
+      success: true,
+      status: 'online',
+      serverTime: new Date().toISOString(),
+      counts: {
+        total: invoices.length,
+        sales: salesCount,
+        purchase: purchaseCount,
+        salesReturn: salesReturnCount,
+        purchaseReturn: purchaseReturnCount
+      },
+      lastSync: meta
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 10. مزامنة دفعة فواتير من الشامل لايت
+app.post('/api/sync/invoices', requireSyncAuth, async (req, res) => {
+  try {
+    const { items, dryRun = false, syncMode = 'upsert' } = req.body;
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ success: false, error: 'يجب إرسال مصفوفة فواتير صالحة في الحقل items' });
+    }
+    if (items.length > 500) {
+      return res.status(400).json({ success: false, error: 'الحد الأقصى للدفعة هو 500 فاتورة لضمان سرعة واستقرار الخادم' });
+    }
+
+    const result = await dataStore.syncBatchInvoices(items, {
+      dryRun: Boolean(dryRun),
+      syncMode,
+      editorName: 'برنامج مزامنة الشامل'
+    });
+
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 11. فحص حالة مزامنة سندات القبض والصرف
+app.get('/api/sync/vouchers/status', requireSyncAuth, (req, res) => {
+  try {
+    const receipts = dataStore.getReceipts();
+    const meta = dataStore.getLastVouchersSyncMeta();
+    const qabdCount = receipts.filter(r => r.voucherType !== 'payment' && r.typeCode !== 'P').length;
+    const sarfCount = receipts.filter(r => r.voucherType === 'payment' || r.typeCode === 'P').length;
+
+    res.json({
+      success: true,
+      status: 'online',
+      serverTime: new Date().toISOString(),
+      counts: {
+        total: receipts.length,
+        receipts: qabdCount,
+        payments: sarfCount
+      },
+      lastSync: meta
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 12. مزامنة دفعة سندات قبض وصرف من الشامل لايت
+app.post('/api/sync/vouchers', requireSyncAuth, async (req, res) => {
+  try {
+    const { items, dryRun = false, syncMode = 'upsert' } = req.body;
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ success: false, error: 'يجب إرسال مصفوفة سندات صالحة في الحقل items' });
+    }
+    if (items.length > 500) {
+      return res.status(400).json({ success: false, error: 'الحد الأقصى للدفعة هو 500 سند' });
+    }
+
+    const result = await dataStore.syncBatchVouchers(items, {
+      dryRun: Boolean(dryRun),
+      syncMode,
+      editorName: 'برنامج مزامنة الشامل'
+    });
+
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// API مرادف لجلب السندات مع تصفية نوع السند
+app.get('/api/vouchers', (req, res) => {
+  try {
+    const { type } = req.query;
+    let receipts = dataStore.getReceipts();
+    if (type === 'receipt' || type === 'R') {
+      receipts = receipts.filter(r => r.voucherType !== 'payment' && r.typeCode !== 'P');
+    } else if (type === 'payment' || type === 'P') {
+      receipts = receipts.filter(r => r.voucherType === 'payment' || r.typeCode === 'P');
+    }
+    res.json({ success: true, vouchers: receipts, receipts });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // -------------------------------------------------------------
 // APIs: الفواتير (Invoices)
 // -------------------------------------------------------------
