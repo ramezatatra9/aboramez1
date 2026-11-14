@@ -122,7 +122,29 @@ app.get('/api/public/store-data', (req, res) => {
     const manualShowSet = new Set((storeConfig.manuallyShownOutOfStock || []).map(String));
     const customNames = storeConfig.customProductNames || {};
 
-    // فلترة الأصناف: عرض المتوفر بالمستودع فقط (stock > 0) + ما حددته الإدارة يدوياً
+    // 1. جلب الأقسام والماركات الفعالة أولاً لتحديد الأقسام المخصصة للأصناف
+    const activeCategories = (storeConfig.categories || [])
+      .filter(c => c.isVisible !== false)
+      .map(c => ({
+        id: c.id,
+        name: c.storeName || c.name,
+        originalName: c.name,
+        storeName: c.storeName || c.name,
+        image: c.image || '',
+        sortOrder: parseInt(c.sortOrder) || 99,
+        customProductIds: Array.isArray(c.customProductIds) ? c.customProductIds.map(String) : []
+      }))
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+
+    const activeBrands = (storeConfig.brands || [])
+      .filter(b => b.isVisible !== false)
+      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+
+    const activeOffers = (storeConfig.offers || [])
+      .filter(o => o.isVisible !== false)
+      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+
+    // 2. فلترة الأصناف: عرض المتوفر بالمستودع فقط (stock > 0) + ما حددته الإدارة يدوياً
     const publicProducts = products
       .filter(p => {
         if (!p || !p.name) return false;
@@ -140,13 +162,26 @@ app.get('/api/public/store-data', (req, res) => {
         const displayName = customNames[String(p.id)] || p.name;
         const sellPrice = Math.round(parseFloat(p.sellPrice) || 0);
 
+        // تحديد القسم الذي ينتمي له الصنف في متجر الزبائن (تخصيص يدوي أو حسب اسم القسم المعروض)
+        let prodStoreCategory = null;
+        for (const c of activeCategories) {
+          if (c.customProductIds.includes(String(p.id))) {
+            prodStoreCategory = c.name;
+            break;
+          }
+        }
+        if (!prodStoreCategory) {
+          const matched = activeCategories.find(c => c.originalName === p.category || c.name === p.category || c.id === p.category);
+          prodStoreCategory = matched ? matched.name : (p.category || 'عام');
+        }
+
         return {
           id: p.id,
           name: displayName,
           originalName: p.name,
           brand: p.brand || 'عام',
           code: p.code || '',
-          category: p.category || p.classification || 'عام',
+          category: prodStoreCategory,
           sellPrice: sellPrice,
           image: p.image || (Array.isArray(p.images) && p.images[0]) || '',
           images: Array.isArray(p.images) && p.images.length > 0 ? p.images : (p.image ? [p.image] : []),
@@ -156,19 +191,6 @@ app.get('/api/public/store-data', (req, res) => {
           isManualShow: isManual
         };
       });
-
-    // جلب الأقسام والماركات الفعالة
-    const activeCategories = (storeConfig.categories || [])
-      .filter(c => c.isVisible !== false)
-      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
-
-    const activeBrands = (storeConfig.brands || [])
-      .filter(b => b.isVisible !== false)
-      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
-
-    const activeOffers = (storeConfig.offers || [])
-      .filter(o => o.isVisible !== false)
-      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
 
     res.json({
       success: true,

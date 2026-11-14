@@ -492,6 +492,35 @@
       margin: 3.5rem auto;
       padding: 0 1.25rem;
     }
+    .categories-toggle-wrap {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .btn-toggle-categories {
+      background: #ffffff;
+      color: #0f172a;
+      border: 2px solid #cbd5e1;
+      padding: 0.8rem 1.85rem;
+      border-radius: 50px;
+      font-size: 0.95rem;
+      font-weight: 800;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      font-family: inherit;
+    }
+    .btn-toggle-categories:hover {
+      background: #0f172a;
+      color: #ffffff;
+      border-color: #0f172a;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(15,23,42,0.18);
+    }
+    
     .categories-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
@@ -1608,6 +1637,14 @@
     <div class="categories-grid" id="categoriesGrid">
       <!-- ديناميكي من JS -->
     </div>
+
+    <!-- زر عرض كافة أقسام المعرض -->
+    <div class="categories-toggle-wrap" id="categoriesToggleWrap" style="text-align: center; margin-top: 1.75rem;">
+      <button type="button" class="btn-toggle-categories" id="btnToggleAllCategories" onclick="toggleAllCategoriesView()">
+        <span id="btnToggleCatText">عرض كافة أقسام المعرض (31 قسم)</span>
+        <span id="btnToggleCatIcon" style="font-size: 1.1rem; transition: transform 0.2s;">⬇️</span>
+      </button>
+    </div>
   </section>
 
   <!-- 2. Offers & Deals Section - عروض ترويجية -->
@@ -1903,6 +1940,17 @@
     }
 
     // 2. Render Categories Grid (أقسام المعرض)
+    let showAllCategories = false;
+
+    function toggleAllCategoriesView() {
+      showAllCategories = !showAllCategories;
+      renderCategoriesSection();
+      if (!showAllCategories) {
+        const sec = document.getElementById('categoriesSection');
+        if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+
     function renderCategoriesSection() {
       const grid = document.getElementById('categoriesGrid');
       if (!categoriesList || categoriesList.length === 0) {
@@ -1918,7 +1966,10 @@
         counts[c] = (counts[c] || 0) + 1;
       });
 
-      const cardsHtml = categoriesList.map(cat => {
+      // Show top 8 categories initially (or all if toggled)
+      const visibleCats = showAllCategories ? categoriesList : categoriesList.slice(0, 8);
+
+      const cardsHtml = visibleCats.map(cat => {
         const count = counts[cat.name] || 0;
         const img = cat.image || 'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=400';
         const isActive = activeCategory === cat.name;
@@ -1935,6 +1986,25 @@
       }).join('');
 
       grid.innerHTML = cardsHtml;
+
+      // Update toggle button
+      const toggleWrap = document.getElementById('categoriesToggleWrap');
+      const toggleText = document.getElementById('btnToggleCatText');
+      const toggleIcon = document.getElementById('btnToggleCatIcon');
+      if (toggleWrap && toggleText && toggleIcon) {
+        if (categoriesList.length <= 8) {
+          toggleWrap.style.display = 'none';
+        } else {
+          toggleWrap.style.display = 'flex';
+          if (showAllCategories) {
+            toggleText.textContent = 'عرض أقسام رئيسية أقل';
+            toggleIcon.textContent = '⬆️';
+          } else {
+            toggleText.textContent = `عرض كافة أقسام المعرض (${categoriesList.length} قسم)`;
+            toggleIcon.textContent = '⬇️';
+          }
+        }
+      }
     }
 
     // 3. Render Offers Section

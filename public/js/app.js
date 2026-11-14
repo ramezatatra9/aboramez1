@@ -1241,7 +1241,8 @@ async function initApp() {
     if (initialSubTab) {
       setTimeout(() => switchStoreSubtab(initialSubTab, false), 100);
     }
-    Promise.allSettled([loadProducts(), loadInvoices(), loadReceipts(), loadCustomers()]).catch(() => {});
+    // تحميل المنتجات فقط (مطلوبة لتخصيص أسماء وأقسام المتجر) - دون تحميل أي فواتير أو ديون أو بيانات محاسبية
+    loadProducts().catch(() => {});
   } else {
     // الكتالوج أو المبيعات الافتراضية
     await loadProducts();
@@ -10934,33 +10935,292 @@ function renderAdminCategories(categories) {
   const container = document.getElementById('adminCategoriesGrid');
   if (!container) return;
 
-  container.innerHTML = categories.map(cat => {
+  // ترتيب الأقسام حسب sortOrder المعتمد
+  const sorted = [...categories].sort((a, b) => (parseInt(a.sortOrder) || 99) - (parseInt(b.sortOrder) || 99));
+
+  container.innerHTML = sorted.map((cat, idx) => {
     const img = cat.image || 'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=300';
     const isVisible = cat.isVisible !== false;
+    const storeName = cat.storeName || cat.name;
+    const hasCustomName = Boolean(cat.storeName && cat.storeName !== cat.name);
+    const customCount = Array.isArray(cat.customProductIds) ? cat.customProductIds.length : 0;
+    const defaultCount = (state.products || []).filter(p => p.category === cat.name).length;
+    const displayCount = customCount > 0 ? customCount : defaultCount;
 
     return `
-      <div style="background:#ffffff; border:1.5px solid #e2e8f0; border-radius:12px; padding:1rem; display:flex; flex-direction:column; justify-content:space-between; gap:0.75rem;">
-        <div style="display:flex; align-items:center; gap:0.85rem;">
-          <img src="${escapeHtml(img)}" alt="" style="width:64px; height:64px; border-radius:10px; object-fit:cover; border:1px solid #cbd5e1;">
-          <div>
-            <h4 style="margin:0; font-weight:800; color:#0f172a; font-size:1rem;">${escapeHtml(cat.name)}</h4>
-            <div style="font-size:0.8rem; color:#64748b; margin-top:2px;">
-              الحالة: ${isVisible ? '<span style="color:#15803d; font-weight:700;">معروض بالمتجر ✓</span>' : '<span style="color:#b91c1c; font-weight:700;">مخفي ✕</span>'}
+      <div style="background:#ffffff; border:1.5px solid #e2e8f0; border-radius:14px; padding:1.15rem; display:flex; flex-direction:column; justify-content:space-between; gap:0.85rem; box-shadow:0 2px 8px rgba(0,0,0,0.03);">
+        <div>
+          <!-- Header Bar: Order & Move Up/Down -->
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.75rem;">
+            <div style="display:flex; align-items:center; gap:0.4rem;">
+              <span style="background:#0f172a; color:#ffffff; font-size:0.75rem; font-weight:900; padding:2px 8px; border-radius:6px;">
+                #${cat.sortOrder || (idx + 1)}
+              </span>
+              <span style="font-size:0.75rem; color:#64748b; font-weight:700;">الموضع</span>
+            </div>
+            
+            <div style="display:flex; gap:0.25rem;">
+              <button type="button" class="btn btn-sm btn-secondary" onclick="moveCategoryOrder('${escapeJsStr(cat.id)}', -1)" title="تقديم القسم للأعلى" style="padding:2px 8px; font-weight:800;">⬆</button>
+              <button type="button" class="btn btn-sm btn-secondary" onclick="moveCategoryOrder('${escapeJsStr(cat.id)}', 1)" title="تأخير القسم للأسفل" style="padding:2px 8px; font-weight:800;">⬇</button>
+              <button type="button" class="btn btn-sm btn-secondary" onclick="editCategoryOrderNum('${escapeJsStr(cat.id)}')" title="تحديد رقم الموضع يدوياً" style="padding:2px 8px;">🔢</button>
+            </div>
+          </div>
+
+          <!-- Category Image & Names -->
+          <div style="display:flex; align-items:center; gap:0.85rem;">
+            <img src="${escapeHtml(img)}" alt="" style="width:70px; height:70px; border-radius:12px; object-fit:cover; border:1px solid #cbd5e1; flex-shrink:0;">
+            <div style="flex:1; min-width:0;">
+              <div style="font-weight:900; color:#1d4ed8; font-size:1.02rem; line-height:1.3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(storeName)}">
+                ${escapeHtml(storeName)}
+              </div>
+              ${hasCustomName ? `<div style="font-size:0.75rem; color:#64748b; margin-top:2px;">(الاسم الداخلي: ${escapeHtml(cat.name)})</div>` : ''}
+              
+              <div style="font-size:0.8rem; margin-top:5px; display:flex; flex-wrap:wrap; gap:0.4rem; align-items:center;">
+                <span style="color:${isVisible ? '#15803d' : '#b91c1c'}; font-weight:800;">
+                  ${isVisible ? 'معروض بالمتجر ✓' : 'مخفي ✕'}
+                </span>
+                <span style="background:#eff6ff; color:#1d4ed8; font-weight:800; padding:1px 7px; border-radius:5px; font-size:0.75rem;">
+                  📦 ${displayCount} صنف ${customCount > 0 ? '(تخصيص يدوي)' : '(تلقائي)'}
+                </span>
+              </div>
             </div>
           </div>
         </div>
 
-        <div style="display:flex; gap:0.5rem; border-top:1px solid #f1f5f9; padding-top:0.75rem;">
-          <button type="button" class="btn btn-sm btn-secondary" onclick="editCategoryImage('${escapeJsStr(cat.id)}')">
-            🖼️ تغيير الصورة
-          </button>
-          <button type="button" class="btn btn-sm ${isVisible ? 'btn-warning' : 'btn-success'}" onclick="toggleCategoryVisibility('${escapeJsStr(cat.id)}', ${!isVisible})">
-            ${isVisible ? 'إخفاء من المتجر' : 'تفعيل العرض'}
-          </button>
+        <!-- Action Buttons -->
+        <div style="border-top:1px solid #f1f5f9; padding-top:0.75rem; display:flex; flex-direction:column; gap:0.45rem;">
+          <div style="display:flex; gap:0.4rem;">
+            <button type="button" class="btn btn-sm btn-secondary" onclick="renameCategoryForStore('${escapeJsStr(cat.id)}')" style="flex:1; font-weight:700;" title="إعادة تسمية القسم المعروض للزبائن">
+              ✏️ إعادة تسمية
+            </button>
+            <button type="button" class="btn btn-sm btn-secondary" onclick="editCategoryImage('${escapeJsStr(cat.id)}')" style="flex:1; font-weight:700;">
+              🖼️ الصورة
+            </button>
+          </div>
+          <div style="display:flex; gap:0.4rem;">
+            <button type="button" class="btn btn-sm btn-primary" onclick="openCategoryProductsModal('${escapeJsStr(cat.id)}')" style="flex:1; font-weight:800; background:#0f172a; border-color:#0f172a;">
+              📦 الأصناف التابعة (${displayCount})
+            </button>
+            <button type="button" class="btn btn-sm ${isVisible ? 'btn-warning' : 'btn-success'}" onclick="toggleCategoryVisibility('${escapeJsStr(cat.id)}', ${!isVisible})" style="padding:0.4rem 0.75rem; font-weight:700;">
+              ${isVisible ? 'إخفاء' : 'إظهار'}
+            </button>
+          </div>
         </div>
       </div>
     `;
   }).join('');
+}
+
+// تعديل موضع القسم (تقديم / تأخير)
+async function moveCategoryOrder(catId, direction) {
+  if (!_storeManagerConfig || !_storeManagerConfig.categories) return;
+  const cats = _storeManagerConfig.categories;
+  const idx = cats.findIndex(c => String(c.id) === String(catId));
+  if (idx === -1) return;
+
+  const targetIdx = idx + direction;
+  if (targetIdx < 0 || targetIdx >= cats.length) return;
+
+  // تبديل الترتيب
+  const tempOrder = cats[idx].sortOrder || (idx + 1);
+  cats[idx].sortOrder = cats[targetIdx].sortOrder || (targetIdx + 1);
+  cats[targetIdx].sortOrder = tempOrder;
+
+  // إعادة الترتيب
+  cats.sort((a, b) => (parseInt(a.sortOrder) || 99) - (parseInt(b.sortOrder) || 99));
+  // تعيين أرقام تسلسلية نظيفة
+  cats.forEach((c, i) => { c.sortOrder = i + 1; });
+
+  await saveStoreConfigToServer(_storeManagerConfig);
+  renderAdminCategories(_storeManagerConfig.categories);
+  showToast('تم تحديث موضع القسم بنجاح!', 'success');
+}
+
+// تحديد رقم ترتيب محدد يدوياً
+async function editCategoryOrderNum(catId) {
+  const cat = (_storeManagerConfig.categories || []).find(c => String(c.id) === String(catId));
+  if (!cat) return;
+
+  const input = prompt('أدخل رقم موضع وترتيب القسم في المتجر (1, 2, 3...):', cat.sortOrder || 1);
+  if (input === null) return;
+  const num = parseInt(input);
+  if (isNaN(num) || num < 1) {
+    showToast('يرجى إدخال رقم ترتيب صحيح أكبر من 0', 'error');
+    return;
+  }
+
+  cat.sortOrder = num;
+  _storeManagerConfig.categories.sort((a, b) => (parseInt(a.sortOrder) || 99) - (parseInt(b.sortOrder) || 99));
+  await saveStoreConfigToServer(_storeManagerConfig);
+  renderAdminCategories(_storeManagerConfig.categories);
+  showToast('تم حفظ موضع وترتيب القسم!', 'success');
+}
+
+// إعادة تسمية القسم المعروض للزبائن
+async function renameCategoryForStore(catId) {
+  const cat = (_storeManagerConfig.categories || []).find(c => String(c.id) === String(catId));
+  if (!cat) return;
+
+  const currentName = cat.storeName || cat.name;
+  const newName = prompt(
+    `إعادة تسمية القسم المعروض للزبائن في المتجر:\n(الاسم الداخلي بالأدمن: ${cat.name})`,
+    currentName
+  );
+  if (newName === null) return;
+
+  const trimmed = newName.trim();
+  if (!trimmed) {
+    showToast('لا يمكن ترك اسم القسم فارغاً', 'error');
+    return;
+  }
+
+  cat.storeName = trimmed;
+  await saveStoreConfigToServer(_storeManagerConfig);
+  renderAdminCategories(_storeManagerConfig.categories);
+  showToast('تم تحديث اسم القسم المعروض للزبائن!', 'success');
+}
+
+// إدارة وتخصيص الأصناف التابعة للقسم (Modal)
+let _currentEditingCatId = null;
+let _catProductsSelectedIds = new Set();
+
+async function openCategoryProductsModal(catId) {
+  _currentEditingCatId = catId;
+  const cat = (_storeManagerConfig.categories || []).find(c => String(c.id) === String(catId));
+  if (!cat) return;
+
+  const badge = document.getElementById('catModalNameBadge');
+  if (badge) badge.textContent = cat.storeName || cat.name;
+
+  // تهيئة الأصناف المحددة
+  _catProductsSelectedIds = new Set(Array.isArray(cat.customProductIds) ? cat.customProductIds.map(String) : []);
+
+  // التأكد من تحميل قائمة المنتجات الكاملة
+  if (!state.products || state.products.length === 0) {
+    await loadProducts();
+  }
+
+  const searchInput = document.getElementById('catProdSearchInput');
+  if (searchInput) searchInput.value = '';
+
+  renderCatProductsTable();
+
+  const modal = document.getElementById('modalCategoryProducts');
+  if (modal) {
+    modal.style.display = 'flex';
+  }
+}
+
+function closeCategoryProductsModal() {
+  const modal = document.getElementById('modalCategoryProducts');
+  if (modal) {
+    modal.style.display = 'none';
+  }
+  _currentEditingCatId = null;
+  _catProductsSelectedIds.clear();
+}
+
+function renderCatProductsTable(filterText = '') {
+  const tbody = document.getElementById('catProductsTableBody');
+  const countBadge = document.getElementById('catModalSelectedCount');
+  if (!tbody) return;
+
+  if (countBadge) countBadge.textContent = _catProductsSelectedIds.size;
+
+  const allProds = state.products || [];
+  const text = (filterText || '').trim().toLowerCase();
+
+  const filtered = allProds.filter(p => {
+    if (!text) return true;
+    return (p.name || '').toLowerCase().includes(text) ||
+           (p.code || '').toLowerCase().includes(text) ||
+           (p.brand || '').toLowerCase().includes(text) ||
+           (p.category || '').toLowerCase().includes(text);
+  });
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:2rem; color:#64748b;">لا توجد أصناف مطابقة للبحث</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(p => {
+    const isChecked = _catProductsSelectedIds.has(String(p.id));
+    const img = p.image || (Array.isArray(p.images) && p.images[0]) || 'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=100';
+    const price = Math.round(parseFloat(p.sellPrice) || 0);
+
+    return `
+      <tr style="border-bottom:1px solid #f1f5f9; transition:background 0.15s; background:${isChecked ? '#f0f9ff' : 'transparent'};">
+        <td style="padding:0.65rem 0.5rem; text-align:center;">
+          <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleCatProductCheck('${escapeJsStr(p.id)}', this.checked)" style="width:18px; height:18px; cursor:pointer; accent-color:#2563eb;">
+        </td>
+        <td style="padding:0.65rem 0.5rem;">
+          <img src="${escapeHtml(img)}" alt="" style="width:40px; height:40px; border-radius:8px; object-fit:cover; border:1px solid #cbd5e1;">
+        </td>
+        <td style="padding:0.65rem 0.5rem;">
+          <div style="font-weight:800; color:#0f172a;">${escapeHtml(p.name)}</div>
+          <div style="font-size:0.75rem; color:#64748b; font-family:monospace;">${escapeHtml(p.code || '')}</div>
+        </td>
+        <td style="padding:0.65rem 0.5rem;">
+          <span style="background:#f1f5f9; color:#475569; padding:2px 8px; border-radius:4px; font-size:0.78rem; font-weight:700;">
+            ${escapeHtml(p.category || 'عام')}
+          </span>
+        </td>
+        <td style="padding:0.65rem 0.5rem; font-weight:800; color:#0f172a;">
+          ${price} ${state.settings?.currency || '₪'}
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function filterCatProductsList() {
+  const searchInput = document.getElementById('catProdSearchInput');
+  const val = searchInput ? searchInput.value : '';
+  renderCatProductsTable(val);
+}
+
+function toggleCatProductCheck(prodId, isChecked) {
+  if (isChecked) {
+    _catProductsSelectedIds.add(String(prodId));
+  } else {
+    _catProductsSelectedIds.delete(String(prodId));
+  }
+  const countBadge = document.getElementById('catModalSelectedCount');
+  if (countBadge) countBadge.textContent = _catProductsSelectedIds.size;
+}
+
+function autoSelectDefaultMatchingCategoryProducts() {
+  if (!_currentEditingCatId) return;
+  const cat = (_storeManagerConfig.categories || []).find(c => String(c.id) === String(_currentEditingCatId));
+  if (!cat) return;
+
+  const allProds = state.products || [];
+  allProds.forEach(p => {
+    if (p.category === cat.name) {
+      _catProductsSelectedIds.add(String(p.id));
+    }
+  });
+
+  filterCatProductsList();
+  showToast('تم تحديد كافة الأصناف التي تطابق التصنيف الداخلي: ' + cat.name, 'info');
+}
+
+function clearAllSelectedCatProducts() {
+  _catProductsSelectedIds.clear();
+  filterCatProductsList();
+  showToast('تم إلغاء تحديد كافة الأصناف لهذا القسم', 'info');
+}
+
+async function saveCategoryProductsAssignment() {
+  if (!_currentEditingCatId || !_storeManagerConfig) return;
+  const cat = (_storeManagerConfig.categories || []).find(c => String(c.id) === String(_currentEditingCatId));
+  if (!cat) return;
+
+  cat.customProductIds = Array.from(_catProductsSelectedIds);
+  await saveStoreConfigToServer(_storeManagerConfig);
+  closeCategoryProductsModal();
+  renderAdminCategories(_storeManagerConfig.categories);
+  showToast(`تم حفظ الأصناف المشمولة لقسم "${cat.storeName || cat.name}" بنجاح (${cat.customProductIds.length} صنف)!`, 'success');
 }
 
 async function editCategoryImage(catId) {
@@ -11400,3 +11660,13 @@ window.escapeJsStr = escapeJsStr;
 
 window.refreshStoreSubtabContent = refreshStoreSubtabContent;
 window.filterAdminProductsTable = filterAdminProductsTable;
+window.moveCategoryOrder = moveCategoryOrder;
+window.editCategoryOrderNum = editCategoryOrderNum;
+window.renameCategoryForStore = renameCategoryForStore;
+window.openCategoryProductsModal = openCategoryProductsModal;
+window.closeCategoryProductsModal = closeCategoryProductsModal;
+window.filterCatProductsList = filterCatProductsList;
+window.toggleCatProductCheck = toggleCatProductCheck;
+window.autoSelectDefaultMatchingCategoryProducts = autoSelectDefaultMatchingCategoryProducts;
+window.clearAllSelectedCatProducts = clearAllSelectedCatProducts;
+window.saveCategoryProductsAssignment = saveCategoryProductsAssignment;

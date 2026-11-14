@@ -14,221 +14,283 @@
   },
   "categories": [
     {
-      "id": "cat_1",
-      "name": "أخرى متنوعة",
-      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
-      "isVisible": true,
-      "sortOrder": 2
-    },
-    {
-      "id": "cat_2",
-      "name": "مكانس كهربائية",
-      "image": "https://images.unsplash.com/photo-1558317374-067fb5f30001?w=600&auto=format&fit=crop&q=80",
-      "isVisible": true,
-      "sortOrder": 3
-    },
-    {
-      "id": "cat_3",
-      "name": "غسالات",
-      "image": "https://images.unsplash.com/photo-1626806787461-102c1bfaaea1?w=600&auto=format&fit=crop&q=80",
-      "isVisible": true,
-      "sortOrder": 4
-    },
-    {
       "id": "cat_4",
       "name": "ثلاجات",
       "image": "https://images.unsplash.com/photo-1571175443880-49e1d25b2bc5?w=600&auto=format&fit=crop&q=80",
       "isVisible": true,
-      "sortOrder": 5
-    },
-    {
-      "id": "cat_5",
-      "name": "جلايات",
-      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
-      "isVisible": true,
-      "sortOrder": 6
-    },
-    {
-      "id": "cat_6",
-      "name": "غازات وطباخات",
-      "image": "https://images.unsplash.com/photo-1588854337236-6889d631faa8?w=600&auto=format&fit=crop&q=80",
-      "isVisible": true,
-      "sortOrder": 7
-    },
-    {
-      "id": "cat_7",
-      "name": "شاشات وتلفزيونات",
-      "image": "https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?w=600&auto=format&fit=crop&q=80",
-      "isVisible": true,
-      "sortOrder": 8
-    },
-    {
-      "id": "cat_8",
-      "name": "مقالي وشوايات",
-      "image": "https://images.unsplash.com/photo-1556910103-1c02745aae4d?w=600&auto=format&fit=crop&q=80",
-      "isVisible": true,
-      "sortOrder": 9
-    },
-    {
-      "id": "cat_9",
-      "name": "أفران وميكرويف",
-      "image": "https://images.unsplash.com/photo-1585659722983-3a675dabf23d?w=600&auto=format&fit=crop&q=80",
-      "isVisible": true,
-      "sortOrder": 10
+      "sortOrder": 1,
+      "storeName": "ثلاجات",
+      "customProductIds": []
     },
     {
       "id": "cat_10",
       "name": "فريزرات",
       "image": "https://images.unsplash.com/photo-1584992236310-6edddc08acff?w=600&auto=format&fit=crop&q=80",
       "isVisible": true,
-      "sortOrder": 11
+      "sortOrder": 2,
+      "storeName": "فريزرات",
+      "customProductIds": []
     },
     {
-      "id": "cat_11",
-      "name": "مكيفات",
-      "image": "https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=600&auto=format&fit=crop&q=80",
+      "id": "cat_3",
+      "name": "غسالات",
+      "image": "https://images.unsplash.com/photo-1626806787461-102c1bfaaea1?w=600&auto=format&fit=crop&q=80",
       "isVisible": true,
-      "sortOrder": 12
-    },
-    {
-      "id": "cat_12",
-      "name": "فرامات",
-      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
-      "isVisible": true,
-      "sortOrder": 13
-    },
-    {
-      "id": "cat_13",
-      "name": "ماكينات حلاقة",
-      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
-      "isVisible": true,
-      "sortOrder": 14
-    },
-    {
-      "id": "cat_14",
-      "name": "إضاءة وأجهزة منزلية",
-      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
-      "isVisible": true,
-      "sortOrder": 15
-    },
-    {
-      "id": "cat_15",
-      "name": "سشوارات",
-      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
-      "isVisible": true,
-      "sortOrder": 16
-    },
-    {
-      "id": "cat_16",
-      "name": "غلايات",
-      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
-      "isVisible": true,
-      "sortOrder": 17
-    },
-    {
-      "id": "cat_17",
-      "name": "بلندرات وخلاطات",
-      "image": "https://images.unsplash.com/photo-1570222094114-d054a817e56b?w=600&auto=format&fit=crop&q=80",
-      "isVisible": true,
-      "sortOrder": 18
-    },
-    {
-      "id": "cat_18",
-      "name": "عصارات",
-      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
-      "isVisible": true,
-      "sortOrder": 19
-    },
-    {
-      "id": "cat_19",
-      "name": "سماعات",
-      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
-      "isVisible": true,
-      "sortOrder": 20
-    },
-    {
-      "id": "cat_20",
-      "name": "مكاوي",
-      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
-      "isVisible": true,
-      "sortOrder": 21
-    },
-    {
-      "id": "cat_21",
-      "name": "عجانات",
-      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
-      "isVisible": true,
-      "sortOrder": 22
-    },
-    {
-      "id": "cat_22",
-      "name": "مراوح",
-      "image": "https://images.unsplash.com/photo-1618941716939-553df3c6c278?w=600&auto=format&fit=crop&q=80",
-      "isVisible": true,
-      "sortOrder": 23
-    },
-    {
-      "id": "cat_23",
-      "name": "ستريترات وتمليس",
-      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
-      "isVisible": true,
-      "sortOrder": 24
-    },
-    {
-      "id": "cat_24",
-      "name": "توست وساندويش",
-      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
-      "isVisible": true,
-      "sortOrder": 25
-    },
-    {
-      "id": "cat_25",
-      "name": "مستلزمات القهوة",
-      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
-      "isVisible": true,
-      "sortOrder": 26
+      "sortOrder": 3,
+      "storeName": "غسالات",
+      "customProductIds": []
     },
     {
       "id": "cat_26",
       "name": "نشافات",
       "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
       "isVisible": true,
-      "sortOrder": 27
+      "sortOrder": 4,
+      "storeName": "نشافات",
+      "customProductIds": []
     },
     {
-      "id": "cat_27",
-      "name": "أواني وطناجر",
+      "id": "cat_5",
+      "name": "جلايات",
       "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
       "isVisible": true,
-      "sortOrder": 28
+      "sortOrder": 5,
+      "storeName": "جلايات",
+      "customProductIds": []
     },
     {
-      "id": "cat_28",
-      "name": "كولرات مياه",
+      "id": "cat_6",
+      "name": "غازات وطباخات",
+      "image": "https://images.unsplash.com/photo-1588854337236-6889d631faa8?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 6,
+      "storeName": "غازات وطباخات",
+      "customProductIds": []
+    },
+    {
+      "id": "cat_9",
+      "name": "أفران وميكرويف",
+      "image": "https://images.unsplash.com/photo-1585659722983-3a675dabf23d?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 7,
+      "storeName": "أفران وميكرويف",
+      "customProductIds": []
+    },
+    {
+      "id": "cat_7",
+      "name": "شاشات وتلفزيونات",
+      "image": "https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 8,
+      "storeName": "شاشات وتلفزيونات",
+      "customProductIds": []
+    },
+    {
+      "id": "cat_11",
+      "name": "مكيفات",
+      "image": "https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 9,
+      "storeName": "مكيفات",
+      "customProductIds": []
+    },
+    {
+      "id": "cat_2",
+      "name": "مكانس كهربائية",
+      "image": "https://images.unsplash.com/photo-1558317374-067fb5f30001?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 10,
+      "storeName": "مكانس كهربائية",
+      "customProductIds": []
+    },
+    {
+      "id": "cat_8",
+      "name": "مقالي وشوايات",
+      "image": "https://images.unsplash.com/photo-1556910103-1c02745aae4d?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 11,
+      "storeName": "مقالي وشوايات",
+      "customProductIds": []
+    },
+    {
+      "id": "cat_17",
+      "name": "بلندرات وخلاطات",
+      "image": "https://images.unsplash.com/photo-1570222094114-d054a817e56b?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 12,
+      "storeName": "بلندرات وخلاطات",
+      "customProductIds": []
+    },
+    {
+      "id": "cat_12",
+      "name": "فرامات",
       "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
       "isVisible": true,
-      "sortOrder": 29
+      "sortOrder": 13,
+      "storeName": "فرامات",
+      "customProductIds": []
     },
     {
-      "id": "cat_29",
-      "name": "إلكترونيات ومُلحقات",
-      "image": "https://images.unsplash.com/photo-1550009158-9ebf69173e03?w=600&auto=format&fit=crop&q=80",
+      "id": "cat_21",
+      "name": "عجانات",
+      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
       "isVisible": true,
-      "sortOrder": 30
+      "sortOrder": 14,
+      "storeName": "عجانات",
+      "customProductIds": []
+    },
+    {
+      "id": "cat_16",
+      "name": "غلايات",
+      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 15,
+      "storeName": "غلايات",
+      "customProductIds": []
+    },
+    {
+      "id": "cat_24",
+      "name": "توست وساندويش",
+      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 16,
+      "storeName": "توست وساندويش",
+      "customProductIds": []
+    },
+    {
+      "id": "cat_25",
+      "name": "مستلزمات القهوة",
+      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 17,
+      "storeName": "مستلزمات القهوة",
+      "customProductIds": []
+    },
+    {
+      "id": "cat_22",
+      "name": "مراوح",
+      "image": "https://images.unsplash.com/photo-1618941716939-553df3c6c278?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 18,
+      "storeName": "مراوح",
+      "customProductIds": []
     },
     {
       "id": "cat_30",
       "name": "صوبات وتدفئة",
       "image": "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=600&auto=format&fit=crop&q=80",
       "isVisible": true,
-      "sortOrder": 31
+      "sortOrder": 19,
+      "storeName": "صوبات وتدفئة",
+      "customProductIds": []
+    },
+    {
+      "id": "cat_28",
+      "name": "كولرات مياه",
+      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 20,
+      "storeName": "كولرات مياه",
+      "customProductIds": []
     },
     {
       "id": "cat_31",
       "name": "شفاطات",
       "image": "https://images.unsplash.com/photo-1556911220-e15b29be8c8f?w=600&auto=format&fit=crop&q=80",
       "isVisible": true,
-      "sortOrder": 32
+      "sortOrder": 21,
+      "storeName": "شفاطات",
+      "customProductIds": []
+    },
+    {
+      "id": "cat_20",
+      "name": "مكاوي",
+      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 22,
+      "storeName": "مكاوي",
+      "customProductIds": []
+    },
+    {
+      "id": "cat_13",
+      "name": "ماكينات حلاقة",
+      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 23,
+      "storeName": "ماكينات حلاقة",
+      "customProductIds": []
+    },
+    {
+      "id": "cat_15",
+      "name": "سشوارات",
+      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 24,
+      "storeName": "سشوارات",
+      "customProductIds": []
+    },
+    {
+      "id": "cat_23",
+      "name": "ستريترات وتمليس",
+      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 25,
+      "storeName": "ستريترات وتمليس",
+      "customProductIds": []
+    },
+    {
+      "id": "cat_14",
+      "name": "إضاءة وأجهزة منزلية",
+      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 26,
+      "storeName": "إضاءة وأجهزة منزلية",
+      "customProductIds": []
+    },
+    {
+      "id": "cat_19",
+      "name": "سماعات",
+      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 27,
+      "storeName": "سماعات",
+      "customProductIds": []
+    },
+    {
+      "id": "cat_27",
+      "name": "أواني وطناجر",
+      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 28,
+      "storeName": "أواني وطناجر",
+      "customProductIds": []
+    },
+    {
+      "id": "cat_18",
+      "name": "عصارات",
+      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 29,
+      "storeName": "عصارات",
+      "customProductIds": []
+    },
+    {
+      "id": "cat_29",
+      "name": "إلكترونيات ومُلحقات",
+      "image": "https://images.unsplash.com/photo-1550009158-9ebf69173e03?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 30,
+      "storeName": "إلكترونيات ومُلحقات",
+      "customProductIds": []
+    },
+    {
+      "id": "cat_1",
+      "name": "أخرى متنوعة",
+      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 31,
+      "storeName": "أخرى متنوعة",
+      "customProductIds": []
     }
   ],
   "brands": [
