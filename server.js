@@ -108,6 +108,42 @@ app.get('/api/ready', (req, res) => {
 // APIs: المنتجات (Products)
 // -------------------------------------------------------------
 
+// نقطة وصول عامة لمتجر الزبائن (Public Store API) - بيانات آمنة 100% بحجب كامل لأسعار التكلفة والموردين
+app.get('/api/public/store-data', (req, res) => {
+  try {
+    const products = dataStore.getProducts() || [];
+    const settings = dataStore.getSettings() || {};
+
+    const publicProducts = products
+      .filter(p => p && p.name && (parseFloat(p.sellPrice) > 0 || p.image))
+      .map(p => ({
+        id: p.id,
+        name: p.name,
+        brand: p.brand || 'عام',
+        code: p.code || '',
+        category: p.category || p.classification || 'عام',
+        sellPrice: parseFloat(p.sellPrice) || 0,
+        image: p.image || (Array.isArray(p.images) && p.images[0]) || '',
+        images: Array.isArray(p.images) && p.images.length > 0 ? p.images : (p.image ? [p.image] : []),
+        description: p.description || '',
+        isAvailable: (parseInt(p.stock) || 0) > 0
+      }));
+
+    res.json({
+      success: true,
+      products: publicProducts,
+      company: {
+        name: settings.companyName || 'شركة رامز عطاطرة',
+        phone: settings.companyPhone || '',
+        address: settings.companyAddress || '',
+        currency: settings.currency || 'شيكل'
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // جلب جميع المنتجات
 app.get('/api/products', (req, res) => {
   try {
@@ -2629,8 +2665,15 @@ app.get(['/v/statement/:id', '/view/statement/:id', '/preview/statement/:id', '/
   `);
 });
 
-const FRONTEND_ROUTES = [
-  '/',
+// 5. واجهة المتجر والمعرض العام للزبائن (Public Customer Storefront - Bloom Style)
+app.get(['/', '/store', '/shop'], (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'store.html'));
+});
+
+// 6. واجهة نظام الإدارة والكاشير الداخلي المحمي (Protected Admin System)
+const ADMIN_FRONTEND_ROUTES = [
+  '/admin',
+  '/admin/*',
   '/home',
   '/pos',
   '/catalog',
@@ -2650,7 +2693,7 @@ const FRONTEND_ROUTES = [
   '/brands-audit'
 ];
 
-FRONTEND_ROUTES.forEach(route => {
+ADMIN_FRONTEND_ROUTES.forEach(route => {
   app.get(route, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
   });
@@ -2661,7 +2704,10 @@ app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api') || req.path.startsWith('/uploads') || req.path.includes('.')) {
     return next();
   }
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  if (req.path.startsWith('/admin')) {
+    return res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  }
+  res.sendFile(path.join(__dirname, 'public', 'store.html'));
 });
 
 // تشغيل الخادم
