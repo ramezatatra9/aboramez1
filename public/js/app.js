@@ -1537,6 +1537,8 @@ function applySettingsToUI() {
   if (addrInput) addrInput.value = companyAddress || '';
   if (currSelect) currSelect.value = currency || 'شيكل';
   if (footerInput) footerInput.value = invoiceFooterText || '';
+  const previewInput = document.getElementById('cfgPreviewBaseUrl');
+  if (previewInput) previewInput.value = state.settings.previewBaseUrl || '';
 }
 
 async function saveCompanySettings() {
@@ -1547,6 +1549,8 @@ async function saveCompanySettings() {
   const invoiceFooterText = document.getElementById('cfgInvoiceFooter').value.trim();
   const telegramBotToken = document.getElementById('cfgTelegramBotToken').value.trim();
   const telegramChatId = document.getElementById('cfgTelegramChatId').value.trim();
+  const previewInput = document.getElementById('cfgPreviewBaseUrl');
+  const previewBaseUrl = previewInput ? previewInput.value.trim() : '';
 
   try {
     const res = await fetch('/api/settings', {
@@ -1559,7 +1563,8 @@ async function saveCompanySettings() {
         currency,
         invoiceFooterText,
         telegramBotToken,
-        telegramChatId
+        telegramChatId,
+        previewBaseUrl
       })
     });
     const data = await res.json();
@@ -10106,14 +10111,23 @@ function playSoundWarning() {
 }
 
 // =============================================================
-// المشاركة الذكية عبر واتساب ونسخ الروابط المباشرة (WhatsApp 1-Click Sharing)
+// المشاركة الذكية عبر واتساب ونسخ الروابط المباشرة المعزولة للزبائن
+// (Secure Customer Standalone Previews - WhatsApp & 1-Click Sharing)
 // =============================================================
+function getPublicPreviewBaseUrl() {
+  const custom = (state.settings && state.settings.previewBaseUrl) ? state.settings.previewBaseUrl.trim() : '';
+  if (custom) {
+    return custom.replace(/\/+$/, '');
+  }
+  return window.location.origin;
+}
+
 function shareCurrentProductWhatsApp() {
   if (!_pdsCurrentProductId) return;
   const prod = (state.products || []).find(p => String(p.id) === String(_pdsCurrentProductId));
   if (!prod) return;
   const currency = (state.settings && state.settings.currency) || 'شيكل';
-  const url = window.location.origin + '/product/' + encodeURIComponent(prod.id);
+  const url = getPublicPreviewBaseUrl() + '/p/' + encodeURIComponent(prod.id);
   const text = 
 `🛍️ *${prod.name || 'صنف'}*
 💰 *السعر:* ${(parseFloat(prod.sellPrice) || 0).toLocaleString('en-US')} ${currency}
@@ -10129,7 +10143,7 @@ ${url}`;
 
 function copyCurrentProductLink() {
   if (!_pdsCurrentProductId) return;
-  const url = window.location.origin + '/product/' + encodeURIComponent(_pdsCurrentProductId);
+  const url = getPublicPreviewBaseUrl() + '/p/' + encodeURIComponent(_pdsCurrentProductId);
   navigator.clipboard.writeText(url).then(() => {
     showToast('تم نسخ رابط الصنف بنجاح! جاهز للمشاركة 📋', 'success');
     playSoundSuccess();
@@ -10145,7 +10159,7 @@ function shareCustomerStatementWhatsApp() {
   const bal = parseFloat(c.balance) || 0;
   const balText = bal > 0 ? `دين مستحق: ${bal.toLocaleString('en-US')} ${cur}` :
                   (bal < 0 ? `رصيد لصالحه: ${Math.abs(bal).toLocaleString('en-US')} ${cur}` : `رصيد خالص (مسدد)`);
-  const url = window.location.origin + '/customers/' + encodeURIComponent(c.id || c.systemNumber || c.shamelCode);
+  const url = getPublicPreviewBaseUrl() + '/v/statement/' + encodeURIComponent(c.id || c.systemNumber || c.shamelCode);
   const phone = (c.mobile || c.phone || '').replace(/[^\d+]/g, '');
   const cleanPhone = phone.startsWith('0') ? '970' + phone.slice(1) : phone;
 
@@ -10156,7 +10170,7 @@ function shareCustomerStatementWhatsApp() {
 💰 *الرصيد المالي الحالي:* *${balText}*
 📅 *تاريخ الإصدار:* ${new Date().toLocaleDateString('ar-EG')}
 
-🔗 *يمكنك مراجعة كافة الفواتير والسندات وتفاصيل الحساب عبر الرابط المباشر:*
+🔗 *يمكنك مراجعة كافة الفواتير والسندات وتفاصيل الحساب عبر الرابط المعتمد:*
 ${url}`;
 
   const waUrl = cleanPhone ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}` : `https://wa.me/?text=${encodeURIComponent(text)}`;
@@ -10166,7 +10180,7 @@ ${url}`;
 function copyCustomerStatementLink() {
   if (!currentStatementData || !currentStatementData.customer) return;
   const c = currentStatementData.customer;
-  const url = window.location.origin + '/customers/' + encodeURIComponent(c.id || c.systemNumber || c.shamelCode);
+  const url = getPublicPreviewBaseUrl() + '/v/statement/' + encodeURIComponent(c.id || c.systemNumber || c.shamelCode);
   navigator.clipboard.writeText(url).then(() => {
     showToast('تم نسخ رابط كشف الحساب بنجاح! 📋', 'success');
     playSoundSuccess();
@@ -10179,7 +10193,7 @@ function shareCurrentInvoiceWhatsApp() {
   if (!state.currentViewingInvoice) return;
   const inv = state.currentViewingInvoice;
   const cur = (state.settings && state.settings.currency) || 'شيكل';
-  const url = window.location.origin + '/invoices/' + encodeURIComponent(inv.id || inv.invoiceNumber);
+  const url = getPublicPreviewBaseUrl() + '/v/invoice/' + encodeURIComponent(inv.id || inv.invoiceNumber);
   const phone = (inv.customerPhone || '').replace(/[^\d+]/g, '');
   const cleanPhone = phone.startsWith('0') ? '970' + phone.slice(1) : phone;
 
@@ -10192,7 +10206,7 @@ function shareCurrentInvoiceWhatsApp() {
 💳 *طريقة الدفع:* ${inv.paymentMethod === 'cash' ? 'كاش نقدي' : (inv.paymentMethod === 'check' ? 'شيك' : 'أقساط وذمم')}
 📦 *عدد الأصناف:* ${(inv.items || []).length} صنف
 
-🔗 *لمشاهدة الفاتورة والأصناف بالتفصيل:*
+🔗 *لمشاهدة الفاتورة المعتمدة والأصناف بالتفصيل:*
 ${url}`;
 
   const waUrl = cleanPhone ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}` : `https://wa.me/?text=${encodeURIComponent(text)}`;
@@ -10202,9 +10216,47 @@ ${url}`;
 function copyCurrentInvoiceLink() {
   if (!state.currentViewingInvoice) return;
   const inv = state.currentViewingInvoice;
-  const url = window.location.origin + '/invoices/' + encodeURIComponent(inv.id || inv.invoiceNumber);
+  const url = getPublicPreviewBaseUrl() + '/v/invoice/' + encodeURIComponent(inv.id || inv.invoiceNumber);
   navigator.clipboard.writeText(url).then(() => {
     showToast('تم نسخ رابط الفاتورة بنجاح! 📋', 'success');
+    playSoundSuccess();
+  }).catch(() => {
+    showToast(url, 'info');
+  });
+}
+
+function shareCurrentReceiptWhatsApp() {
+  if (!state.currentViewingReceipt) return;
+  const r = state.currentViewingReceipt;
+  const cur = (state.settings && state.settings.currency) || 'شيكل';
+  const vNum = r.receiptNumber || r.voucherNumber || r.id;
+  const isPay = r.voucherType === 'payment' || r.typeCode === 'P';
+  const vTitle = isPay ? 'سند صرف' : 'سند قبض';
+  const url = getPublicPreviewBaseUrl() + '/v/receipt/' + encodeURIComponent(r.id || vNum);
+  const phone = (r.customerPhone || '').replace(/[^\d+]/g, '');
+  const cleanPhone = phone.startsWith('0') ? '970' + phone.slice(1) : phone;
+
+  const text = 
+`📄 *${vTitle} مالي رقم #${vNum}*
+🏢 *${(state.settings && state.settings.companyName) || 'رامز عطاطرة'}*
+━━━━━━━━━━━━━━━━━━
+👤 *استلمنا من السيد/ة:* ${r.customerName || 'السيد المحترم'}
+💰 *المبلغ المدفوع:* ${(parseFloat(r.amount) || 0).toLocaleString('en-US')} ${cur}
+📅 *التاريخ:* ${new Date(r.createdAt || Date.now()).toLocaleDateString('ar-EG')}
+${r.description ? `📝 *البيان:* ${r.description}\n` : ''}
+🔗 *معاينة وطباعة السند المالي الرسمي:*
+${url}`;
+
+  const waUrl = cleanPhone ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}` : `https://wa.me/?text=${encodeURIComponent(text)}`;
+  window.open(waUrl, '_blank');
+}
+
+function copyCurrentReceiptLink() {
+  if (!state.currentViewingReceipt) return;
+  const r = state.currentViewingReceipt;
+  const url = getPublicPreviewBaseUrl() + '/v/receipt/' + encodeURIComponent(r.id || r.receiptNumber || r.voucherNumber);
+  navigator.clipboard.writeText(url).then(() => {
+    showToast('تم نسخ رابط سند القبض بنجاح! 📋', 'success');
     playSoundSuccess();
   }).catch(() => {
     showToast(url, 'info');

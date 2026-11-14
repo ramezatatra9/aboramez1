@@ -78,7 +78,7 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // الملفات الثابتة
-app.use(express.static(path.join(__dirname, 'public'), { maxAge: '2h', etag: true }));
+app.use(express.static(path.join(__dirname, 'public'), { index: false, maxAge: '2h', etag: true }));
 app.use('/uploads', express.static(UPLOADS_DIR, { maxAge: '7d', etag: true }));
 
 // ─── فحص جاهزية Supabase قبل كل عملية كتابة (Read-Only Degraded Mode) ───
@@ -2447,74 +2447,79 @@ function startAutoBackupSchedule() {
 // /home, /customers, /settings, /invoices, /pos, /receipts ...
 // ================================================================
 // ================================================================
-// دعم المعاينة الذكية للروابط على واتساب وشبكات التواصل (OpenGraph Meta)
-// وتقديم واجهات مخصصة للزبائن عند فتح روابط الأصناف والفواتير
+// موديول المعاينة المستقلة 100% للزبائن (Isolated Standalone Previews)
+// معزولة تماماً عن نظام الإدارة والكاشير الداخلي لحماية الخصوصية والأمان التام
+// تدعم بطاقات واتساب وشبكات التواصل، وتمنع وصول الزبون لبيانات النظام
 // ================================================================
-const INDEX_HTML_PATH = path.join(__dirname, 'public', 'index.html');
+const {
+  renderProductPreviewHtml,
+  renderInvoicePreviewHtml,
+  renderStatementPreviewHtml,
+  renderReceiptPreviewHtml,
+  renderPreviewBlockedHtml,
+  renderPublicCatalogHtml
+} = require('./standaloneViews');
 
-function escapeMetaText(str) {
-  if (!str) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+// التحقق مما إذا كان الطلب قادماً عبر نطاق المعاينة المستقل على Render
+function isPreviewHost(req) {
+  if (process.env.PREVIEW_ONLY === 'true' || process.env.APP_MODE === 'preview') {
+    return true;
+  }
+  const host = (req.headers['x-forwarded-host'] || req.get('host') || '').toLowerCase();
+  return host.includes('preview') || host.startsWith('view-');
 }
 
-function serveWithMeta(req, res, meta) {
-  fs.readFile(INDEX_HTML_PATH, 'utf-8', (err, html) => {
-    if (err) return res.status(500).send('Server Error');
-    
+// حظر صفحات وعمليات الإدارة عند الدخول من نطاق المعاينة
+app.use((req, res, next) => {
+  if (!isPreviewHost(req)) return next();
+
+  // السماح بالملفات الثابتة والصور وروابط المعاينة العامة
+  if (
+    req.path.startsWith('/uploads') ||
+    req.path.startsWith('/icons') ||
+    req.path.startsWith('/css') ||
+    req.path.startsWith('/js') ||
+    req.path.startsWith('/p/') ||
+    req.path.startsWith('/v/') ||
+    req.path.startsWith('/product/') ||
+    req.path.startsWith('/invoice/') ||
+    req.path.startsWith('/receipt/') ||
+    req.path.startsWith('/voucher/') ||
+    req.path.startsWith('/statement/') ||
+    req.path === '/favicon.ico' ||
+    req.path === '/manifest.json'
+  ) {
+    return next();
+  }
+
+  // الصفحة الرئيسية في نطاق المعاينة تعرض معرض الأصناف العام للزبائن
+  if (req.path === '/' || req.path === '/catalog' || req.path === '/products') {
+    const prods = dataStore.getProducts();
     const settings = dataStore.getSettings() || {};
-    const companyName = settings.companyName || 'رامز عطاطرة';
-    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
-    const host = req.headers['x-forwarded-host'] || req.get('host') || 'aboramez1.onrender.com';
-    const baseUrl = `${protocol}://${host}`;
-    const fullUrl = `${baseUrl}${req.originalUrl}`;
-
-    const title = meta.title || `${companyName} - نظام المبيعات والفواتير`;
-    const desc = meta.description || 'معاينة رسمية معتمدة من شركة رامز عطاطرة';
-    let image = meta.image || `${baseUrl}/icons/icon-512x512.png`;
-    if (image && image.startsWith('/')) image = `${baseUrl}${image}`;
-
-    // استبدال وسوم العنوان والوصف والصورة الديناميكية
-    html = html.replace(/<title>[\s\S]*?<\/title>/, `<title>${escapeMetaText(title)}</title>`);
-    html = html.replace(/<meta name="description" content="[\s\S]*?">/, `<meta name="description" content="${escapeMetaText(desc)}">`);
-    
-    const dynamicOg = `
-  <!-- Dynamic OpenGraph Meta for WhatsApp & Social Preview -->
-  <title>${escapeMetaText(title)}</title>
-  <meta name="description" content="${escapeMetaText(desc)}">
-  <meta property="og:title" content="${escapeMetaText(title)}">
-  <meta property="og:description" content="${escapeMetaText(desc)}">
-  <meta property="og:image" content="${escapeMetaText(image)}">
-  <meta property="og:image:secure_url" content="${escapeMetaText(image)}">
-  <meta property="og:image:type" content="image/jpeg">
-  <meta property="og:image:width" content="600">
-  <meta property="og:image:height" content="600">
-  <meta property="og:url" content="${escapeMetaText(fullUrl)}">
-  <meta property="og:type" content="website">
-  <meta property="og:site_name" content="${escapeMetaText(companyName)}">
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="${escapeMetaText(title)}">
-  <meta name="twitter:description" content="${escapeMetaText(desc)}">
-  <meta name="twitter:image" content="${escapeMetaText(image)}">`;
-
-    if (html.includes('<meta property="og:title"')) {
-      html = html.replace(/<meta property="og:title"[\s\S]*?<link rel="preconnect"/, dynamicOg + '\n  <link rel="preconnect"');
-    } else {
-      html = html.replace('</head>', dynamicOg + '\n</head>');
-    }
-
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.send(html);
-  });
-}
+    return res.send(renderPublicCatalogHtml(prods, settings, req));
+  }
 
-// مسارات الأصناف المباشرة مع توليد صورة الصنف وعنوانه وسعره لواتساب
-app.get(['/product/:id', '/products/:id', '/p/:id'], (req, res) => {
+  // حظر أي عمليات كتابة أو تعديل API في نطاق المعاينة
+  if (req.path.startsWith('/api/') && req.method !== 'GET') {
+    return res.status(403).json({
+      success: false,
+      error: 'نطاق المعاينة مخصص لعرض بطاقات الزبائن فقط ولا يسمح بإجراء أي عمليات إدارية'
+    });
+  }
+
+  // حظر صفحات النظام الداخلية (POS، الإعدادات، الموردين، الكاشير) في نطاق المعاينة
+  const settings = dataStore.getSettings() || {};
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  return res.status(403).send(renderPreviewBlockedHtml(settings));
+});
+
+// 1. مسارات معاينة الأصناف المستقلة (Product Standalone Previews)
+app.get(['/p/:id', '/product/:id', '/products/:id', '/view/product/:id', '/preview/product/:id'], (req, res, next) => {
   const id = req.params.id;
+  if (!id || id === 'all') return next();
+  if (req.query.admin === '1') return next();
+
   const prods = dataStore.getProducts();
   const p = prods.find(x => 
     String(x.id).toLowerCase() === String(id).toLowerCase() ||
@@ -2522,29 +2527,29 @@ app.get(['/product/:id', '/products/:id', '/p/:id'], (req, res) => {
     String(x.barcode || '').toLowerCase() === String(id).toLowerCase()
   );
   const settings = dataStore.getSettings() || {};
-  const cur = settings.currency || 'شيكل';
-  const company = settings.companyName || 'رامز عطاطرة';
 
   if (p) {
-    const img = p.image || (Array.isArray(p.images) && p.images[0]) || '';
-    const priceText = p.sellPrice ? `${p.sellPrice} ${cur}` : 'سعر خاص';
-    serveWithMeta(req, res, {
-      title: `🛍️ ${p.name} | ${priceText}`,
-      description: `الماركة: ${p.brand || 'عام'} | كود الصنف: [${p.code || '--'}] | ${p.stock > 0 ? 'متوفر بالمستودع ✅' : 'يرجى مراجعة التوفر'} — شركة ${company}`,
-      image: img
-    });
-  } else {
-    serveWithMeta(req, res, {
-      title: `صنف تجاري - ${company}`,
-      description: `عرض وتفاصيل أصناف ومنتجات شركة ${company}`
-    });
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.send(renderProductPreviewHtml(p, settings, req));
   }
+
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  return res.status(404).send(`
+    <!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>الصنف غير متوفر</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@700&display=swap" rel="stylesheet">
+    <body style="font-family:'Cairo',sans-serif; text-align:center; padding:3rem; background:#f8fafc; color:#0f172a;">
+    <h2>⚠️ عذراً، هذا الصنف غير متوفر أو تم حذفه من النظام.</h2>
+    <p style="margin-top:1rem;"><a href="/" style="color:#2563eb; text-decoration:none; font-weight:bold;">العودة للصفحة الرئيسية</a></p>
+    </body></html>
+  `);
 });
 
-// مسارات الفواتير المباشرة
-app.get(['/invoice/:id', '/invoices/:id'], (req, res, next) => {
+// 2. مسارات معاينة الفواتير المستقلة (Invoice Standalone Previews)
+app.get(['/v/invoice/:id', '/view/invoice/:id', '/preview/invoice/:id', '/invoice/:id', '/invoices/:id'], (req, res, next) => {
   const id = req.params.id;
-  if (!id || id === 'new') return next();
+  if (!id || id === 'new' || id === 'list') return next();
+  if (req.query.admin === '1') return next();
+
   const invoices = dataStore.getInvoices();
   const inv = invoices.find(x => 
     String(x.id).toLowerCase() === String(id).toLowerCase() ||
@@ -2552,50 +2557,76 @@ app.get(['/invoice/:id', '/invoices/:id'], (req, res, next) => {
     String(x.shamelNo || '').toLowerCase() === String(id).toLowerCase()
   );
   const settings = dataStore.getSettings() || {};
-  const cur = settings.currency || 'شيكل';
-  const company = settings.companyName || 'رامز عطاطرة';
 
   if (inv) {
-    const total = inv.totalAmount || inv.summary?.totalAmount || 0;
-    serveWithMeta(req, res, {
-      title: `🧾 فاتورة مبيعات رقم #${inv.invoiceNumber || inv.id} - ${company}`,
-      description: `الزبون: ${inv.customerName || inv.partyName || 'نقداً'} | إجمالي الفاتورة: ${total} ${cur} | طريقة الدفع: ${inv.paymentMethod === 'cash' ? 'كاش نقدي' : 'شيك / ذمم'}`
-    });
-  } else {
-    serveWithMeta(req, res, {
-      title: `فاتورة مبيعات معتمدة - ${company}`,
-      description: `معاينة فاتورة مبيعات رسمية صاردة من شركة ${company}`
-    });
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.send(renderInvoicePreviewHtml(inv, settings, req));
   }
+
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  return res.status(404).send(`
+    <!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>الفاتورة غير موجودة</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@700&display=swap" rel="stylesheet">
+    <body style="font-family:'Cairo',sans-serif; text-align:center; padding:3rem; background:#f8fafc; color:#0f172a;">
+    <h2>⚠️ عذراً، الفاتورة غير موجودة أو تم حذفها.</h2>
+    <p style="margin-top:1rem;"><a href="/" style="color:#2563eb; text-decoration:none; font-weight:bold;">العودة للصفحة الرئيسية</a></p>
+    </body></html>
+  `);
 });
 
-// مسارات كشوفات الحساب المباشرة
-app.get(['/customer/:id', '/customers/:id', '/statement/:id'], (req, res, next) => {
+// 3. مسارات معاينة سندات القبض والصرف المستقلة (Receipt Voucher Standalone Previews)
+app.get(['/v/receipt/:id', '/view/receipt/:id', '/preview/receipt/:id', '/receipt/:id', '/receipts/:id', '/voucher/:id', '/vouchers/:id', '/v/voucher/:id'], (req, res, next) => {
   const id = req.params.id;
-  if (!id) return next();
-  const customers = dataStore.getCustomers();
-  const c = customers.find(x => 
+  if (!id || id === 'new' || id === 'list') return next();
+  if (req.query.admin === '1') return next();
+
+  const receipts = dataStore.getReceipts();
+  const rcp = receipts.find(x => 
     String(x.id).toLowerCase() === String(id).toLowerCase() ||
-    String(x.systemNumber || '').toLowerCase() === String(id).toLowerCase() ||
-    String(x.shamelCode || '').toLowerCase() === String(id).toLowerCase()
+    String(x.receiptNumber).toLowerCase() === String(id).toLowerCase() ||
+    String(x.voucherNumber || '').toLowerCase() === String(id).toLowerCase()
   );
   const settings = dataStore.getSettings() || {};
-  const cur = settings.currency || 'شيكل';
-  const company = settings.companyName || 'رامز عطاطرة';
 
-  if (c) {
-    const bal = parseFloat(c.balance) || 0;
-    const balText = bal > 0 ? `دين مستحق: ${bal} ${cur}` : (bal < 0 ? `رصيد لصالحه: ${Math.abs(bal)} ${cur}` : `رصيد خالص`);
-    serveWithMeta(req, res, {
-      title: `📄 كشف حساب معتمد - ${c.name} - ${company}`,
-      description: `كشف حساب مالي تفصيلي للسيد/ة: ${c.name} | الرصيد الحالي: ${balText}`
-    });
-  } else {
-    serveWithMeta(req, res, {
-      title: `كشف حساب تفصيلي - ${company}`,
-      description: `كشف حساب مالي معتمد صادر من شركة ${company}`
-    });
+  if (rcp) {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.send(renderReceiptPreviewHtml(rcp, settings, req));
   }
+
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  return res.status(404).send(`
+    <!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>السند المالي غير موجود</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@700&display=swap" rel="stylesheet">
+    <body style="font-family:'Cairo',sans-serif; text-align:center; padding:3rem; background:#f8fafc; color:#0f172a;">
+    <h2>⚠️ عذراً، السند المالي غير موجود أو تم حذفه.</h2>
+    <p style="margin-top:1rem;"><a href="/" style="color:#2563eb; text-decoration:none; font-weight:bold;">العودة للصفحة الرئيسية</a></p>
+    </body></html>
+  `);
+});
+
+// 4. مسارات معاينة كشف حساب الزبون المستقلة (Customer Statement Standalone Previews)
+app.get(['/v/statement/:id', '/view/statement/:id', '/preview/statement/:id', '/statement/:id', '/statements/:id', '/customer/:id', '/customers/:id'], (req, res, next) => {
+  const id = req.params.id;
+  if (!id || id === 'all' || id === 'new') return next();
+  if (req.query.admin === '1') return next();
+
+  const statementData = dataStore.getCustomerStatement(id);
+  const settings = dataStore.getSettings() || {};
+
+  if (statementData && statementData.customer) {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.send(renderStatementPreviewHtml(statementData, settings, req));
+  }
+
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  return res.status(404).send(`
+    <!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>كشف الحساب غير موجود</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@700&display=swap" rel="stylesheet">
+    <body style="font-family:'Cairo',sans-serif; text-align:center; padding:3rem; background:#f8fafc; color:#0f172a;">
+    <h2>⚠️ عذراً، حساب الزبون غير موجود أو لا يحتوي على كشف حساب مسجل.</h2>
+    <p style="margin-top:1rem;"><a href="/" style="color:#2563eb; text-decoration:none; font-weight:bold;">العودة للصفحة الرئيسية</a></p>
+    </body></html>
+  `);
 });
 
 const FRONTEND_ROUTES = [
@@ -2604,30 +2635,16 @@ const FRONTEND_ROUTES = [
   '/pos',
   '/catalog',
   '/products',
-  '/product/:id',
-  '/products/:id',
   '/customers',
-  '/customer/:id',
-  '/customers/:id',
   '/suppliers',
-  '/supplier/:id',
-  '/suppliers/:id',
   '/invoices',
-  '/invoice/:id',
-  '/invoices/:id',
   '/invoices-list',
   '/receipts',
-  '/receipt/:id',
-  '/receipts/:id',
   '/vouchers',
-  '/voucher/:id',
-  '/vouchers/:id',
   '/create-invoice',
   '/new-invoice',
   '/inventory',
   '/warranties',
-  '/warranty/:id',
-  '/warranties/:id',
   '/dashboard',
   '/settings',
   '/brands-audit'

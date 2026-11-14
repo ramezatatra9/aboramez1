@@ -2041,6 +2041,17 @@
             <input type="text" id="cfgInvoiceFooter" class="form-control" value="شكراً لتعاملكم معنا - بضاعة الشركة مكفولة حسب شروط الضمان">
           </div>
 
+          <div class="form-group">
+            <label class="form-label" for="cfgPreviewBaseUrl" style="color: #1d4ed8; font-weight: 800;">
+              <span>🌐</span>
+              <span>رابط خدمة المعاينة المستقل للزبائن (Render Preview Domain):</span>
+            </label>
+            <input type="url" id="cfgPreviewBaseUrl" class="form-control" placeholder="مثال: https://aboramez-preview.onrender.com (اتركه فارغاً لاستخدام الرابط الحالي)">
+            <small style="color: #64748b; font-size: 0.8rem; display: block; margin-top: 0.3rem;">
+              🔒 عند وضع رابط خدمة Render المنفصلة هنا، سيتم إنشاء جميع روابط المشاركة (أصناف، فواتير، سندات، كشوفات) على ذلك الرابط لحماية رابط الإدارة الأصلي.
+            </small>
+          </div>
+
           <button class="btn btn-primary btn-block" onclick="saveCompanySettings()">
             <span>💾</span>
             <span>حفظ الإعدادات</span>
@@ -2472,6 +2483,14 @@
 
       <div class="modal-footer no-print">
         <button class="btn btn-secondary" onclick="closeReceiptModal()">إغلاق</button>
+        <button class="btn btn-wa" style="background:#25D366; color:#fff;" onclick="shareCurrentReceiptWhatsApp()">
+          <span>💬</span>
+          <span>مشاركة واتساب</span>
+        </button>
+        <button class="btn btn-secondary" onclick="copyCurrentReceiptLink()">
+          <span>📋</span>
+          <span>نسخ الرابط</span>
+        </button>
         <button class="btn btn-telegram" id="btnModalSendReceiptTelegram" onclick="resendCurrentReceiptPdfTelegram()">
           <span>✈️</span>
           <span>إرسال السند PDF لتيليجرام</span>
