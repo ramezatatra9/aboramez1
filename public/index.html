@@ -45,6 +45,13 @@
         </div>
 
         <div class="header-actions">
+          <!-- زر البحث الشامل الذكي (Ctrl + K) -->
+          <button type="button" class="header-search-btn" onclick="openGlobalSearchModal()" title="البحث الشامل في النظام (Ctrl + K)" style="display: inline-flex; align-items: center; gap: 0.5rem; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 6px 14px; font-size: 0.82rem; font-weight: 700; color: #1e293b; cursor: pointer; transition: all 0.2s;">
+            <span>🔍</span>
+            <span>بحث شامل...</span>
+            <kbd style="background: #e2e8f0; border: 1px solid #cbd5e1; border-radius: 4px; padding: 1px 6px; font-size: 0.72rem; color: #64748b; font-family: monospace;">Ctrl K</kbd>
+          </button>
+
           <!-- زر المستخدم الحالي وقفل الشاشة الفوري -->
           <button type="button" class="header-user-badge" id="headerUserLockBtn" onclick="lockAppScreen()" title="المستخدم الحالي - انقر للقفل وتبديل المستخدم">
             <span class="h-user-role-icon" id="headerUserEmoji">👑</span>
@@ -2354,6 +2361,14 @@
           <span>🔄</span>
           <span>تحويل إلى مبيعات فعلية وخصم المخزون</span>
         </button>
+        <button type="button" class="btn" style="background:#25D366; color:#fff; font-weight:700; display:inline-flex; align-items:center; gap:0.4rem;" onclick="shareCurrentInvoiceWhatsApp()">
+          <span>📱</span>
+          <span>إرسال الفاتورة عبر واتساب</span>
+        </button>
+        <button type="button" class="btn btn-secondary" onclick="copyCurrentInvoiceLink()" title="نسخ رابط الفاتورة المباشر">
+          <span>🔗</span>
+          <span>نسخ الرابط</span>
+        </button>
         <button class="btn btn-telegram" id="btnModalResendTelegram" onclick="resendCurrentInvoiceTelegram()">
           <span>✈️</span>
           <span>إرسال الفاتورة PDF لتيليجرام</span>
@@ -2922,6 +2937,14 @@
       </div>
 
       <div class="modal-footer no-print">
+        <button type="button" class="btn" style="background:#25D366; color:#fff; font-weight:700; display:inline-flex; align-items:center; gap:0.4rem;" onclick="shareCustomerStatementWhatsApp()">
+          <span>📱</span>
+          <span>إرسال للزبون عبر واتساب</span>
+        </button>
+        <button type="button" class="btn btn-secondary" onclick="copyCustomerStatementLink()" title="نسخ رابط كشف الحساب المباشر">
+          <span>🔗</span>
+          <span>نسخ الرابط</span>
+        </button>
         <button type="button" class="btn btn-telegram" id="btnSendStatementTelegram" onclick="sendCustomerStatementPdfToTelegram()">
           <span>✈️</span>
           <span>إرسال PDF لتيليجرام</span>
@@ -3937,7 +3960,7 @@
   <script src="js/html2pdf.bundle.min.js?v=8.4.1"></script>
   <script src="js/warranties.js"></script>
   <script src="js/brandsAudit.js"></script>
-  <script src="js/app.js?v=8.8.0"></script>
+  <script src="js/app.js?v=8.9.0"></script>
   <script src="js/pwa.js?v=8.4.1"></script>
   <!-- مكتبة مسح الباركود المحلية السريعة -->
   <script src="js/html5-qrcode.min.js?v=3.5.0"></script>
@@ -4022,6 +4045,14 @@
         <span>🛒</span>
         <span>إضافة للفاتورة</span>
       </button>
+      <button type="button" class="btn" style="background:#25D366; color:#fff; font-weight:700; display:inline-flex; align-items:center; gap:0.4rem;" onclick="shareCurrentProductWhatsApp()">
+        <span>📱</span>
+        <span>مشاركة عبر واتساب</span>
+      </button>
+      <button type="button" class="btn btn-secondary" onclick="copyCurrentProductLink()" title="نسخ رابط الصنف المباشر للمشاركة">
+        <span>🔗</span>
+        <span>نسخ الرابط</span>
+      </button>
       <button type="button" onclick="closeProductDetailSheet()" class="btn btn-secondary pds-btn-close">
         إغلاق النافذة
       </button>
@@ -4061,6 +4092,50 @@
         <button type="button" class="btn btn-secondary btn-sm" onclick="cancelPdfProgress()" id="btnCancelPdfProgress" style="border-radius: 8px; font-weight: 700; padding: 0.45rem 1.25rem;">
           إلغاء التحميل
         </button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ======================================================= -->
+  <!-- MODAL: البحث الشامل الذكي الموحد (Global Smart Search - Ctrl+K) -->
+  <!-- ======================================================= -->
+  <div class="modal-backdrop" id="globalSearchModal" style="display: none; align-items: flex-start; padding-top: 6vh; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(8px); z-index: 99999;" onclick="if(event.target===this)closeGlobalSearchModal()">
+    <div class="modal-card" style="max-width: 680px; width: 94vw; border-radius: 16px; box-shadow: 0 25px 60px -15px rgba(0,0,0,0.4); overflow: hidden; border: 1px solid #cbd5e1; background: #fff; padding: 0;">
+      <!-- Search Input Header -->
+      <div style="display: flex; align-items: center; gap: 0.75rem; padding: 1rem 1.25rem; border-bottom: 1.5px solid #e2e8f0; background: #f8fafc;">
+        <span style="font-size: 1.35rem; color: #2563eb;">🔍</span>
+        <input type="text" id="globalSearchInput" placeholder="ابحث عن صنف، زبون، مورد، رقم فاتورة، أو سند... (Esc للإغلاق)" style="flex: 1; border: none; outline: none; background: transparent; font-size: 1.05rem; font-weight: 600; font-family: 'Cairo', sans-serif; color: #0f172a;" autocomplete="off" oninput="doGlobalSearch(this.value)">
+        <kbd style="background: #e2e8f0; border: 1px solid #cbd5e1; border-radius: 5px; padding: 2px 7px; font-size: 0.75rem; color: #64748b; font-family: monospace;">ESC</kbd>
+        <button type="button" onclick="closeGlobalSearchModal()" style="border: none; background: transparent; font-size: 1.2rem; cursor: pointer; color: #94a3b8; padding: 0 4px;">✕</button>
+      </div>
+
+      <!-- Category Filter Chips inside Modal -->
+      <div style="display: flex; gap: 0.4rem; padding: 0.6rem 1.25rem; background: #fff; border-bottom: 1px solid #f1f5f9; flex-wrap: wrap;">
+        <button class="chip active gsearch-chip" data-filter="all" onclick="setGlobalSearchCategory('all', this)">الكل</button>
+        <button class="chip gsearch-chip" data-filter="products" onclick="setGlobalSearchCategory('products', this)">📦 الأصناف</button>
+        <button class="chip gsearch-chip" data-filter="customers" onclick="setGlobalSearchCategory('customers', this)">👥 الزبائن والموردين</button>
+        <button class="chip gsearch-chip" data-filter="invoices" onclick="setGlobalSearchCategory('invoices', this)">🧾 الفواتير</button>
+        <button class="chip gsearch-chip" data-filter="vouchers" onclick="setGlobalSearchCategory('vouchers', this)">💰 السندات</button>
+      </div>
+
+      <!-- Results Container -->
+      <div id="globalSearchResults" style="max-height: 58vh; overflow-y: auto; padding: 0.5rem 0.75rem;">
+        <div style="text-align: center; padding: 2.5rem 1rem; color: #94a3b8;">
+          <div style="font-size: 2.2rem; margin-bottom: 0.5rem;">⚡</div>
+          <div style="font-weight: 700; color: #475569; font-size: 1.05rem;">البحث الفوري الذكي الموحد</div>
+          <div style="font-size: 0.82rem; margin-top: 0.25rem;">اكتب أي حرف أو رقم للبحث في الأصناف والزبائن والفواتير والسندات في آن واحد</div>
+        </div>
+      </div>
+
+      <!-- Footer Hints -->
+      <div style="padding: 0.5rem 1.25rem; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: #64748b;">
+        <span>اضغط على أي نتيجة لفتحها مباشرة</span>
+        <div style="display: flex; gap: 0.75rem;">
+          <span>↑↓ للتنقل</span>
+          <span>↵ للفتح</span>
+          <span>Esc للإغلاق</span>
+        </div>
       </div>
     </div>
   </div>

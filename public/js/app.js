@@ -1162,12 +1162,41 @@ async function initApp() {
   await loadSettings();
 
   // تحميل بيانات الواجهة المطلوبة أولاً وبأسرع وقت بحسب الصفحة
-  if (initialTab === 'customers') {
+  // معالجة فتح صنف مباشر عبر الرابط: /product/:id أو /products/:id
+  if (initialSection === 'product' || initialSection === 'products') {
+    actuallySwitchTab('catalog', false);
+    await loadProducts();
+    updateCatalogViewModeUI();
+    if (initialEntityId) {
+      const targetProd = (state.products || []).find(p =>
+        String(p.id).toLowerCase() === initialEntityId.toLowerCase() ||
+        String(p.code || '').toLowerCase() === initialEntityId.toLowerCase() ||
+        String(p.barcode || '').toLowerCase() === initialEntityId.toLowerCase()
+      );
+      if (targetProd) {
+        openProductDetailSheet(targetProd.id);
+        document.title = targetProd.name + ' | ' + ((state.settings && state.settings.companyName) || 'رامز عطاطرة');
+      } else {
+        showToast('لم يتم العثور على الصنف المطلوب', 'warning');
+      }
+    }
+    Promise.allSettled([loadInvoices(), loadReceipts(), loadCustomers(), loadDashboard()]).catch(() => {});
+  } else if (initialTab === 'customers') {
     actuallySwitchTab('customers', false);
     await loadCustomers();
     renderCustomerTab();
+    if (initialEntityId) {
+      setTimeout(() => openCustomerStatementModal(initialEntityId), 150);
+    }
     Promise.allSettled([loadProducts(), loadInvoices(), loadReceipts(), loadDashboard()]).catch(() => {});
   } else if (initialTab === 'invoices-list') {
+    actuallySwitchTab('invoices-list', false);
+    await loadInvoices();
+    if (initialEntityId) {
+      setTimeout(() => openInvoiceViewModalById(initialEntityId), 150);
+    }
+    Promise.allSettled([loadProducts(), loadCustomers(), loadReceipts(), loadDashboard()]).catch(() => {});
+  } else if (initialTab === 'receipts') {
     actuallySwitchTab('invoices-list', false);
     await loadInvoices();
     Promise.allSettled([loadProducts(), loadCustomers(), loadReceipts(), loadDashboard()]).catch(() => {});
@@ -9702,12 +9731,22 @@ function togglePdsCostPrice() {
 }
 
 function openProductDetailSheet(productId) {
-  const prod = state.products.find(p => String(p.id) === String(productId));
+  const prod = state.products.find(p => String(p.id) === String(productId) || String(p.code) === String(productId));
   if (!prod) {
     showToast('الصنف غير موجود', 'warning');
     return;
   }
-  _pdsCurrentProductId = String(productId);
+  _pdsCurrentProductId = String(prod.id);
+
+  // تحديث رابط المتصفح وعنوان الصفحة لسهولة مشاركة الصنف
+  if (typeof window !== 'undefined' && window.history) {
+    const prodUrl = '/product/' + encodeURIComponent(prod.id);
+    const prodTitle = (prod.name || 'تفاصيل الصنف') + ' | ' + ((state.settings && state.settings.companyName) || 'رامز عطاطرة');
+    document.title = prodTitle;
+    if (window.location.pathname !== prodUrl) {
+      window.history.pushState({ modal: 'product', id: prod.id }, prodTitle, prodUrl);
+    }
+  }
 
   const currency = (state.settings && state.settings.currency) || 'شيكل';
   const cost = parseFloat(prod.costPrice) || 0;
@@ -9858,7 +9897,20 @@ function pdsOpenImageGallery() {
 
 function closeProductDetailSheet() {
   const sheet = document.getElementById('productDetailSheet');
-  if (sheet) sheet.style.display = 'none';
+  if (sheet) {
+    sheet.classList.remove('active');
+    sheet.style.display = 'none';
+  }
+  _pdsCurrentProductId = null;
+  if (typeof window !== 'undefined' && window.history) {
+    const activeTab = document.querySelector('.tab-content.active');
+    const tabId = activeTab ? activeTab.id.replace('tab-', '') : 'catalog';
+    const backUrl = TAB_TO_ROUTE[tabId] || '/home';
+    document.title = PAGE_TITLES[tabId] || 'نظام أبو رامز للمبيعات';
+    if (window.location.pathname.startsWith('/product/')) {
+      window.history.pushState(null, document.title, backUrl);
+    }
+  }
   document.body.style.overflow = '';
   _pdsCurrentProductId = null;
 }
@@ -9997,3 +10049,418 @@ function closeProductDetailSheet() {
     setTimeout(() => { isNavigatingBack = false; }, 80);
   });
 })();
+
+
+// =============================================================
+// النظام الصوتي الذكي (Web Audio API Synthesizer - Zero External Files)
+// =============================================================
+let _smartAudioCtx = null;
+function getSmartAudioContext() {
+  if (!_smartAudioCtx && typeof window !== 'undefined') {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (AudioContextClass) _smartAudioCtx = new AudioContextClass();
+  }
+  if (_smartAudioCtx && _smartAudioCtx.state === 'suspended') {
+    _smartAudioCtx.resume();
+  }
+  return _smartAudioCtx;
+}
+
+function playSoundSuccess() {
+  try {
+    const ctx = getSmartAudioContext();
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.07);
+    gain.gain.setValueAtTime(0.12, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.08);
+  } catch (_) {}
+}
+
+function playSoundWarning() {
+  try {
+    const ctx = getSmartAudioContext();
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(320, ctx.currentTime);
+    osc.frequency.setValueAtTime(240, ctx.currentTime + 0.08);
+    gain.gain.setValueAtTime(0.14, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.16);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.16);
+  } catch (_) {}
+}
+
+// =============================================================
+// المشاركة الذكية عبر واتساب ونسخ الروابط المباشرة (WhatsApp 1-Click Sharing)
+// =============================================================
+function shareCurrentProductWhatsApp() {
+  if (!_pdsCurrentProductId) return;
+  const prod = (state.products || []).find(p => String(p.id) === String(_pdsCurrentProductId));
+  if (!prod) return;
+  const currency = (state.settings && state.settings.currency) || 'شيكل';
+  const url = window.location.origin + '/product/' + encodeURIComponent(prod.id);
+  const text = 
+`🛍️ *${prod.name || 'صنف'}*
+💰 *السعر:* ${(parseFloat(prod.sellPrice) || 0).toLocaleString('en-US')} ${currency}
+🏷️ *الماركة:* ${prod.brand || 'عام'}
+📦 *كود الصنف:* ${prod.code || '--'}
+${prod.stock > 0 ? '✅ *الحالة:* متوفر بالمستودع' : '⚠️ *الحالة:* يرجى مراجعة التوفر'}
+
+🔗 *تفاصيل وصور الصنف في الرابط المباشر:*
+${url}`;
+
+  window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+}
+
+function copyCurrentProductLink() {
+  if (!_pdsCurrentProductId) return;
+  const url = window.location.origin + '/product/' + encodeURIComponent(_pdsCurrentProductId);
+  navigator.clipboard.writeText(url).then(() => {
+    showToast('تم نسخ رابط الصنف بنجاح! جاهز للمشاركة 📋', 'success');
+    playSoundSuccess();
+  }).catch(() => {
+    showToast(url, 'info');
+  });
+}
+
+function shareCustomerStatementWhatsApp() {
+  if (!currentStatementData || !currentStatementData.customer) return;
+  const c = currentStatementData.customer;
+  const cur = (state.settings && state.settings.currency) || 'شيكل';
+  const bal = parseFloat(c.balance) || 0;
+  const balText = bal > 0 ? `دين مستحق: ${bal.toLocaleString('en-US')} ${cur}` :
+                  (bal < 0 ? `رصيد لصالحه: ${Math.abs(bal).toLocaleString('en-US')} ${cur}` : `رصيد خالص (مسدد)`);
+  const url = window.location.origin + '/customers/' + encodeURIComponent(c.id || c.systemNumber || c.shamelCode);
+  const phone = (c.mobile || c.phone || '').replace(/[^\d+]/g, '');
+  const cleanPhone = phone.startsWith('0') ? '970' + phone.slice(1) : phone;
+
+  const text = 
+`📄 *كشف حساب مالي تفصيلي - ${(state.settings && state.settings.companyName) || 'رامز عطاطرة'}*
+━━━━━━━━━━━━━━━━━━
+👤 *السيد/ة:* ${c.name}
+💰 *الرصيد المالي الحالي:* *${balText}*
+📅 *تاريخ الإصدار:* ${new Date().toLocaleDateString('ar-EG')}
+
+🔗 *يمكنك مراجعة كافة الفواتير والسندات وتفاصيل الحساب عبر الرابط المباشر:*
+${url}`;
+
+  const waUrl = cleanPhone ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}` : `https://wa.me/?text=${encodeURIComponent(text)}`;
+  window.open(waUrl, '_blank');
+}
+
+function copyCustomerStatementLink() {
+  if (!currentStatementData || !currentStatementData.customer) return;
+  const c = currentStatementData.customer;
+  const url = window.location.origin + '/customers/' + encodeURIComponent(c.id || c.systemNumber || c.shamelCode);
+  navigator.clipboard.writeText(url).then(() => {
+    showToast('تم نسخ رابط كشف الحساب بنجاح! 📋', 'success');
+    playSoundSuccess();
+  }).catch(() => {
+    showToast(url, 'info');
+  });
+}
+
+function shareCurrentInvoiceWhatsApp() {
+  if (!state.currentViewingInvoice) return;
+  const inv = state.currentViewingInvoice;
+  const cur = (state.settings && state.settings.currency) || 'شيكل';
+  const url = window.location.origin + '/invoices/' + encodeURIComponent(inv.id || inv.invoiceNumber);
+  const phone = (inv.customerPhone || '').replace(/[^\d+]/g, '');
+  const cleanPhone = phone.startsWith('0') ? '970' + phone.slice(1) : phone;
+
+  const text = 
+`🧾 *فاتورة مبيعات رقم #${inv.invoiceNumber || inv.id}*
+🏢 *${(state.settings && state.settings.companyName) || 'رامز عطاطرة'}*
+━━━━━━━━━━━━━━━━━━
+👤 *الزبون:* ${inv.customerName || inv.partyName || 'نقداً'}
+💵 *الإجمالي:* ${(inv.totalAmount || inv.summary?.totalAmount || 0).toLocaleString('en-US')} ${cur}
+💳 *طريقة الدفع:* ${inv.paymentMethod === 'cash' ? 'كاش نقدي' : (inv.paymentMethod === 'check' ? 'شيك' : 'أقساط وذمم')}
+📦 *عدد الأصناف:* ${(inv.items || []).length} صنف
+
+🔗 *لمشاهدة الفاتورة والأصناف بالتفصيل:*
+${url}`;
+
+  const waUrl = cleanPhone ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}` : `https://wa.me/?text=${encodeURIComponent(text)}`;
+  window.open(waUrl, '_blank');
+}
+
+function copyCurrentInvoiceLink() {
+  if (!state.currentViewingInvoice) return;
+  const inv = state.currentViewingInvoice;
+  const url = window.location.origin + '/invoices/' + encodeURIComponent(inv.id || inv.invoiceNumber);
+  navigator.clipboard.writeText(url).then(() => {
+    showToast('تم نسخ رابط الفاتورة بنجاح! 📋', 'success');
+    playSoundSuccess();
+  }).catch(() => {
+    showToast(url, 'info');
+  });
+}
+
+// =============================================================
+// البحث الشامل الذكي الموحد (Global Spotlight Omnisearch - Ctrl + K)
+// =============================================================
+let _gSearchCategory = 'all';
+
+function openGlobalSearchModal() {
+  const modal = document.getElementById('globalSearchModal');
+  const input = document.getElementById('globalSearchInput');
+  if (modal) {
+    modal.style.display = 'flex';
+    playSoundSuccess();
+    if (input) {
+      input.value = '';
+      setTimeout(() => input.focus(), 80);
+    }
+  }
+}
+
+function closeGlobalSearchModal() {
+  const modal = document.getElementById('globalSearchModal');
+  if (modal) modal.style.display = 'none';
+}
+
+function setGlobalSearchCategory(cat, btn) {
+  _gSearchCategory = cat;
+  document.querySelectorAll('.gsearch-chip').forEach(c => c.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  const input = document.getElementById('globalSearchInput');
+  if (input) doGlobalSearch(input.value);
+}
+
+function doGlobalSearch(q) {
+  const container = document.getElementById('globalSearchResults');
+  if (!container) return;
+  q = (q || '').trim().toLowerCase();
+
+  if (!q) {
+    container.innerHTML = `
+      <div style="text-align: center; padding: 2.5rem 1rem; color: #94a3b8;">
+        <div style="font-size: 2.2rem; margin-bottom: 0.5rem;">⚡</div>
+        <div style="font-weight: 700; color: #475569; font-size: 1.05rem;">البحث الفوري الذكي الموحد</div>
+        <div style="font-size: 0.82rem; margin-top: 0.25rem;">اكتب أي اسم، رقم، باركود، أو رقم فاتورة للبحث في كامل أقسام النظام في آن واحد</div>
+      </div>`;
+    return;
+  }
+
+  const cur = (state.settings && state.settings.currency) || 'شيكل';
+  let html = '';
+  let totalFound = 0;
+
+  // 1. الأصناف والمنتجات
+  if (_gSearchCategory === 'all' || _gSearchCategory === 'products') {
+    const matchedProds = (state.products || []).filter(p =>
+      String(p.name || '').toLowerCase().includes(q) ||
+      String(p.code || '').toLowerCase().includes(q) ||
+      String(p.barcode || '').toLowerCase().includes(q) ||
+      String(p.brand || '').toLowerCase().includes(q)
+    ).slice(0, 8);
+
+    if (matchedProds.length > 0) {
+      totalFound += matchedProds.length;
+      html += `<div style="font-size: 0.78rem; font-weight: 800; color: #64748b; padding: 0.4rem 0.6rem; text-transform: uppercase;">📦 الأصناف والمنتجات (${matchedProds.length})</div>`;
+      html += matchedProds.map(p => `
+        <div onclick="closeGlobalSearchModal(); openProductDetailSheet('${p.id}')" style="display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 0.75rem; border-radius: 8px; cursor: pointer; transition: background 0.15s; margin-bottom: 3px;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'">
+          <div style="display: flex; align-items: center; gap: 0.65rem;">
+            <div style="width: 36px; height: 36px; border-radius: 6px; background: #e2e8f0; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; overflow: hidden;">
+              ${(p.image || p.images?.[0]) ? `<img src="${p.image || p.images[0]}" style="width:100%; height:100%; object-fit:cover;">` : '📦'}
+            </div>
+            <div>
+              <div style="font-weight: 700; font-size: 0.9rem; color: #0f172a;">${escapeHtml(p.name)}</div>
+              <div style="font-size: 0.75rem; color: #64748b;">كود: ${p.code || '--'} | الماركة: ${p.brand || 'عام'} | متوفر: <strong>${p.stock || 0}</strong></div>
+            </div>
+          </div>
+          <div style="font-weight: 800; color: #2563eb; font-size: 0.95rem;">
+            ${(parseFloat(p.sellPrice) || 0).toLocaleString('en-US')} ${cur}
+          </div>
+        </div>
+      `).join('');
+    }
+  }
+
+  // 2. الزبائن والموردين
+  if (_gSearchCategory === 'all' || _gSearchCategory === 'customers') {
+    const matchedCusts = (state.customers || []).filter(c =>
+      String(c.name || '').toLowerCase().includes(q) ||
+      String(c.phone || '').includes(q) ||
+      String(c.mobile || '').includes(q) ||
+      String(c.systemNumber || '').toLowerCase().includes(q) ||
+      String(c.shamelCode || '').toLowerCase().includes(q)
+    ).slice(0, 6);
+
+    if (matchedCusts.length > 0) {
+      totalFound += matchedCusts.length;
+      html += `<div style="font-size: 0.78rem; font-weight: 800; color: #64748b; padding: 0.6rem 0.6rem 0.3rem; border-top: 1px solid #f1f5f9; text-transform: uppercase;">👥 الزبائن والموردين (${matchedCusts.length})</div>`;
+      html += matchedCusts.map(c => {
+        const bal = parseFloat(c.balance) || 0;
+        return `
+          <div onclick="closeGlobalSearchModal(); switchTab('customers'); openCustomerStatementModal('${c.id}')" style="display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 0.75rem; border-radius: 8px; cursor: pointer; transition: background 0.15s; margin-bottom: 3px;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'">
+            <div style="display: flex; align-items: center; gap: 0.65rem;">
+              <span style="font-size: 1.35rem;">${c.isSupplier ? '🏢' : '👤'}</span>
+              <div>
+                <div style="font-weight: 700; font-size: 0.9rem; color: #0f172a;">${escapeHtml(c.name)}</div>
+                <div style="font-size: 0.75rem; color: #64748b;">حساب #${c.systemNumber || c.shamelCode || '--'} ${c.phone ? ' | هاتف: ' + c.phone : ''}</div>
+              </div>
+            </div>
+            <div style="text-align: left;">
+              <div style="font-weight: 800; font-size: 0.92rem; color: ${bal > 0 ? '#dc2626' : (bal < 0 ? '#2563eb' : '#16a34a')};">
+                ${bal > 0 ? 'دين: ' + bal.toLocaleString('en-US') + ' ' + cur : (bal < 0 ? 'له: ' + Math.abs(bal).toLocaleString('en-US') + ' ' + cur : 'خالص')}
+              </div>
+              <div style="font-size: 0.72rem; color: #2563eb; text-decoration: underline;">عرض كشف الحساب 📑</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+  }
+
+  // 3. الفواتير
+  if (_gSearchCategory === 'all' || _gSearchCategory === 'invoices') {
+    const matchedInvs = (state.invoices || []).filter(i =>
+      String(i.invoiceNumber || '').toLowerCase().includes(q) ||
+      String(i.customerName || '').toLowerCase().includes(q) ||
+      String(i.partyName || '').toLowerCase().includes(q)
+    ).slice(0, 6);
+
+    if (matchedInvs.length > 0) {
+      totalFound += matchedInvs.length;
+      html += `<div style="font-size: 0.78rem; font-weight: 800; color: #64748b; padding: 0.6rem 0.6rem 0.3rem; border-top: 1px solid #f1f5f9; text-transform: uppercase;">🧾 الفواتير الصادرة (${matchedInvs.length})</div>`;
+      html += matchedInvs.map(inv => `
+        <div onclick="closeGlobalSearchModal(); switchTab('invoices-list'); openInvoiceViewModalById('${inv.id}')" style="display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 0.75rem; border-radius: 8px; cursor: pointer; transition: background 0.15s; margin-bottom: 3px;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'">
+          <div style="display: flex; align-items: center; gap: 0.65rem;">
+            <span style="font-size: 1.35rem;">🧾</span>
+            <div>
+              <div style="font-weight: 700; font-size: 0.9rem; color: #0f172a;">فاتورة #${inv.invoiceNumber || inv.id} — ${escapeHtml(inv.customerName || inv.partyName || 'نقداً')}</div>
+              <div style="font-size: 0.75rem; color: #64748b;">${formatAppDateTime(inv.createdAt)} | ${inv.paymentMethod === 'cash' ? '💵 كاش' : '📝 شيك / ذمم'}</div>
+            </div>
+          </div>
+          <div style="font-weight: 800; color: #0f172a; font-size: 0.95rem;">
+            ${(inv.totalAmount || inv.summary?.totalAmount || 0).toLocaleString('en-US')} ${cur}
+          </div>
+        </div>
+      `).join('');
+    }
+  }
+
+  // 4. سندات القبض والصرف
+  if (_gSearchCategory === 'all' || _gSearchCategory === 'vouchers') {
+    const matchedRcps = (state.receipts || []).filter(r =>
+      String(r.receiptNumber || r.voucherNumber || '').toLowerCase().includes(q) ||
+      String(r.customerName || '').toLowerCase().includes(q) ||
+      String(r.description || '').toLowerCase().includes(q)
+    ).slice(0, 5);
+
+    if (matchedRcps.length > 0) {
+      totalFound += matchedRcps.length;
+      html += `<div style="font-size: 0.78rem; font-weight: 800; color: #64748b; padding: 0.6rem 0.6rem 0.3rem; border-top: 1px solid #f1f5f9; text-transform: uppercase;">💰 سندات القبض والصرف (${matchedRcps.length})</div>`;
+      html += matchedRcps.map(r => `
+        <div onclick="closeGlobalSearchModal(); switchTab('receipts'); viewReceipt('${r.id}')" style="display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 0.75rem; border-radius: 8px; cursor: pointer; transition: background 0.15s; margin-bottom: 3px;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'">
+          <div style="display: flex; align-items: center; gap: 0.65rem;">
+            <span style="font-size: 1.35rem;">${r.voucherType === 'payment' ? '📤' : '💰'}</span>
+            <div>
+              <div style="font-weight: 700; font-size: 0.9rem; color: #0f172a;">سند #${r.receiptNumber || r.voucherNumber || r.id} — ${escapeHtml(r.customerName || 'نقداً')}</div>
+              <div style="font-size: 0.75rem; color: #64748b;">${formatAppDateTime(r.createdAt)} ${r.description ? ' | ' + escapeHtml(r.description) : ''}</div>
+            </div>
+          </div>
+          <div style="font-weight: 800; color: #16a34a; font-size: 0.95rem;">
+            ${(r.amount || 0).toLocaleString('en-US')} ${cur}
+          </div>
+        </div>
+      `).join('');
+    }
+  }
+
+  if (totalFound === 0) {
+    container.innerHTML = `
+      <div style="text-align: center; padding: 2rem 1rem; color: #64748b;">
+        <div style="font-size: 1.8rem; margin-bottom: 0.35rem;">🔍</div>
+        <div style="font-weight: 700; color: #0f172a;">لا توجد أي نتائج مطابقة لـ "${escapeHtml(q)}"</div>
+        <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 0.2rem;">تأكد من كتابة الكلمة بشكل صحيح أو قم بالبحث برقم الهاتف أو الكود</div>
+      </div>`;
+  } else {
+    container.innerHTML = html;
+  }
+}
+
+// =============================================================
+// مستمع اختصارات لوحة المفاتيح الذكي (Smart POS & Global Shortcuts)
+// =============================================================
+document.addEventListener('keydown', function(e) {
+  // 1. Ctrl + K أو Cmd + K: فتح البحث الشامل
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
+    e.preventDefault();
+    openGlobalSearchModal();
+    return;
+  }
+
+  // 2. Esc: إغلاق البحث الشامل إذا كان مفتوحاً
+  if (e.key === 'Escape') {
+    const gModal = document.getElementById('globalSearchModal');
+    if (gModal && gModal.style.display === 'flex') {
+      closeGlobalSearchModal();
+      return;
+    }
+  }
+
+  // 3. F1: دفع كاش فوري في الكاشير / الفاتورة
+  if (e.key === 'F1') {
+    e.preventDefault();
+    const activeTab = document.querySelector('.tab-content.active');
+    if (activeTab && (activeTab.id === 'tab-create-invoice' || activeTab.id === 'tab-pos')) {
+      const payCashBtn = document.getElementById('btnPayCash') || document.querySelector('input[value="cash"]');
+      if (payCashBtn) {
+        payCashBtn.click();
+        playSoundSuccess();
+        showToast('تم اختيار الدفع كاش (F1) 💵', 'info');
+      }
+    }
+    return;
+  }
+
+  // 4. F2: دفع شيك / ذمم في الكاشير
+  if (e.key === 'F2') {
+    e.preventDefault();
+    const activeTab = document.querySelector('.tab-content.active');
+    if (activeTab && (activeTab.id === 'tab-create-invoice' || activeTab.id === 'tab-pos')) {
+      const payCheckBtn = document.getElementById('btnPayCheck') || document.querySelector('input[value="check"]');
+      if (payCheckBtn) {
+        payCheckBtn.click();
+        playSoundSuccess();
+        showToast('تم اختيار الدفع بشيك (F2) 📝', 'info');
+      }
+    }
+    return;
+  }
+
+  // 5. F4: طباعة الفاتورة المعروضة حالياً
+  if (e.key === 'F4') {
+    const invModal = document.getElementById('invoiceViewModal');
+    if (invModal && invModal.classList.contains('active')) {
+      e.preventDefault();
+      printSinglePage('printableArea');
+      return;
+    }
+  }
+});
+
+// مراقبة الاتصال بالإنترنت والعمل غير المتصل
+window.addEventListener('offline', function() {
+  playSoundWarning();
+  showToast('⚠️ انقطع الاتصال بالإنترنت! يمكنك متابعة العمل وتصفح الأصناف محلياً.', 'warning');
+});
+
+window.addEventListener('online', function() {
+  playSoundSuccess();
+  showToast('✅ عاد الاتصال بالإنترنت بنجاح! تم التحقق من مزامنة النظام.', 'success');
+});
