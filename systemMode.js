@@ -15,6 +15,11 @@ let healthCheckTimer = null;
 
 // قائمة بالمسارات الآمنة التي لا تعدل الحسابات ويُسمح بها في وضع القراءة فقط
 const SAFE_POST_ROUTES = [
+  '/api/public/orders',
+  '/api/store-config',
+  '/api/admin/store-config',
+  '/api/admin/store/custom-name',
+  '/api/admin/store/toggle-manual-show',
   '/api/telegram/test',
   '/api/brands-classification/check-conflict',
   '/api/inventory/send-report-telegram',
@@ -31,6 +36,7 @@ function isSafePostRoute(path) {
   if (/^\/api\/invoices\/[^/]+\/resend-telegram$/.test(path)) return true;
   if (/^\/api\/customers\/[^/]+\/(send-statement-telegram|send-reminder-telegram)$/.test(path)) return true;
   if (/^\/api\/receipts\/[^/]+\/send-pdf-telegram$/.test(path)) return true;
+  if (/^\/api\/admin\/orders\/[^/]+\/(approve|cancel)$/.test(path)) return true;
   return false;
 }
 

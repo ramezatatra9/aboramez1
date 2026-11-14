@@ -1,0 +1,672 @@
+{
+  "storeSettings": {
+    "heroTitle": "كل ما يحتاجه بيتك، في مكان واحد.",
+    "heroSubtitle": "معرض الأجهزة الكهربائية والمنزلية المعتمد • أفضل الموديلات والأسعار المكفولة مع إمكانية الطلب المباشر والتوصيل لكافة المناطق",
+    "heroBadge": "🌟 المعرض المعتمد 2026",
+    "announcementText": "🚚 توصيل سريع لكافة المناطق والدفع عند الاستلام • 🛡️ بضاعة أصلية ومكفولة بالكامل • 💬 خدمة عملاء مباشرة",
+    "announcementActive": true,
+    "phone": "0599000000",
+    "whatsapp": "0599000000",
+    "address": "جنين / يعبد - الشارع الرئيسي",
+    "workHours": "يومياً من 8:00 صباحاً حتى 9:00 مساءً",
+    "currency": "شيكل",
+    "showOnlyInStock": true
+  },
+  "categories": [
+    {
+      "id": "cat_1",
+      "name": "أخرى متنوعة",
+      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 2
+    },
+    {
+      "id": "cat_2",
+      "name": "مكانس كهربائية",
+      "image": "https://images.unsplash.com/photo-1558317374-067fb5f30001?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 3
+    },
+    {
+      "id": "cat_3",
+      "name": "غسالات",
+      "image": "https://images.unsplash.com/photo-1626806787461-102c1bfaaea1?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 4
+    },
+    {
+      "id": "cat_4",
+      "name": "ثلاجات",
+      "image": "https://images.unsplash.com/photo-1571175443880-49e1d25b2bc5?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 5
+    },
+    {
+      "id": "cat_5",
+      "name": "جلايات",
+      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 6
+    },
+    {
+      "id": "cat_6",
+      "name": "غازات وطباخات",
+      "image": "https://images.unsplash.com/photo-1588854337236-6889d631faa8?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 7
+    },
+    {
+      "id": "cat_7",
+      "name": "شاشات وتلفزيونات",
+      "image": "https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 8
+    },
+    {
+      "id": "cat_8",
+      "name": "مقالي وشوايات",
+      "image": "https://images.unsplash.com/photo-1556910103-1c02745aae4d?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 9
+    },
+    {
+      "id": "cat_9",
+      "name": "أفران وميكرويف",
+      "image": "https://images.unsplash.com/photo-1585659722983-3a675dabf23d?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 10
+    },
+    {
+      "id": "cat_10",
+      "name": "فريزرات",
+      "image": "https://images.unsplash.com/photo-1584992236310-6edddc08acff?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 11
+    },
+    {
+      "id": "cat_11",
+      "name": "مكيفات",
+      "image": "https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 12
+    },
+    {
+      "id": "cat_12",
+      "name": "فرامات",
+      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 13
+    },
+    {
+      "id": "cat_13",
+      "name": "ماكينات حلاقة",
+      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 14
+    },
+    {
+      "id": "cat_14",
+      "name": "إضاءة وأجهزة منزلية",
+      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 15
+    },
+    {
+      "id": "cat_15",
+      "name": "سشوارات",
+      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 16
+    },
+    {
+      "id": "cat_16",
+      "name": "غلايات",
+      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 17
+    },
+    {
+      "id": "cat_17",
+      "name": "بلندرات وخلاطات",
+      "image": "https://images.unsplash.com/photo-1570222094114-d054a817e56b?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 18
+    },
+    {
+      "id": "cat_18",
+      "name": "عصارات",
+      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 19
+    },
+    {
+      "id": "cat_19",
+      "name": "سماعات",
+      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 20
+    },
+    {
+      "id": "cat_20",
+      "name": "مكاوي",
+      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 21
+    },
+    {
+      "id": "cat_21",
+      "name": "عجانات",
+      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 22
+    },
+    {
+      "id": "cat_22",
+      "name": "مراوح",
+      "image": "https://images.unsplash.com/photo-1618941716939-553df3c6c278?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 23
+    },
+    {
+      "id": "cat_23",
+      "name": "ستريترات وتمليس",
+      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 24
+    },
+    {
+      "id": "cat_24",
+      "name": "توست وساندويش",
+      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 25
+    },
+    {
+      "id": "cat_25",
+      "name": "مستلزمات القهوة",
+      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 26
+    },
+    {
+      "id": "cat_26",
+      "name": "نشافات",
+      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 27
+    },
+    {
+      "id": "cat_27",
+      "name": "أواني وطناجر",
+      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 28
+    },
+    {
+      "id": "cat_28",
+      "name": "كولرات مياه",
+      "image": "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 29
+    },
+    {
+      "id": "cat_29",
+      "name": "إلكترونيات ومُلحقات",
+      "image": "https://images.unsplash.com/photo-1550009158-9ebf69173e03?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 30
+    },
+    {
+      "id": "cat_30",
+      "name": "صوبات وتدفئة",
+      "image": "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 31
+    },
+    {
+      "id": "cat_31",
+      "name": "شفاطات",
+      "image": "https://images.unsplash.com/photo-1556911220-e15b29be8c8f?w=600&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 32
+    }
+  ],
+  "brands": [
+    {
+      "id": "brand_1",
+      "name": "Universal",
+      "logo": "https://images.unsplash.com/photo-1571175443880-49e1d25b2bc5?w=400&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 2
+    },
+    {
+      "id": "brand_2",
+      "name": "LG",
+      "logo": "https://images.unsplash.com/photo-1550009158-9ebf69173e03?w=400&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 3
+    },
+    {
+      "id": "brand_3",
+      "name": "Haier",
+      "logo": "https://images.unsplash.com/photo-1626806787461-102c1bfaaea1?w=400&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 4
+    },
+    {
+      "id": "brand_4",
+      "name": "Sharp",
+      "logo": "https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?w=400&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 5
+    },
+    {
+      "id": "brand_5",
+      "name": "Beko",
+      "logo": "https://images.unsplash.com/photo-1588854337236-6889d631faa8?w=400&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 6
+    },
+    {
+      "id": "brand_6",
+      "name": "Atlantic",
+      "logo": "https://images.unsplash.com/photo-1584992236310-6edddc08acff?w=400&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 7
+    },
+    {
+      "id": "brand_7",
+      "name": "ADC",
+      "logo": "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=400&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 8
+    },
+    {
+      "id": "brand_8",
+      "name": "General Queen",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 9
+    },
+    {
+      "id": "brand_9",
+      "name": "Mega",
+      "logo": "https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=400&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 10
+    },
+    {
+      "id": "brand_10",
+      "name": "Dahua",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 11
+    },
+    {
+      "id": "brand_11",
+      "name": "KMG",
+      "logo": "https://images.unsplash.com/photo-1618941716939-553df3c6c278?w=400&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 12
+    },
+    {
+      "id": "brand_12",
+      "name": "Molar",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 13
+    },
+    {
+      "id": "brand_13",
+      "name": "Samsung",
+      "logo": "https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=400&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 14
+    },
+    {
+      "id": "brand_14",
+      "name": "Manger Home",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 15
+    },
+    {
+      "id": "brand_15",
+      "name": "General Lux",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 16
+    },
+    {
+      "id": "brand_16",
+      "name": "Prestige",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 17
+    },
+    {
+      "id": "brand_17",
+      "name": "Trust",
+      "logo": "https://images.unsplash.com/photo-1556910103-1c02745aae4d?w=400&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 18
+    },
+    {
+      "id": "brand_18",
+      "name": "TCL",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 19
+    },
+    {
+      "id": "brand_19",
+      "name": "Konica",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 20
+    },
+    {
+      "id": "brand_20",
+      "name": "Top Point",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 21
+    },
+    {
+      "id": "brand_21",
+      "name": "Candy",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 22
+    },
+    {
+      "id": "brand_22",
+      "name": "Tiger",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 23
+    },
+    {
+      "id": "brand_23",
+      "name": "Simfer",
+      "logo": "https://images.unsplash.com/photo-1556911220-e15b29be8c8f?w=400&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 24
+    },
+    {
+      "id": "brand_24",
+      "name": "Crest",
+      "logo": "https://images.unsplash.com/photo-1585659722983-3a675dabf23d?w=400&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 25
+    },
+    {
+      "id": "brand_25",
+      "name": "Philips",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 26
+    },
+    {
+      "id": "brand_26",
+      "name": "Zacash",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 27
+    },
+    {
+      "id": "brand_27",
+      "name": "Midea",
+      "logo": "https://images.unsplash.com/photo-1558317374-067fb5f30001?w=400&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 28
+    },
+    {
+      "id": "brand_28",
+      "name": "Tornado",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 29
+    },
+    {
+      "id": "brand_29",
+      "name": "Lawrence",
+      "logo": "https://images.unsplash.com/photo-1570222094114-d054a817e56b?w=400&auto=format&fit=crop&q=80",
+      "isVisible": true,
+      "sortOrder": 30
+    },
+    {
+      "id": "brand_30",
+      "name": "Bompani",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 31
+    },
+    {
+      "id": "brand_31",
+      "name": "Matrix",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 32
+    },
+    {
+      "id": "brand_32",
+      "name": "Vision",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 33
+    },
+    {
+      "id": "brand_33",
+      "name": "Hitachi",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 34
+    },
+    {
+      "id": "brand_34",
+      "name": "Tesla",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 35
+    },
+    {
+      "id": "brand_35",
+      "name": "Infinity",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 36
+    },
+    {
+      "id": "brand_36",
+      "name": "Fresh",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 37
+    },
+    {
+      "id": "brand_37",
+      "name": "Royal",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 38
+    },
+    {
+      "id": "brand_38",
+      "name": "Magic",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 39
+    },
+    {
+      "id": "brand_39",
+      "name": "RAF",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 40
+    },
+    {
+      "id": "brand_40",
+      "name": "Omega",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 41
+    },
+    {
+      "id": "brand_41",
+      "name": "Star",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 42
+    },
+    {
+      "id": "brand_42",
+      "name": "Pro Media",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 43
+    },
+    {
+      "id": "brand_43",
+      "name": "Falcon",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 44
+    },
+    {
+      "id": "brand_44",
+      "name": "Samex",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 45
+    },
+    {
+      "id": "brand_45",
+      "name": "iPlug",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 46
+    },
+    {
+      "id": "brand_46",
+      "name": "Hikvision",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 47
+    },
+    {
+      "id": "brand_47",
+      "name": "Tefal",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 48
+    },
+    {
+      "id": "brand_48",
+      "name": "Luxor",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 49
+    },
+    {
+      "id": "brand_49",
+      "name": "Aiwa",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 50
+    },
+    {
+      "id": "brand_50",
+      "name": "Jennar",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 51
+    },
+    {
+      "id": "brand_51",
+      "name": "Hoover",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 52
+    },
+    {
+      "id": "brand_52",
+      "name": "Moulinex",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 53
+    },
+    {
+      "id": "brand_53",
+      "name": "Skyworth",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 54
+    },
+    {
+      "id": "brand_54",
+      "name": "Ariston",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 55
+    },
+    {
+      "id": "brand_55",
+      "name": "Bosch",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 56
+    },
+    {
+      "id": "brand_56",
+      "name": "Shark",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 57
+    },
+    {
+      "id": "brand_57",
+      "name": "Luma Bella",
+      "logo": "",
+      "isVisible": true,
+      "sortOrder": 58
+    }
+  ],
+  "offers": [
+    {
+      "id": "offer_1",
+      "title": "عروض الأجهزة الكهربائية الكبرى",
+      "subtitle": "حسومات حصرية على تشكيلة الغسالات والثلاجات والغازات الأصلية",
+      "badge": "🔥 عرض خاص لفترة محدودة",
+      "image": "https://images.unsplash.com/photo-1588854337236-6889d631faa8?w=800&auto=format&fit=crop&q=80",
+      "discountText": "أسعار مخفضة ومكفولة",
+      "linkCategory": "غازات وطباخات",
+      "isVisible": true,
+      "sortOrder": 1
+    },
+    {
+      "id": "offer_2",
+      "title": "تجهيز البيت الجديد بالكامل",
+      "subtitle": "باقات متكاملة لتجهيز المنازل بأحدث الأجهزة مع كفالة شاملة وتوصيل مجاني",
+      "badge": "✨ باقات التوفير",
+      "image": "https://images.unsplash.com/photo-1571175443880-49e1d25b2bc5?w=800&auto=format&fit=crop&q=80",
+      "discountText": "عروض خاصة للعرسان",
+      "linkCategory": "ثلاجات",
+      "isVisible": true,
+      "sortOrder": 2
+    }
+  ],
+  "popupOffer": {
+    "enabled": true,
+    "title": "🎉 مرحباً بكم في المعرض والمتجر الرسمي!",
+    "subtitle": "تصفح أحدث الأجهزة المنزلية والكهربائية المتوفرة بالمستودع بأسعار معتمدة ومكفولة. اختر ما يناسبك واطلب مباشرة بسهولة وأمان.",
+    "badge": "عرض خاص وحصري",
+    "image": "https://images.unsplash.com/photo-1556911220-e15b29be8c8f?w=800&auto=format&fit=crop&q=80",
+    "buttonText": "تصفّح أقسام المعرض الآن",
+    "buttonLink": "#categoriesSection"
+  },
+  "customProductNames": {
+    "prod-i00001017": "طباخ أوتوماتيك فخم إصدار 2026"
+  },
+  "manuallyShownOutOfStock": []
+}
