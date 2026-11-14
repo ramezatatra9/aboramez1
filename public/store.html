@@ -1859,6 +1859,15 @@
       document.getElementById('copyCompany').textContent = name;
       document.title = `${name} | معرض ومتجر الأجهزة الكهربائية والمنزلية`;
 
+      // Company Logo
+      const logo = companySettings.logo || '';
+      const brandIconBox = document.querySelector('.brand-icon-box');
+      if (logo && brandIconBox) {
+        brandIconBox.innerHTML = '<img src="' + escapeHtml(logo) + '" alt="' + escapeHtml(name) + '" style="width:100%; height:100%; object-fit:contain; border-radius:10px;">';
+        brandIconBox.style.background = 'transparent';
+        brandIconBox.style.boxShadow = 'none';
+      }
+
       // Phone & WA
       const phone = companySettings.phone || '';
       const wa = companySettings.whatsapp || phone || '';

@@ -183,7 +183,8 @@ app.get('/api/public/store-data', (req, res) => {
         phone: (storeConfig.storeSettings && storeConfig.storeSettings.phone) || settings.companyPhone || '',
         whatsapp: (storeConfig.storeSettings && storeConfig.storeSettings.whatsapp) || settings.companyPhone || '',
         address: (storeConfig.storeSettings && storeConfig.storeSettings.address) || settings.companyAddress || '',
-        currency: (storeConfig.storeSettings && storeConfig.storeSettings.currency) || settings.currency || 'شيكل'
+        currency: (storeConfig.storeSettings && storeConfig.storeSettings.currency) || settings.currency || 'شيكل',
+        logo: (storeConfig.storeSettings && storeConfig.storeSettings.companyLogo) || settings.companyLogo || ''
       }
     });
   } catch (err) {
@@ -2861,6 +2862,41 @@ app.get(['/v/statement/:id', '/view/statement/:id', '/preview/statement/:id', '/
 });
 
 // 5. واجهة المتجر والمعرض العام للزبائن (Public Customer Storefront - Bloom Style)
+
+// ================================================================
+// إعادة التوجيه التلقائي للمسارات الإدارية القديمة إلى /admin/...
+// لمنع الوصول المباشر من النطاق العام وإلزام استخدام بادئة /admin/
+// ================================================================
+const ADMIN_LEGACY_REDIRECT_MAP = {
+  '/create-invoice': '/admin/create-invoice',
+  '/new-invoice': '/admin/create-invoice',
+  '/pos': '/admin/pos',
+  '/home': '/admin/home',
+  '/catalog': '/admin/home',
+  '/customers': '/admin/customers',
+  '/suppliers': '/admin/customers',
+  '/invoices': '/admin/invoices',
+  '/invoices-list': '/admin/invoices',
+  '/receipts': '/admin/receipts',
+  '/vouchers': '/admin/receipts',
+  '/inventory': '/admin/inventory',
+  '/stocktake': '/admin/inventory',
+  '/warranties': '/admin/warranties',
+  '/dashboard': '/admin/dashboard',
+  '/settings': '/admin/settings',
+  '/brands-audit': '/admin/brands-audit',
+  '/store-manager': '/admin/store'
+};
+
+app.use((req, res, next) => {
+  const cleanPath = req.path.toLowerCase().replace(/\/+$/, '');
+  const targetAdminRoute = ADMIN_LEGACY_REDIRECT_MAP[cleanPath];
+  if (targetAdminRoute) {
+    return res.redirect(302, targetAdminRoute);
+  }
+  next();
+});
+
 app.get(['/', '/store', '/shop'], (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'store.html'));
 });

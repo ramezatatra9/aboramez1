@@ -7,6 +7,16 @@ const DEFAULT_PRODUCT_IMG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
  */
 
 // دالة حماية النصوص وتنسيق HTML
+function escapeJsStr(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r');
+}
+
 function escapeHtml(str) {
   if (str === null || str === undefined) return '';
   return String(str)
@@ -1222,6 +1232,10 @@ async function initApp() {
     actuallySwitchTab('dashboard', false);
     await loadDashboard();
     Promise.allSettled([loadProducts(), loadInvoices(), loadReceipts(), loadCustomers()]).catch(() => {});
+  } else if (initialTab === 'store-manager') {
+    actuallySwitchTab('store-manager', false);
+    await loadAdminStoreManager();
+    Promise.allSettled([loadProducts(), loadInvoices(), loadReceipts(), loadCustomers()]).catch(() => {});
   } else {
     // الكتالوج أو المبيعات الافتراضية
     await loadProducts();
@@ -1514,6 +1528,18 @@ function applySettingsToUI() {
   const brandEl = document.getElementById('headerCompanyName');
   if (brandEl) brandEl.textContent = companyName;
 
+  const brandIconEl = document.getElementById('adminHeaderBrandIcon');
+  if (brandIconEl) {
+    if (state.settings.companyLogo) {
+      brandIconEl.innerHTML = '<img src="' + escapeHtml(state.settings.companyLogo) + '" alt="" style="max-height:36px; max-width:36px; object-fit:contain; border-radius:8px;">';
+    } else {
+      brandIconEl.textContent = '💼';
+    }
+  }
+
+  const logoInput = document.getElementById('cfgCompanyLogo');
+  if (logoInput) logoInput.value = state.settings.companyLogo || '';
+
   // شارة تيليجرام
   const tgBadge = document.getElementById('telegramHeaderBadge');
   const tgText = document.getElementById('telegramStatusText');
@@ -1561,6 +1587,8 @@ async function saveCompanySettings() {
   const telegramChatId = document.getElementById('cfgTelegramChatId').value.trim();
   const previewInput = document.getElementById('cfgPreviewBaseUrl');
   const previewBaseUrl = previewInput ? previewInput.value.trim() : '';
+  const logoInput = document.getElementById('cfgCompanyLogo');
+  const companyLogo = logoInput ? logoInput.value.trim() : '';
 
   try {
     const res = await fetch('/api/settings', {
@@ -1574,7 +1602,8 @@ async function saveCompanySettings() {
         invoiceFooterText,
         telegramBotToken,
         telegramChatId,
-        previewBaseUrl
+        previewBaseUrl,
+        companyLogo
       })
     });
     const data = await res.json();
@@ -10580,6 +10609,52 @@ function switchStoreSubtab(subId) {
     btn.style.borderColor = '#2563eb';
   }
 
+  // Ensure data is loaded
+  if (!_storeManagerConfig) {
+    loadAdminStoreManager().then(() => {
+      refreshStoreSubtabContent(subId);
+    });
+    return;
+  }
+
+  refreshStoreSubtabContent(subId);
+}
+
+function refreshStoreSubtabContent(subId) {
+  if (!_storeManagerConfig) return;
+  if (subId === 'categories') {
+    renderAdminCategories(_storeManagerConfig.categories || []);
+  } else if (subId === 'brands') {
+    renderAdminBrands(_storeManagerConfig.brands || []);
+  } else if (subId === 'offers') {
+    renderAdminOffers(_storeManagerConfig.offers || []);
+  } else if (subId === 'products') {
+    if (_storeManagerAllProducts.length === 0) {
+      loadStoreProductsForTable();
+    } else {
+      searchStoreProductsTable();
+    }
+  } else if (subId === 'settings') {
+    populateStoreSettingsForm(_storeManagerConfig);
+  }
+}
+function _old_switchStoreSubtab(subId) {
+  document.querySelectorAll('.store-pane').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('.store-subtab-btn').forEach(b => {
+    b.style.background = '#ffffff';
+    b.style.color = '#334155';
+    b.style.borderColor = '#cbd5e1';
+  });
+
+  const pane = document.getElementById('storePane-' + subId);
+  const btn = document.getElementById('subBtn' + subId.charAt(0).toUpperCase() + subId.slice(1));
+  if (pane) pane.style.display = 'block';
+  if (btn) {
+    btn.style.background = '#2563eb';
+    btn.style.color = '#ffffff';
+    btn.style.borderColor = '#2563eb';
+  }
+
   if (subId === 'products' && _storeManagerAllProducts.length === 0) {
     loadStoreProductsForTable();
   }
@@ -11175,6 +11250,7 @@ function populateStoreSettingsForm(config) {
   const p = config.popupOffer || {};
 
   // Settings
+  if (document.getElementById('adminStoreLogo')) document.getElementById('adminStoreLogo').value = s.companyLogo || '';
   if (document.getElementById('adminHeroTitle')) document.getElementById('adminHeroTitle').value = s.heroTitle || '';
   if (document.getElementById('adminHeroSubtitle')) document.getElementById('adminHeroSubtitle').value = s.heroSubtitle || '';
   if (document.getElementById('adminHeroBadge')) document.getElementById('adminHeroBadge').value = s.heroBadge || '';
@@ -11198,6 +11274,7 @@ async function saveAdminGeneralStoreSettings() {
   if (!_storeManagerConfig) _storeManagerConfig = {};
   if (!_storeManagerConfig.storeSettings) _storeManagerConfig.storeSettings = {};
 
+  _storeManagerConfig.storeSettings.companyLogo = (document.getElementById('adminStoreLogo')?.value || '').trim();
   _storeManagerConfig.storeSettings.heroTitle = (document.getElementById('adminHeroTitle').value || '').trim();
   _storeManagerConfig.storeSettings.heroSubtitle = (document.getElementById('adminHeroSubtitle').value || '').trim();
   _storeManagerConfig.storeSettings.heroBadge = (document.getElementById('adminHeroBadge').value || '').trim();
@@ -11257,3 +11334,28 @@ async function uploadStoreImage(inputEl, targetFieldId) {
     showToast('خطأ أثناء رفع الصورة: ' + err.message, 'error');
   }
 }
+
+
+// Expose all Store Manager functions globally to window
+window.switchStoreSubtab = switchStoreSubtab;
+window.loadAdminStoreManager = loadAdminStoreManager;
+window.filterAdminOrdersTable = filterAdminOrdersTable;
+window.viewAdminOrderDetails = viewAdminOrderDetails;
+window.closeAdminOrderModal = closeAdminOrderModal;
+window.approveAdminOrder = approveAdminOrder;
+window.cancelAdminOrder = cancelAdminOrder;
+window.editCategoryImage = editCategoryImage;
+window.toggleCategoryVisibility = toggleCategoryVisibility;
+window.openAddCategoryModal = openAddCategoryModal;
+window.editBrandLogo = editBrandLogo;
+window.toggleBrandVisibility = toggleBrandVisibility;
+window.openAddBrandModal = openAddBrandModal;
+window.openAddOfferModal = openAddOfferModal;
+window.deleteAdminOffer = deleteAdminOffer;
+window.saveAdminPopupSettings = saveAdminPopupSettings;
+window.searchStoreProductsTable = searchStoreProductsTable;
+window.saveProductCustomName = saveProductCustomName;
+window.toggleProductManualShow = toggleProductManualShow;
+window.saveAdminGeneralStoreSettings = saveAdminGeneralStoreSettings;
+window.uploadStoreImage = uploadStoreImage;
+window.escapeJsStr = escapeJsStr;
