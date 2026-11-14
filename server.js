@@ -2446,6 +2446,158 @@ function startAutoBackupSchedule() {
 // يتيح فتح روابط الأقسام مباشرة والتنقل السلس مثل:
 // /home, /customers, /settings, /invoices, /pos, /receipts ...
 // ================================================================
+// ================================================================
+// دعم المعاينة الذكية للروابط على واتساب وشبكات التواصل (OpenGraph Meta)
+// وتقديم واجهات مخصصة للزبائن عند فتح روابط الأصناف والفواتير
+// ================================================================
+const INDEX_HTML_PATH = path.join(__dirname, 'public', 'index.html');
+
+function escapeMetaText(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function serveWithMeta(req, res, meta) {
+  fs.readFile(INDEX_HTML_PATH, 'utf-8', (err, html) => {
+    if (err) return res.status(500).send('Server Error');
+    
+    const settings = dataStore.getSettings() || {};
+    const companyName = settings.companyName || 'رامز عطاطرة';
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+    const host = req.headers['x-forwarded-host'] || req.get('host') || 'aboramez1.onrender.com';
+    const baseUrl = `${protocol}://${host}`;
+    const fullUrl = `${baseUrl}${req.originalUrl}`;
+
+    const title = meta.title || `${companyName} - نظام المبيعات والفواتير`;
+    const desc = meta.description || 'معاينة رسمية معتمدة من شركة رامز عطاطرة';
+    let image = meta.image || `${baseUrl}/icons/icon-512x512.png`;
+    if (image && image.startsWith('/')) image = `${baseUrl}${image}`;
+
+    // استبدال وسوم العنوان والوصف والصورة الديناميكية
+    html = html.replace(/<title>[\s\S]*?<\/title>/, `<title>${escapeMetaText(title)}</title>`);
+    html = html.replace(/<meta name="description" content="[\s\S]*?">/, `<meta name="description" content="${escapeMetaText(desc)}">`);
+    
+    const dynamicOg = `
+  <!-- Dynamic OpenGraph Meta for WhatsApp & Social Preview -->
+  <title>${escapeMetaText(title)}</title>
+  <meta name="description" content="${escapeMetaText(desc)}">
+  <meta property="og:title" content="${escapeMetaText(title)}">
+  <meta property="og:description" content="${escapeMetaText(desc)}">
+  <meta property="og:image" content="${escapeMetaText(image)}">
+  <meta property="og:image:secure_url" content="${escapeMetaText(image)}">
+  <meta property="og:image:type" content="image/jpeg">
+  <meta property="og:image:width" content="600">
+  <meta property="og:image:height" content="600">
+  <meta property="og:url" content="${escapeMetaText(fullUrl)}">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="${escapeMetaText(companyName)}">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="${escapeMetaText(title)}">
+  <meta name="twitter:description" content="${escapeMetaText(desc)}">
+  <meta name="twitter:image" content="${escapeMetaText(image)}">`;
+
+    if (html.includes('<meta property="og:title"')) {
+      html = html.replace(/<meta property="og:title"[\s\S]*?<link rel="preconnect"/, dynamicOg + '\n  <link rel="preconnect"');
+    } else {
+      html = html.replace('</head>', dynamicOg + '\n</head>');
+    }
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  });
+}
+
+// مسارات الأصناف المباشرة مع توليد صورة الصنف وعنوانه وسعره لواتساب
+app.get(['/product/:id', '/products/:id', '/p/:id'], (req, res) => {
+  const id = req.params.id;
+  const prods = dataStore.getProducts();
+  const p = prods.find(x => 
+    String(x.id).toLowerCase() === String(id).toLowerCase() ||
+    String(x.code || '').toLowerCase() === String(id).toLowerCase() ||
+    String(x.barcode || '').toLowerCase() === String(id).toLowerCase()
+  );
+  const settings = dataStore.getSettings() || {};
+  const cur = settings.currency || 'شيكل';
+  const company = settings.companyName || 'رامز عطاطرة';
+
+  if (p) {
+    const img = p.image || (Array.isArray(p.images) && p.images[0]) || '';
+    const priceText = p.sellPrice ? `${p.sellPrice} ${cur}` : 'سعر خاص';
+    serveWithMeta(req, res, {
+      title: `🛍️ ${p.name} | ${priceText}`,
+      description: `الماركة: ${p.brand || 'عام'} | كود الصنف: [${p.code || '--'}] | ${p.stock > 0 ? 'متوفر بالمستودع ✅' : 'يرجى مراجعة التوفر'} — شركة ${company}`,
+      image: img
+    });
+  } else {
+    serveWithMeta(req, res, {
+      title: `صنف تجاري - ${company}`,
+      description: `عرض وتفاصيل أصناف ومنتجات شركة ${company}`
+    });
+  }
+});
+
+// مسارات الفواتير المباشرة
+app.get(['/invoice/:id', '/invoices/:id'], (req, res, next) => {
+  const id = req.params.id;
+  if (!id || id === 'new') return next();
+  const invoices = dataStore.getInvoices();
+  const inv = invoices.find(x => 
+    String(x.id).toLowerCase() === String(id).toLowerCase() ||
+    String(x.invoiceNumber).toLowerCase() === String(id).toLowerCase() ||
+    String(x.shamelNo || '').toLowerCase() === String(id).toLowerCase()
+  );
+  const settings = dataStore.getSettings() || {};
+  const cur = settings.currency || 'شيكل';
+  const company = settings.companyName || 'رامز عطاطرة';
+
+  if (inv) {
+    const total = inv.totalAmount || inv.summary?.totalAmount || 0;
+    serveWithMeta(req, res, {
+      title: `🧾 فاتورة مبيعات رقم #${inv.invoiceNumber || inv.id} - ${company}`,
+      description: `الزبون: ${inv.customerName || inv.partyName || 'نقداً'} | إجمالي الفاتورة: ${total} ${cur} | طريقة الدفع: ${inv.paymentMethod === 'cash' ? 'كاش نقدي' : 'شيك / ذمم'}`
+    });
+  } else {
+    serveWithMeta(req, res, {
+      title: `فاتورة مبيعات معتمدة - ${company}`,
+      description: `معاينة فاتورة مبيعات رسمية صاردة من شركة ${company}`
+    });
+  }
+});
+
+// مسارات كشوفات الحساب المباشرة
+app.get(['/customer/:id', '/customers/:id', '/statement/:id'], (req, res, next) => {
+  const id = req.params.id;
+  if (!id) return next();
+  const customers = dataStore.getCustomers();
+  const c = customers.find(x => 
+    String(x.id).toLowerCase() === String(id).toLowerCase() ||
+    String(x.systemNumber || '').toLowerCase() === String(id).toLowerCase() ||
+    String(x.shamelCode || '').toLowerCase() === String(id).toLowerCase()
+  );
+  const settings = dataStore.getSettings() || {};
+  const cur = settings.currency || 'شيكل';
+  const company = settings.companyName || 'رامز عطاطرة';
+
+  if (c) {
+    const bal = parseFloat(c.balance) || 0;
+    const balText = bal > 0 ? `دين مستحق: ${bal} ${cur}` : (bal < 0 ? `رصيد لصالحه: ${Math.abs(bal)} ${cur}` : `رصيد خالص`);
+    serveWithMeta(req, res, {
+      title: `📄 كشف حساب معتمد - ${c.name} - ${company}`,
+      description: `كشف حساب مالي تفصيلي للسيد/ة: ${c.name} | الرصيد الحالي: ${balText}`
+    });
+  } else {
+    serveWithMeta(req, res, {
+      title: `كشف حساب تفصيلي - ${company}`,
+      description: `كشف حساب مالي معتمد صادر من شركة ${company}`
+    });
+  }
+});
+
 const FRONTEND_ROUTES = [
   '/',
   '/home',

@@ -29,8 +29,73 @@
   <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
   <link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
   <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192x192.png">
+
+<style id="publicViewModeStyles">
+  /* وضع المعاينة العامة النظيفة للزبائن والروابط المشتركة */
+  body.public-view-mode .app-header,
+  body.public-view-mode .mobile-bottom-nav,
+  body.public-view-mode #floatingCartBar,
+  body.public-view-mode #inventoryFloatingBar,
+  body.public-view-mode .tab-content,
+  body.public-view-mode #pinLockScreen {
+    display: none !important;
+  }
+  body.public-view-mode #publicShowcaseHeader {
+    display: flex !important;
+  }
+  body.public-view-mode {
+    background: #f8fafc !important;
+  }
+  body.public-view-mode .app-container {
+    padding-top: 1.5rem !important;
+    max-width: 900px !important;
+  }
+  body.public-view-mode .modal-backdrop {
+    background: transparent !important;
+    position: static !important;
+    display: flex !important;
+    padding: 0 !important;
+    z-index: auto !important;
+  }
+  body.public-view-mode .pds-showcase-box,
+  body.public-view-mode .modal-card {
+    max-width: 820px !important;
+    width: 100% !important;
+    margin: 0 auto 2rem !important;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.08) !important;
+    border: 1.5px solid #cbd5e1 !important;
+    animation: none !important;
+  }
+  body.public-view-mode .pds-cost-field {
+    display: none !important; /* إخفاء التكلفة والربح تماماً في وضع المعاينة العامة */
+  }
+  body.public-view-mode #btnCopyInternal {
+    display: none !important; /* إخفاء نسخة الإدارة في وضع الزبون */
+  }
+</style>
+
 </head>
 <body>
+  <!-- Public Showcase Header (يظهر فقط عند فتح رابط معاينة عام للزبائن) -->
+  <header id="publicShowcaseHeader" style="display: none; background: #0f172a; color: #fff; padding: 0.85rem 1.25rem; align-items: center; justify-content: space-between; border-bottom: 2.5px solid #2563eb; position: sticky; top: 0; z-index: 100000; direction: rtl;">
+    <div style="display: flex; align-items: center; gap: 0.75rem;">
+      <span style="font-size: 1.6rem;">💼</span>
+      <div>
+        <div style="font-weight: 800; font-size: 1.15rem;" id="pubHeaderCompanyName">رامز عطاطرة</div>
+        <div style="font-size: 0.75rem; color: #94a3b8;">معاينة رسمية معتمدة من الشركة</div>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 0.6rem;">
+      <a id="pubHeaderWhatsAppBtn" href="https://wa.me/" target="_blank" style="background: #25D366; color: #fff; font-size: 0.82rem; font-weight: 700; padding: 6px 14px; border-radius: 6px; text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem;">
+        <span>📱</span>
+        <span>تواصل عبر واتساب</span>
+      </a>
+      <button type="button" onclick="exitPublicViewMode()" style="background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.25); color: #e2e8f0; font-size: 0.78rem; font-weight: 700; padding: 6px 12px; border-radius: 6px; cursor: pointer;">
+        🔒 دخول الإدارة
+      </button>
+    </div>
+  </header>
+
 
   <!-- Top App Header -->
   <header class="app-header">
@@ -3960,7 +4025,7 @@
   <script src="js/html2pdf.bundle.min.js?v=8.4.1"></script>
   <script src="js/warranties.js"></script>
   <script src="js/brandsAudit.js"></script>
-  <script src="js/app.js?v=8.9.0"></script>
+  <script src="js/app.js?v=9.0.0"></script>
   <script src="js/pwa.js?v=8.4.1"></script>
   <!-- مكتبة مسح الباركود المحلية السريعة -->
   <script src="js/html5-qrcode.min.js?v=3.5.0"></script>

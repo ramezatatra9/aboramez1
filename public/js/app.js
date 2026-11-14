@@ -1164,6 +1164,7 @@ async function initApp() {
   // تحميل بيانات الواجهة المطلوبة أولاً وبأسرع وقت بحسب الصفحة
   // معالجة فتح صنف مباشر عبر الرابط: /product/:id أو /products/:id
   if (initialSection === 'product' || initialSection === 'products') {
+    enterPublicViewMode();
     actuallySwitchTab('catalog', false);
     await loadProducts();
     updateCatalogViewModeUI();
@@ -1182,6 +1183,7 @@ async function initApp() {
     }
     Promise.allSettled([loadInvoices(), loadReceipts(), loadCustomers(), loadDashboard()]).catch(() => {});
   } else if (initialTab === 'customers') {
+    if (initialEntityId) enterPublicViewMode();
     actuallySwitchTab('customers', false);
     await loadCustomers();
     renderCustomerTab();
@@ -1190,6 +1192,7 @@ async function initApp() {
     }
     Promise.allSettled([loadProducts(), loadInvoices(), loadReceipts(), loadDashboard()]).catch(() => {});
   } else if (initialTab === 'invoices-list') {
+    if (initialEntityId) enterPublicViewMode();
     actuallySwitchTab('invoices-list', false);
     await loadInvoices();
     if (initialEntityId) {
@@ -10464,3 +10467,27 @@ window.addEventListener('online', function() {
   playSoundSuccess();
   showToast('✅ عاد الاتصال بالإنترنت بنجاح! تم التحقق من مزامنة النظام.', 'success');
 });
+
+
+// =============================================================
+// إدارة وضع المعاينة العامة للزبائن (Public Showcase Mode)
+// =============================================================
+function enterPublicViewMode() {
+  document.body.classList.add('public-view-mode');
+  const compName = (state.settings && state.settings.companyName) || 'رامز عطاطرة';
+  const headerTitle = document.getElementById('pubHeaderCompanyName');
+  if (headerTitle) headerTitle.textContent = compName;
+
+  const phone = ((state.settings && state.settings.companyPhone) || '').replace(/[^\d+]/g, '');
+  const cleanPhone = phone.startsWith('0') ? '970' + phone.slice(1) : phone;
+  const waBtn = document.getElementById('pubHeaderWhatsAppBtn');
+  if (waBtn) {
+    waBtn.href = cleanPhone ? `https://wa.me/${cleanPhone}` : 'https://wa.me/';
+  }
+}
+
+function exitPublicViewMode() {
+  document.body.classList.remove('public-view-mode');
+  showToast('مرحباً بك مجدداً في نظام الإدارة والمبيعات 👑', 'info');
+  switchTab('catalog');
+}
