@@ -148,8 +148,8 @@ function applyUserRole(user) {
     }));
   } catch (e) {}
 
-  // تحديث كلاسات الـ body للتحكم بالصلاحيات
-  document.body.classList.remove('auth-locked', 'role-admin', 'role-cashier');
+  // تحديث كلاسات الـ body للتحكم بالصلاحيات (لا نزيل auth-locked هنا - تُزال بعد إخفاء شاشة القفل)
+  document.body.classList.remove('role-admin', 'role-cashier');
   document.body.classList.add(`role-${user.role}`);
 
   // تحديث شارة الهيدر
@@ -179,16 +179,21 @@ function applyUserRole(user) {
   // تحديث ظهور الأقسام في القوائم
   updateRoleRestrictedNavigation(user.role);
 
-  // إخفاء شاشة القفل
+  // إخفاء شاشة القفل بشكل سلس
   const screen = document.getElementById('pinLockScreen');
   if (screen) {
+    // أولاً: أزل auth-locked حتى يظهر المحتوى خلف الشاشة الشفافة
+    document.body.classList.remove('auth-locked');
+    document.body.style.overflow = '';
+    // ثانياً: fade out سلس
+    screen.style.transition = 'opacity 0.28s cubic-bezier(0.16, 1, 0.3, 1)';
     screen.style.opacity = '0';
+    screen.style.pointerEvents = 'none'; // لا تعترض على النقرات خلف الشاشة
     setTimeout(() => {
       screen.style.display = 'none';
       screen.style.opacity = '1';
-      document.body.style.overflow = '';
-      document.body.classList.remove('auth-locked');
-    }, 280);
+      screen.style.pointerEvents = '';
+    }, 300);
   }
 }
 
