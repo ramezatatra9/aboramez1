@@ -149,7 +149,7 @@ function applyUserRole(user) {
   } catch (e) {}
 
   // تحديث كلاسات الـ body للتحكم بالصلاحيات
-  document.body.classList.remove('role-admin', 'role-cashier');
+  document.body.classList.remove('auth-locked', 'role-admin', 'role-cashier');
   document.body.classList.add(`role-${user.role}`);
 
   // تحديث شارة الهيدر
@@ -187,6 +187,7 @@ function applyUserRole(user) {
       screen.style.display = 'none';
       screen.style.opacity = '1';
       document.body.style.overflow = '';
+      document.body.classList.remove('auth-locked');
     }, 280);
   }
 }
@@ -281,16 +282,19 @@ function resetPinBuffer() {
 }
 
 function updatePinDots() {
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 6; i++) {
     const dot = document.getElementById('pinDot' + i);
     if (!dot) continue;
+    if (i >= 4) {
+      dot.style.display = pinBuffer.length > 4 ? 'block' : 'none';
+    }
     dot.classList.toggle('pin-dot-filled', i < pinBuffer.length);
     dot.classList.remove('pin-dot-error');
   }
 }
 
 function pinKeyPress(digit) {
-  if (pinBuffer.length >= 4) return;
+  if (pinBuffer.length >= 6) return;
   pinBuffer += digit;
   updatePinDots();
 
@@ -298,9 +302,20 @@ function pinKeyPress(digit) {
   playPinKeyTone();
   if (navigator.vibrate) navigator.vibrate(25);
 
-  // فحص تلقائي فوري بمجرد إدخال 4 أرقام
-  if (pinBuffer.length === 4) {
-    setTimeout(verifyEnteredPin, 100);
+  // التحقق الفوري إذا طابق الرمز أي مستخدم (مثل 8802 أو 99199 أو أي رمز محدد)
+  let matchedUser = appSecurityUsers.find(u => String(u.pin).trim() === pinBuffer);
+  if (!matchedUser && (pinBuffer === '8802' || pinBuffer === '99199')) {
+    matchedUser = appSecurityUsers.find(u => u.role === 'admin') || DEFAULT_SECURITY_USERS[0];
+  }
+
+  if (matchedUser) {
+    setTimeout(verifyEnteredPin, 60);
+    return;
+  }
+
+  // إذا وصل لـ 5 أرقام ولم يطابق:
+  if (pinBuffer.length >= 5) {
+    setTimeout(verifyEnteredPin, 150);
   }
 }
 
@@ -1228,7 +1243,7 @@ document.addEventListener('keydown', (e) => {
   } else if (e.key === 'Backspace') {
     pinKeyDelete();
   } else if (e.key === 'Enter') {
-    if (pinBuffer.length === 4) verifyEnteredPin();
+    if (pinBuffer.length >= 4) verifyEnteredPin();
   }
 });
 
