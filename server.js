@@ -2671,32 +2671,12 @@ app.get(['/', '/store', '/shop'], (req, res) => {
 });
 
 // 6. واجهة نظام الإدارة والكاشير الداخلي المحمي (Protected Admin System)
-const ADMIN_FRONTEND_ROUTES = [
-  '/admin',
-  '/admin/*',
-  '/home',
-  '/pos',
-  '/catalog',
-  '/products',
-  '/customers',
-  '/suppliers',
-  '/invoices',
-  '/invoices-list',
-  '/receipts',
-  '/vouchers',
-  '/create-invoice',
-  '/new-invoice',
-  '/inventory',
-  '/warranties',
-  '/dashboard',
-  '/settings',
-  '/brands-audit'
-];
-
-ADMIN_FRONTEND_ROUTES.forEach(route => {
-  app.get(route, (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-  });
+// مسارات نظام الأدمن - كل شيء تحت /admin
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+app.get('/admin/*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // مسار شامل لأي مسار فرعي لصفحات النظام (SPA Fallback) دون التأثير على /api أو /uploads أو الملفات

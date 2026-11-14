@@ -30,28 +30,42 @@ async function run() {
 
   console.log('Testing Live Server endpoints...');
 
-  // 1. Regular preview on main domain
-  const res1 = await request('/home');
+  // 1. Root / → store.html (public storefront)
+  const res0 = await request('/');
+  if (res0.status !== 200 || !res0.body.includes('متجر') || res0.body.includes('app.js')) {
+    throw new Error('Root / did not show public storefront: status=' + res0.status);
+  }
+  console.log('✅ Root / shows public storefront (store.html).');
+
+  // 2. Admin home at /admin or /admin/home → index.html (admin SPA)
+  const res1 = await request('/admin');
   if (res1.status !== 200 || !res1.body.includes('نظام المبيعات والفواتير')) {
-    throw new Error('Admin home failed on main domain: ' + res1.status);
+    throw new Error('Admin home at /admin failed: ' + res1.status);
   }
-  console.log('✅ Admin home works on main domain.');
+  console.log('✅ Admin home works at /admin.');
 
-  // 2. Block on preview domain
-  const res2 = await request('/pos', { host: 'aboramez-preview.onrender.com' });
+  // 3. Old /home route → store.html (NOT index.html — admin routes moved to /admin/*)
+  const res1b = await request('/home');
+  if (res1b.status !== 200 || res1b.body.includes('نظام المبيعات والفواتير')) {
+    throw new Error('/home should NOT serve admin anymore but got admin SPA');
+  }
+  console.log('✅ /home now correctly shows public store (not admin SPA).');
+
+  // 4. Block on preview domain
+  const res2 = await request('/admin/pos', { host: 'aboramez-preview.onrender.com' });
   if (res2.status !== 403 || !res2.body.includes('بوابة المعاينة الرسمية للزبائن')) {
-    throw new Error('Preview domain did not block /pos: ' + res2.status);
+    throw new Error('Preview domain did not block /admin/pos: ' + res2.status);
   }
-  console.log('✅ Preview domain successfully BLOCKS admin routes (/pos).');
+  console.log('✅ Preview domain successfully BLOCKS admin routes (/admin/pos).');
 
-  // 3. Public catalog on preview domain root
+  // 5. Public storefront on preview domain root
   const res3 = await request('/', { host: 'aboramez-preview.onrender.com' });
-  if (res3.status !== 200 || !res3.body.includes('معرض الأصناف والمنتجات')) {
-    throw new Error('Preview domain did not show public catalog on root: ' + res3.status);
+  if (res3.status !== 200 || res3.body.includes('نظام المبيعات والفواتير')) {
+    throw new Error('Preview domain should NOT show admin SPA on root: ' + res3.status);
   }
-  console.log('✅ Preview domain successfully shows public catalog on root (/).');
+  console.log('✅ Preview domain shows public storefront on root (/) - no admin data exposed.');
 
-  // 4. Test a product preview
+  // 6. Test a product preview
   const dataStore = require('../dataStore');
   const prods = dataStore.getProducts();
   if (prods.length > 0) {
@@ -62,6 +76,18 @@ async function run() {
     }
     console.log('✅ Standalone product preview served cleanly with 0 admin leaks: ' + testProd.name);
   }
+
+  // 7. /api/public/store-data returns safe data
+  const resApi = await request('/api/public/store-data');
+  if (resApi.status !== 200) {
+    throw new Error('/api/public/store-data returned: ' + resApi.status);
+  }
+  const apiData = JSON.parse(resApi.body);
+  if (!apiData.success) throw new Error('/api/public/store-data: success=false');
+  // Check no leaked fields
+  const leaked = (apiData.products || []).some(p => p.costPrice || p.supplierName || p.supplierId);
+  if (leaked) throw new Error('/api/public/store-data leaks confidential data!');
+  console.log('✅ /api/public/store-data returns safe data (' + (apiData.products || []).length + ' products, 0 leaks).');
 
   console.log('🎉 ALL LIVE INTEGRATION TESTS PASSED!');
   process.exit(0);

@@ -1155,7 +1155,10 @@ async function initApp() {
   updateFloatingCartUI();
 
   // قراءة المسار المباشر من المتصفح (SPA Router) لفتح الصفحة المطلوبة فوراً
-  const initialPath = window.location.pathname.replace(/^\/+/, '').split('/')[0].toLowerCase();
+  // دعم /admin/xxx أو /xxx (للتوافق مع الإصدارات القديمة)
+  const pathParts = window.location.pathname.replace(/^\/+/, '').split('/');
+  const isAdminPath = pathParts[0].toLowerCase() === 'admin';
+  const initialPath = (isAdminPath ? (pathParts[1] || '') : pathParts[0]).toLowerCase();
   const initialTab = ROUTE_MAP[initialPath] || 'catalog';
 
   // تحميل الإعدادات أولاً لتحديد العملة واسم الشركة
@@ -1226,7 +1229,7 @@ async function initApp() {
     if (initialTab && initialTab !== 'catalog') {
       actuallySwitchTab(initialTab, false);
     } else {
-      const cleanPath = window.location.pathname === '/' ? '/' : '/home';
+      const cleanPath = window.location.pathname === '/' ? '/admin/home' : (window.location.pathname.startsWith('/admin') ? window.location.pathname : '/admin/home');
       window.history.replaceState({ tabId: 'catalog', page: cleanPath }, PAGE_TITLES['catalog'], cleanPath);
       document.title = PAGE_TITLES['catalog'];
     }
@@ -1261,17 +1264,17 @@ const ROUTE_MAP = {
 };
 
 const TAB_TO_ROUTE = {
-  'catalog': '/home',
-  'pos': '/pos',
-  'customers': '/customers',
-  'invoices-list': '/invoices',
-  'create-invoice': '/create-invoice',
-  'receipts': '/receipts',
-  'inventory': '/inventory',
-  'warranties': '/warranties',
-  'dashboard': '/dashboard',
-  'settings': '/settings',
-  'brands-audit': '/brands-audit'
+  'catalog': '/admin/home',
+  'pos': '/admin/pos',
+  'customers': '/admin/customers',
+  'invoices-list': '/admin/invoices',
+  'create-invoice': '/admin/create-invoice',
+  'receipts': '/admin/receipts',
+  'inventory': '/admin/inventory',
+  'warranties': '/admin/warranties',
+  'dashboard': '/admin/dashboard',
+  'settings': '/admin/settings',
+  'brands-audit': '/admin/brands-audit'
 };
 
 const PAGE_TITLES = {
