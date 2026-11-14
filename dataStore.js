@@ -1459,8 +1459,8 @@ const dataStore = {
   // كشف حساب تفصيلي للزبون أو المورد يجمع الفواتير وسندات القبض وحركة الرصيد
   getCustomerStatement(id, options) {
     options = options || {};
-    const fromDate = options.fromDate ? new Date(options.fromDate) : null;
-    const toDate = options.toDate ? new Date(options.toDate + 'T23:59:59') : null;
+    const fromDateStr = options.fromDate ? String(options.fromDate).substring(0, 10) : null;
+    const toDateStr = options.toDate ? String(options.toDate).substring(0, 10) : null;
     const sortOrder = options.sortOrder || 'desc';
     const filterType = options.filterType || 'all';
     const customers = this.getCustomers();
@@ -1649,11 +1649,29 @@ const dataStore = {
       m.balanceAfter = Math.round(running * 100) / 100;
     });
 
-    // تطبيق فلتر الفترة الزمنية (بعد احتساب الرصيد حتى لا يتأثر)
+    // دالة استخراج التاريخ YYYY-MM-DD بدقة ومناعة ضد فروق المناطق الزمنية
+    const toDateYmd = (val) => {
+      if (!val) return '';
+      if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}/.test(val)) {
+        return val.substring(0, 10);
+      }
+      try {
+        const d = new Date(val);
+        if (isNaN(d.getTime())) return '';
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      } catch (_) {
+        return '';
+      }
+    };
+
+    // تطبيق فلتر الفترة الزمنية بدقة تامة (بعد احتساب الرصيد التراكمي حتى لا يتأثر)
     let filteredMovements = movements.filter(m => {
-      const mDate = new Date(m.date);
-      if (fromDate && mDate < fromDate) return false;
-      if (toDate && mDate > toDate) return false;
+      const mDateStr = toDateYmd(m.date);
+      if (fromDateStr && mDateStr && mDateStr < fromDateStr) return false;
+      if (toDateStr && mDateStr && mDateStr > toDateStr) return false;
       return true;
     });
 
@@ -1703,14 +1721,38 @@ const dataStore = {
       lastInvoiceAmount: lastInvoice ? lastInvoice.amount : 0
     };
 
+    // إحصائيات خاصة بالفترة المفلترة المحددة
+    const periodDebit = filteredMovements.reduce((s, m) => s + (m.debit || 0), 0);
+    const periodCredit = filteredMovements.reduce((s, m) => s + (m.credit || 0), 0);
+    const periodSales = filteredMovements.filter(m => m.type === 'sales_invoice').reduce((s, m) => s + m.amount, 0);
+    const periodPaid = filteredMovements.filter(m => m.type === 'receipt').reduce((s, m) => s + m.amount, 0);
+    const periodPayments = filteredMovements.filter(m => m.type === 'payment').reduce((s, m) => s + m.amount, 0);
+    const periodReturns = filteredMovements.filter(m => m.type.includes('return')).reduce((s, m) => s + m.amount, 0);
+    const periodInvoicesCount = filteredMovements.filter(m => m.type.includes('invoice') || m.type.includes('return')).length;
+    const periodVouchersCount = filteredMovements.filter(m => m.type === 'receipt' || m.type === 'payment').length;
+
+    const periodSummary = {
+      periodDebit: Math.round(periodDebit * 100) / 100,
+      periodCredit: Math.round(periodCredit * 100) / 100,
+      periodNetChange: Math.round((periodDebit - periodCredit) * 100) / 100,
+      periodSales: Math.round(periodSales * 100) / 100,
+      periodPaid: Math.round(periodPaid * 100) / 100,
+      periodPayments: Math.round(periodPayments * 100) / 100,
+      periodReturns: Math.round(periodReturns * 100) / 100,
+      periodInvoicesCount,
+      periodVouchersCount,
+      totalMovements: filteredMovements.length
+    };
+
     return {
       customer,
       balance,
       summary,
+      periodSummary,
       movements: filteredMovements,
       allMovementsCount: movements.length,
       filteredCount: filteredMovements.length,
-      appliedFilters: { fromDate: options.fromDate || null, toDate: options.toDate || null, sortOrder, filterType },
+      appliedFilters: { fromDate: fromDateStr, toDate: toDateStr, sortOrder, filterType },
       transactions: filteredMovements,
       invoices: custInvoices,
       receipts: custReceipts
@@ -3079,24 +3121,31 @@ const dataStore = {
       writeJson(SYNC_INVOICES_META_FILE, invMeta);
 
       if (supabase) {
-        try {
-          await supabase.from('settings').upsert({ id: 'sync_invoices_meta', data: invMeta });
-          const sbInvoices = updatedInvoices.slice(-300).map(inv => ({
-            id: String(inv.id),
-            invoiceNumber: String(inv.invoiceNumber || ''),
-            invoiceType: inv.invoiceType || 'sales',
-            createdAt: inv.createdAt,
-            employeeName: inv.employeeName,
-            customerName: inv.customerName,
-            customerId: inv.customerId,
-            customerSystemNumber: inv.customerSystemNumber,
-            notes: inv.notes,
-            paymentMethod: inv.paymentMethod,
-            summary: inv.summary,
-            items: inv.items
-          }));
-          await supabase.from('invoices').upsert(sbInvoices);
-        } catch (_) {}
+        // تشغيل حفظ Supabase في الخلفية لعدم إبطاء استجابة الدفعة
+        Promise.resolve().then(async () => {
+          try {
+            await supabase.from('settings').upsert({ id: 'sync_invoices_meta', data: invMeta });
+            // حفظ فقط فواتير الدفعة الحالية لتفادي إرسال مئات السجلات في كل دفعة
+            const currentBatchIds = new Set(items.map(it => 'shamel-inv-' + (it.shamelId || it.invoiceNumber || it.id)));
+            const sbInvoices = updatedInvoices.filter(inv => currentBatchIds.has(inv.id)).map(inv => ({
+              id: String(inv.id),
+              invoiceNumber: String(inv.invoiceNumber || ''),
+              invoiceType: inv.invoiceType || 'sales',
+              createdAt: inv.createdAt,
+              employeeName: inv.employeeName,
+              customerName: inv.customerName,
+              customerId: inv.customerId,
+              customerSystemNumber: inv.customerSystemNumber,
+              notes: inv.notes,
+              paymentMethod: inv.paymentMethod,
+              summary: inv.summary,
+              items: inv.items
+            }));
+            if (sbInvoices.length > 0) {
+              await supabase.from('invoices').upsert(sbInvoices);
+            }
+          } catch (_) {}
+        });
       }
     }
 
@@ -3271,22 +3320,28 @@ const dataStore = {
       writeJson(SYNC_VOUCHERS_META_FILE, vchMeta);
 
       if (supabase) {
-        try {
-          await supabase.from('settings').upsert({ id: 'sync_vouchers_meta', data: vchMeta });
-          const sbVouchers = updatedReceipts.slice(-300).map(v => ({
-            id: String(v.id),
-            receiptNumber: String(v.receiptNumber || v.voucherNumber || ''),
-            createdAt: v.createdAt,
-            employeeName: v.employeeName,
-            customerName: v.customerName,
-            customerPhone: v.customerPhone,
-            amount: v.amount,
-            description: v.description,
-            notes: v.notes,
-            paymentMethod: v.paymentMethod
-          }));
-          await supabase.from('receipts').upsert(sbVouchers);
-        } catch (_) {}
+        // تشغيل حفظ Supabase في الخلفية لعدم إبطاء استجابة الدفعة
+        Promise.resolve().then(async () => {
+          try {
+            await supabase.from('settings').upsert({ id: 'sync_vouchers_meta', data: vchMeta });
+            const currentBatchIds = new Set(items.map(it => 'shamel-vch-' + (it.shamelId || it.voucherNumber || it.id)));
+            const sbVouchers = updatedReceipts.filter(v => currentBatchIds.has(v.id)).map(v => ({
+              id: String(v.id),
+              receiptNumber: String(v.receiptNumber || v.voucherNumber || ''),
+              createdAt: v.createdAt,
+              employeeName: v.employeeName,
+              customerName: v.customerName,
+              customerPhone: v.customerPhone,
+              amount: v.amount,
+              description: v.description,
+              notes: v.notes,
+              paymentMethod: v.paymentMethod
+            }));
+            if (sbVouchers.length > 0) {
+              await supabase.from('receipts').upsert(sbVouchers);
+            }
+          } catch (_) {}
+        });
       }
     }
 

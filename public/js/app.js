@@ -1040,6 +1040,7 @@ const state = {
   catalogSearch: '',
   invoicesSearch: '',
   invoicesFilter: 'all',
+  invoicesSortOrder: 'desc',
   currentViewingInvoice: null,
   printMode: 'customer', // 'customer' أو 'internal'
   catalogPageSize: 24,
@@ -4161,6 +4162,26 @@ function filterInvoicesByPayment(method, btn) {
   renderInvoicesTable();
 }
 
+function toggleInvoicesSort() {
+  state.invoicesSortOrder = (state.invoicesSortOrder === 'asc') ? 'desc' : 'asc';
+  const label = document.getElementById('invoicesSortLabel');
+  const btn = document.getElementById('invoicesSortBtn');
+  if (label) label.textContent = state.invoicesSortOrder === 'desc' ? 'الأحدث أولاً' : 'الأقدم أولاً';
+  if (btn) {
+    const iconSpan = btn.querySelector('span:first-child');
+    if (iconSpan) iconSpan.textContent = state.invoicesSortOrder === 'desc' ? '⬇️' : '⬆️';
+  }
+  renderInvoicesTable();
+}
+
+function clearInvoicesDateFilter() {
+  const f = document.getElementById('invoicesFilterFrom');
+  const t = document.getElementById('invoicesFilterTo');
+  if (f) f.value = '';
+  if (t) t.value = '';
+  renderInvoicesTable();
+}
+
 function renderInvoicesTable() {
   const tbody = document.getElementById('invoicesTableBody');
   const emptyMsg = document.getElementById('emptyInvoicesMessage');
@@ -4170,6 +4191,7 @@ function renderInvoicesTable() {
 
   let filtered = state.invoices || [];
 
+  // فلتر تصنيف وطريقة الدفع ومصدر الفاتورة
   if (state.invoicesFilter && state.invoicesFilter !== 'all') {
     const f = state.invoicesFilter;
     if (f === 'sales') {
@@ -4182,11 +4204,31 @@ function renderInvoicesTable() {
       filtered = filtered.filter(i => i.paymentMethod === 'check' || (i.checkAmount > 0));
     } else if (f === 'installments') {
       filtered = filtered.filter(i => i.paymentMethod === 'installments' || i.paymentMethod === 'credit');
+    } else if (f === 'shamel') {
+      filtered = filtered.filter(i => i.source === 'shamel_sync' || (i.shamelId || i.shamelNo));
+    } else if (f === 'local') {
+      filtered = filtered.filter(i => i.source !== 'shamel_sync' && !i.shamelId);
     } else {
       filtered = filtered.filter(i => i.paymentMethod === f);
     }
   }
 
+  // فلتر الفترة الزمنية (من تاريخ / إلى تاريخ)
+  const fromEl = document.getElementById('invoicesFilterFrom');
+  const toEl = document.getElementById('invoicesFilterTo');
+  const fromDate = fromEl ? fromEl.value.trim() : '';
+  const toDate = toEl ? toEl.value.trim() : '';
+
+  if (fromDate || toDate) {
+    filtered = filtered.filter(inv => {
+      const d = String(inv.createdAt || '').substring(0, 10);
+      if (fromDate && d && d < fromDate) return false;
+      if (toDate && d && d > toDate) return false;
+      return true;
+    });
+  }
+
+  // البحث النصي الشامل
   if (state.invoicesSearch) {
     const s = state.invoicesSearch.toLowerCase();
     filtered = filtered.filter(i =>
@@ -4199,6 +4241,30 @@ function renderInvoicesTable() {
       String(i.customerPhone || '').includes(s) ||
       (i.items && i.items.some(it => String(it.productName || '').toLowerCase().includes(s) || String(it.code || '').toLowerCase().includes(s)))
     );
+  }
+
+  // ترتيب الفواتير (الأحدث أولاً افتراضياً حسب طلب المستخدم)
+  const sortOrder = state.invoicesSortOrder || 'desc';
+  filtered.sort((a, b) => {
+    const tA = new Date(a.createdAt || 0).getTime();
+    const tB = new Date(b.createdAt || 0).getTime();
+    return sortOrder === 'asc' ? (tA - tB) : (tB - tA);
+  });
+
+  // تحديث شريط الإحصائيات السريع للفواتير المفلترة
+  const statsBar = document.getElementById('invoicesStatsBar');
+  if (statsBar) {
+    const totalCount = filtered.length;
+    const totalAmt = filtered.reduce((acc, i) => acc + (Number(i.totalAmount ?? i.summary?.totalAmount) || 0), 0);
+    const totalProf = filtered.reduce((acc, i) => acc + (Number(i.summary?.totalProfit) || 0), 0);
+    statsBar.innerHTML = `
+      <span style="font-weight:700; color:#0f172a;">📊 إجمالي الفواتير: <strong>${totalCount}</strong></span>
+      <span style="color:#cbd5e1;">|</span>
+      <span style="font-weight:700; color:#2563eb;">💰 مجموع المبالغ: <strong>${Math.round(totalAmt).toLocaleString('en-US')}</strong> ${currency}</span>
+      <span style="color:#cbd5e1;">|</span>
+      <span style="font-weight:700; color:${totalProf >= 0 ? '#16a34a' : '#dc2626'};">📈 إجمالي الأرباح: <strong>${Math.round(totalProf).toLocaleString('en-US')}</strong> ${currency}</span>
+      ${(fromDate || toDate) ? `<span style="margin-right:auto; background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:0.75rem; border:1px solid #bfdbfe;">📅 فترة محددة: ${fromDate || 'البداية'} إلى ${toDate || 'الآن'}</span>` : ''}
+    `;
   }
 
   if (filtered.length === 0) {
@@ -8859,6 +8925,10 @@ async function openCustomerStatementModal(customerId) {
   _stmtCurrentCustomerId = customerId;
   _stmtSortOrder = 'desc';
   _stmtFilterType = 'all';
+  const fromEl = document.getElementById('stmtFromDate');
+  const toEl = document.getElementById('stmtToDate');
+  if (fromEl) fromEl.value = '';
+  if (toEl) toEl.value = '';
   document.querySelectorAll('.stmt-type-btn').forEach(function(btn) {
     var isAll = btn.dataset.type === 'all';
     btn.style.border = isAll ? '1px solid #2563eb' : '1px solid #cbd5e1';
@@ -9038,9 +9108,9 @@ function renderCustomerStatementHtml(st) {
           </div>
           <div style="font-size: 0.8rem; color: #64748b; margin-top: 0.25rem;">تاريخ الإصدار: ${formatAppDateTime(new Date())}</div>
           ${(st.appliedFilters && (st.appliedFilters.fromDate || st.appliedFilters.toDate || st.appliedFilters.filterType !== 'all')) ? `
-            <div style="font-size:0.75rem; color:#6366f1; margin-top:0.2rem; background:#eef2ff; padding:3px 8px; border-radius:4px; border:1px solid #c7d2fe; display:inline-block;">
-              🔍 فلتر مطبق: ${st.appliedFilters.fromDate ? 'من ' + st.appliedFilters.fromDate : ''} ${st.appliedFilters.toDate ? 'إلى ' + st.appliedFilters.toDate : ''} ${st.appliedFilters.filterType !== 'all' ? '| نوع: ' + st.appliedFilters.filterType : ''}
-              — عرض ${st.filteredCount ?? st.movements?.length ?? 0} من ${st.allMovementsCount ?? st.movements?.length ?? 0} حركة
+            <div style="font-size:0.78rem; color:#4338ca; margin-top:0.3rem; background:#eef2ff; padding:4px 10px; border-radius:6px; border:1px solid #c7d2fe; display:inline-block;">
+              🔍 <strong>الفلتر المطبق:</strong> ${st.appliedFilters.fromDate ? 'من ' + st.appliedFilters.fromDate : ''} ${st.appliedFilters.toDate ? 'إلى ' + st.appliedFilters.toDate : ''} ${st.appliedFilters.filterType !== 'all' ? '| النوع: ' + st.appliedFilters.filterType : ''}
+              — عرض <strong>${st.filteredCount ?? st.movements?.length ?? 0}</strong> من ${st.allMovementsCount ?? st.movements?.length ?? 0} حركة
             </div>
           ` : ''}
         </div>

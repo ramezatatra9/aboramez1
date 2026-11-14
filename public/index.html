@@ -1428,13 +1428,32 @@
           </div>
         </div>
 
-        <div class="catalog-toolbar" style="margin-bottom: 1rem;">
-          <div class="search-box">
-            <span>🔍</span>
-            <input type="text" id="invoicesSearchInput" placeholder="ابحث برقم الفاتورة، اسم الزبون، أو اسم الموظف...">
+        <div class="catalog-toolbar" style="margin-bottom: 0.75rem; display: flex; flex-direction: column; gap: 0.75rem;">
+          <!-- شريط البحث والتاريخ والترتيب -->
+          <div style="display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; justify-content: space-between; width: 100%;">
+            <div class="search-box" style="flex: 1; min-width: 250px;">
+              <span>🔍</span>
+              <input type="text" id="invoicesSearchInput" placeholder="ابحث برقم الفاتورة، اسم الزبون، أو اسم الموظف...">
+            </div>
+
+            <!-- فلتر الفترة الزمنية لسجل الفواتير -->
+            <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 4px 10px;">
+              <span style="font-size: 0.82rem; font-weight: 700; color: #475569;">📅 من:</span>
+              <input type="date" id="invoicesFilterFrom" style="padding: 4px 7px; border: 1px solid #cbd5e1; border-radius: 5px; font-size: 0.82rem;" onchange="renderInvoicesTable()" oninput="renderInvoicesTable()">
+              <span style="font-size: 0.82rem; font-weight: 700; color: #475569;">إلى:</span>
+              <input type="date" id="invoicesFilterTo" style="padding: 4px 7px; border: 1px solid #cbd5e1; border-radius: 5px; font-size: 0.82rem;" onchange="renderInvoicesTable()" oninput="renderInvoicesTable()">
+              <button class="btn btn-sm" onclick="clearInvoicesDateFilter()" style="padding: 3px 8px; background: #fff; border: 1px solid #cbd5e1; border-radius: 5px; font-size: 0.78rem; color: #64748b; cursor: pointer;">✕ مسح</button>
+            </div>
+
+            <!-- زر تبديل الترتيب (الأحدث أولاً / الأقدم أولاً) -->
+            <button id="invoicesSortBtn" onclick="toggleInvoicesSort()" style="padding: 6px 14px; border: 1px solid #6366f1; border-radius: 6px; background: #eef2ff; color: #4338ca; font-size: 0.82rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 0.3rem;">
+              <span>⬇️</span>
+              <span id="invoicesSortLabel">الأحدث أولاً</span>
+            </button>
           </div>
 
-          <div class="category-chips">
+          <!-- تصنيفات وأنواع الفواتير -->
+          <div class="category-chips" style="flex-wrap: wrap; gap: 0.4rem;">
             <button class="chip active" onclick="filterInvoicesByPayment('all', this)">جميع الفواتير</button>
             <button class="chip" onclick="filterInvoicesByPayment('sales', this)">🧾 مبيعات (I)</button>
             <button class="chip" onclick="filterInvoicesByPayment('purchase', this)">📦 مشتريات (H)</button>
@@ -1442,7 +1461,14 @@
             <button class="chip" onclick="filterInvoicesByPayment('cash', this)">💵 كاش نقدي</button>
             <button class="chip" onclick="filterInvoicesByPayment('check', this)">📝 شيكات</button>
             <button class="chip" onclick="filterInvoicesByPayment('installments', this)">⏳ أقساط وذمم</button>
+            <button class="chip" onclick="filterInvoicesByPayment('shamel', this)">🔄 فواتير الشامل</button>
+            <button class="chip" onclick="filterInvoicesByPayment('local', this)">📄 فواتير النظام</button>
           </div>
+        </div>
+
+        <!-- شريط إحصائيات الفواتير المفلترة السريع -->
+        <div id="invoicesStatsBar" style="display: flex; flex-wrap: wrap; gap: 0.8rem; align-items: center; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.6rem 1rem; margin-bottom: 1rem; font-size: 0.84rem;">
+          <!-- ديناميكي بواسطة JS -->
         </div>
 
         <div style="overflow-x: auto;">
@@ -2869,9 +2895,10 @@
       <div class="no-print" id="stmtFilterBar" style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:0.75rem 1.25rem; display:flex; flex-wrap:wrap; gap:0.6rem; align-items:center; direction:rtl;">
         <div style="display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap;">
           <span style="font-size:0.82rem; font-weight:700; color:#374151;">📅 من:</span>
-          <input type="date" id="stmtFromDate" style="padding:4px 8px; border:1px solid #cbd5e1; border-radius:5px; font-size:0.82rem;" oninput="applyStatementFilters()">
+          <input type="date" id="stmtFromDate" style="padding:4px 8px; border:1px solid #cbd5e1; border-radius:5px; font-size:0.82rem;" onchange="applyStatementFilters()" oninput="applyStatementFilters()">
           <span style="font-size:0.82rem; font-weight:700; color:#374151;">إلى:</span>
-          <input type="date" id="stmtToDate" style="padding:4px 8px; border:1px solid #cbd5e1; border-radius:5px; font-size:0.82rem;" oninput="applyStatementFilters()">
+          <input type="date" id="stmtToDate" style="padding:4px 8px; border:1px solid #cbd5e1; border-radius:5px; font-size:0.82rem;" onchange="applyStatementFilters()" oninput="applyStatementFilters()">
+          <button onclick="applyStatementFilters()" style="padding:4px 12px; border:1px solid #2563eb; border-radius:5px; background:#2563eb; color:#fff; font-size:0.8rem; font-weight:700; cursor:pointer;">🔍 تصفية</button>
           <button onclick="clearStatementDateFilter()" style="padding:4px 10px; border:1px solid #cbd5e1; border-radius:5px; background:#fff; font-size:0.78rem; cursor:pointer; color:#64748b;">✕ مسح</button>
         </div>
         <div style="display:flex; align-items:center; gap:0.3rem; flex-wrap:wrap;">
@@ -3910,7 +3937,7 @@
   <script src="js/html2pdf.bundle.min.js?v=8.4.1"></script>
   <script src="js/warranties.js"></script>
   <script src="js/brandsAudit.js"></script>
-  <script src="js/app.js?v=8.4.1"></script>
+  <script src="js/app.js?v=8.7.0"></script>
   <script src="js/pwa.js?v=8.4.1"></script>
   <!-- مكتبة مسح الباركود المحلية السريعة -->
   <script src="js/html5-qrcode.min.js?v=3.5.0"></script>
