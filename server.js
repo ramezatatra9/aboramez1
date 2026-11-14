@@ -2885,11 +2885,20 @@ const ADMIN_LEGACY_REDIRECT_MAP = {
   '/dashboard': '/admin/dashboard',
   '/settings': '/admin/settings',
   '/brands-audit': '/admin/brands-audit',
-  '/store-manager': '/admin/store'
+  '/store-manager': '/admin/store-manager',
+  '/store': '/admin/store-manager'
 };
 
 app.use((req, res, next) => {
   const cleanPath = req.path.toLowerCase().replace(/\/+$/, '');
+  
+  if (cleanPath === '/store-manager' || cleanPath === '/store') {
+    return res.redirect(302, '/admin/store-manager');
+  }
+  if (cleanPath.startsWith('/store-manager/')) {
+    return res.redirect(302, '/admin' + cleanPath);
+  }
+
   const targetAdminRoute = ADMIN_LEGACY_REDIRECT_MAP[cleanPath];
   if (targetAdminRoute) {
     return res.redirect(302, targetAdminRoute);

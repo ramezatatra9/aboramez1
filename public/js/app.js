@@ -1169,6 +1169,9 @@ async function initApp() {
   const pathParts = window.location.pathname.replace(/^\/+/, '').split('/');
   const isAdminPath = pathParts[0].toLowerCase() === 'admin';
   const initialPath = (isAdminPath ? (pathParts[1] || '') : pathParts[0]).toLowerCase();
+  const initialSection = (isAdminPath ? (pathParts[1] || '') : pathParts[0]).toLowerCase();
+  const initialEntityId = (isAdminPath ? (pathParts[2] || '') : pathParts[1]) || '';
+  const initialSubTab = (isAdminPath ? (pathParts[2] || '') : '') || '';
   const initialTab = ROUTE_MAP[initialPath] || 'catalog';
 
   // تحميل الإعدادات أولاً لتحديد العملة واسم الشركة
@@ -1235,6 +1238,9 @@ async function initApp() {
   } else if (initialTab === 'store-manager') {
     actuallySwitchTab('store-manager', false);
     await loadAdminStoreManager();
+    if (initialSubTab) {
+      setTimeout(() => switchStoreSubtab(initialSubTab, false), 100);
+    }
     Promise.allSettled([loadProducts(), loadInvoices(), loadReceipts(), loadCustomers()]).catch(() => {});
   } else {
     // الكتالوج أو المبيعات الافتراضية
@@ -1292,7 +1298,7 @@ const TAB_TO_ROUTE = {
   'dashboard': '/admin/dashboard',
   'settings': '/admin/settings',
   'brands-audit': '/admin/brands-audit',
-  'store-manager': '/admin/store'
+  'store-manager': '/admin/store-manager'
 };
 
 const PAGE_TITLES = {
@@ -10067,14 +10073,25 @@ function closeProductDetailSheet() {
     }
 
     // 2. التنقل السلس بين واجهات وصفحات النظام عبر أزرار الرجوع والتقدم في المتصفح
-    const currentPath = window.location.pathname.replace(/^\/+/, '').split('/')[0].toLowerCase();
+    const pParts = window.location.pathname.replace(/^\/+/, '').split('/');
+    const isAdm = pParts[0].toLowerCase() === 'admin';
+    const currentPath = (isAdm ? (pParts[1] || '') : pParts[0]).toLowerCase();
+    const currentSub = (isAdm ? (pParts[2] || '') : '').toLowerCase();
     const targetTab = (event.state && event.state.tabId) ? event.state.tabId : (ROUTE_MAP[currentPath] || 'catalog');
+    const targetSub = (event.state && event.state.subId) || currentSub || '';
     
     const activeTab = document.querySelector('.tab-content.active');
     const currentTabId = activeTab ? activeTab.id.replace('tab-', '') : '';
 
     if (targetTab && targetTab !== currentTabId) {
       actuallySwitchTab(targetTab, false);
+      if (targetTab === 'store-manager') {
+        switchStoreSubtab(targetSub || 'orders', false);
+      }
+      setTimeout(() => { isNavigatingBack = false; }, 80);
+      return;
+    } else if (targetTab === 'store-manager' && targetSub) {
+      switchStoreSubtab(targetSub, false);
       setTimeout(() => { isNavigatingBack = false; }, 80);
       return;
     }
@@ -10592,7 +10609,18 @@ let _storeManagerConfig = null;
 let _storeManagerOrders = [];
 let _storeManagerAllProducts = [];
 
-function switchStoreSubtab(subId) {
+const STORE_SUBTAB_TITLES = {
+  'orders': 'الطلبات الإلكترونية | إدارة المتجر',
+  'categories': 'أقسام المعرض والصور | إدارة المتجر',
+  'brands': 'العلامات التجارية والماركات | إدارة المتجر',
+  'offers': 'العروض والنافذة المنبثقة | إدارة المتجر',
+  'products': 'تخصيص أسماء الأصناف والظهور | إدارة المتجر',
+  'settings': 'نصوص وبيانات المتجر العامة | إدارة المتجر'
+};
+
+function switchStoreSubtab(subId, updateUrl = true) {
+  const validSub = ['orders', 'categories', 'brands', 'offers', 'products', 'settings'].includes(subId) ? subId : 'orders';
+
   document.querySelectorAll('.store-pane').forEach(el => el.style.display = 'none');
   document.querySelectorAll('.store-subtab-btn').forEach(b => {
     b.style.background = '#ffffff';
@@ -10600,8 +10628,8 @@ function switchStoreSubtab(subId) {
     b.style.borderColor = '#cbd5e1';
   });
 
-  const pane = document.getElementById('storePane-' + subId);
-  const btn = document.getElementById('subBtn' + subId.charAt(0).toUpperCase() + subId.slice(1));
+  const pane = document.getElementById('storePane-' + validSub);
+  const btn = document.getElementById('subBtn' + validSub.charAt(0).toUpperCase() + validSub.slice(1));
   if (pane) pane.style.display = 'block';
   if (btn) {
     btn.style.background = '#2563eb';
@@ -10609,15 +10637,25 @@ function switchStoreSubtab(subId) {
     btn.style.borderColor = '#2563eb';
   }
 
+  // تحديث مسار المتصفح وعنوان الصفحة ذكياً (Dynamic Sub-Page Navigation)
+  if (updateUrl && typeof window !== 'undefined' && window.history) {
+    const targetUrl = validSub === 'orders' ? '/admin/store-manager' : ('/admin/store-manager/' + validSub);
+    const pageTitle = STORE_SUBTAB_TITLES[validSub] || 'إدارة المتجر | رامز عطاطرة';
+    document.title = pageTitle;
+    if (window.location.pathname !== targetUrl) {
+      window.history.pushState({ tabId: 'store-manager', subId: validSub }, pageTitle, targetUrl);
+    }
+  }
+
   // Ensure data is loaded
   if (!_storeManagerConfig) {
     loadAdminStoreManager().then(() => {
-      refreshStoreSubtabContent(subId);
+      refreshStoreSubtabContent(validSub);
     });
     return;
   }
 
-  refreshStoreSubtabContent(subId);
+  refreshStoreSubtabContent(validSub);
 }
 
 function refreshStoreSubtabContent(subId) {
@@ -11359,3 +11397,6 @@ window.toggleProductManualShow = toggleProductManualShow;
 window.saveAdminGeneralStoreSettings = saveAdminGeneralStoreSettings;
 window.uploadStoreImage = uploadStoreImage;
 window.escapeJsStr = escapeJsStr;
+
+window.refreshStoreSubtabContent = refreshStoreSubtabContent;
+window.filterAdminProductsTable = filterAdminProductsTable;
