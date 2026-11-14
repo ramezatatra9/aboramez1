@@ -1457,7 +1457,12 @@ const dataStore = {
   },
 
   // كشف حساب تفصيلي للزبون أو المورد يجمع الفواتير وسندات القبض وحركة الرصيد
-  getCustomerStatement(id) {
+  getCustomerStatement(id, options) {
+    options = options || {};
+    const fromDate = options.fromDate ? new Date(options.fromDate) : null;
+    const toDate = options.toDate ? new Date(options.toDate + 'T23:59:59') : null;
+    const sortOrder = options.sortOrder || 'desc';
+    const filterType = options.filterType || 'all';
     const customers = this.getCustomers();
     const strId = String(id || '').trim();
     let customer = customers.find(c =>
@@ -1634,7 +1639,7 @@ const dataStore = {
       });
     });
 
-    // ترتيب الحركات تصاعدياً حسب التاريخ
+    // ترتيب الحركات تصاعدياً حسب التاريخ لاحتساب الرصيد التراكمي بدقة
     movements.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     // احتساب الرصيد التراكمي بدقة بعد كل حركة
@@ -1643,6 +1648,32 @@ const dataStore = {
       running += (m.debit - m.credit);
       m.balanceAfter = Math.round(running * 100) / 100;
     });
+
+    // تطبيق فلتر الفترة الزمنية (بعد احتساب الرصيد حتى لا يتأثر)
+    let filteredMovements = movements.filter(m => {
+      const mDate = new Date(m.date);
+      if (fromDate && mDate < fromDate) return false;
+      if (toDate && mDate > toDate) return false;
+      return true;
+    });
+
+    // تطبيق فلتر نوع الحركة
+    if (filterType !== 'all') {
+      filteredMovements = filteredMovements.filter(m => {
+        if (filterType === 'invoices') return m.type.includes('invoice') || m.type.includes('return');
+        if (filterType === 'vouchers') return m.type === 'receipt' || m.type === 'payment';
+        if (filterType === 'receipts') return m.type === 'receipt';
+        if (filterType === 'payments') return m.type === 'payment';
+        return true;
+      });
+    }
+
+    // ترتيب الحركات المفلترة حسب خيار المستخدم (الأحدث أولاً افتراضياً)
+    if (sortOrder === 'asc') {
+      filteredMovements.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    } else {
+      filteredMovements.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }
 
     const totalSales = movements.filter(m => m.type === 'sales_invoice').reduce((s, m) => s + m.amount, 0);
     const totalPaid = movements.filter(m => m.type === 'receipt').reduce((s, m) => s + m.amount, 0);
@@ -1676,8 +1707,11 @@ const dataStore = {
       customer,
       balance,
       summary,
-      movements,
-      transactions: movements,
+      movements: filteredMovements,
+      allMovementsCount: movements.length,
+      filteredCount: filteredMovements.length,
+      appliedFilters: { fromDate: options.fromDate || null, toDate: options.toDate || null, sortOrder, filterType },
+      transactions: filteredMovements,
       invoices: custInvoices,
       receipts: custReceipts
     };

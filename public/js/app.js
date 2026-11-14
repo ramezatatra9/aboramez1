@@ -8851,31 +8851,94 @@ async function executeConfirmedExcelImport() {
 // كشف حساب تفصيلي للزبون (Customer Statement) مع تصدير PDF وتيليجرام
 // =============================================================
 let currentStatementData = null;
+let _stmtCurrentCustomerId = null;
+let _stmtSortOrder = 'desc';
+let _stmtFilterType = 'all';
 
 async function openCustomerStatementModal(customerId) {
-  showToast('جاري تحميل كشف الحساب التفصيلي...', 'info');
+  _stmtCurrentCustomerId = customerId;
+  _stmtSortOrder = 'desc';
+  _stmtFilterType = 'all';
+  document.querySelectorAll('.stmt-type-btn').forEach(function(btn) {
+    var isAll = btn.dataset.type === 'all';
+    btn.style.border = isAll ? '1px solid #2563eb' : '1px solid #cbd5e1';
+    btn.style.background = isAll ? '#eff6ff' : '#fff';
+    btn.style.color = isAll ? '#2563eb' : '#374151';
+    if (isAll) btn.classList.add('active'); else btn.classList.remove('active');
+  });
+  var sortBtn = document.getElementById('stmtSortToggle');
+  if (sortBtn) sortBtn.textContent = '⬇️ الأحدث أولاً';
+  await _loadStatementData();
+}
+
+async function _loadStatementData() {
+  if (!_stmtCurrentCustomerId) return;
+  showToast('جاري تحميل كشف الحساب...', 'info');
   try {
-    const res = await fetch(`/api/customers/${customerId}/statement`);
-    const data = await res.json();
+    var fromEl = document.getElementById('stmtFromDate');
+    var toEl = document.getElementById('stmtToDate');
+    var fromDate = fromEl ? fromEl.value : '';
+    var toDate = toEl ? toEl.value : '';
+    var url = '/api/customers/' + _stmtCurrentCustomerId + '/statement?sort=' + _stmtSortOrder + '&type=' + _stmtFilterType;
+    if (fromDate) url += '&from=' + fromDate;
+    if (toDate) url += '&to=' + toDate;
+    var res = await fetch(url);
+    var data = await res.json();
     if (!data.success || !data.statement) {
-      showToast(data.error || 'تعذر جلب كشف الحساب للزبون', 'error');
+      showToast(data.error || 'تعذر جلب كشف الحساب', 'error');
       return;
     }
-
     currentStatementData = data.statement;
     renderCustomerStatementHtml(data.statement);
-
-    const modal = document.getElementById('customerStatementModal');
+    var countEl = document.getElementById('stmtRowCount');
+    if (countEl) {
+      var total = data.statement.allMovementsCount || (data.statement.movements ? data.statement.movements.length : 0);
+      var shown = (data.statement.filteredCount !== undefined) ? data.statement.filteredCount : (data.statement.movements ? data.statement.movements.length : 0);
+      countEl.textContent = total !== shown ? ('عرض ' + shown + ' من ' + total + ' حركة') : ('إجمالي ' + shown + ' حركة');
+    }
+    var modal = document.getElementById('customerStatementModal');
     if (modal) modal.classList.add('active');
   } catch (err) {
     showToast('فشل الاتصال بالخادم لجلب كشف الحساب', 'error');
   }
 }
 
+async function applyStatementFilters() {
+  await _loadStatementData();
+}
+
+function clearStatementDateFilter() {
+  var f = document.getElementById('stmtFromDate');
+  var t = document.getElementById('stmtToDate');
+  if (f) f.value = '';
+  if (t) t.value = '';
+  _loadStatementData();
+}
+
+function setStatementTypeFilter(type, btn) {
+  _stmtFilterType = type;
+  document.querySelectorAll('.stmt-type-btn').forEach(function(b) {
+    var active = b.dataset.type === type;
+    b.style.border = active ? '1px solid #2563eb' : '1px solid #cbd5e1';
+    b.style.background = active ? '#eff6ff' : '#fff';
+    b.style.color = active ? '#2563eb' : '#374151';
+    if (active) b.classList.add('active'); else b.classList.remove('active');
+  });
+  _loadStatementData();
+}
+
+function toggleStatementSort() {
+  _stmtSortOrder = (_stmtSortOrder === 'desc') ? 'asc' : 'desc';
+  var btn = document.getElementById('stmtSortToggle');
+  if (btn) btn.textContent = _stmtSortOrder === 'desc' ? '⬇️ الأحدث أولاً' : '⬆️ الأقدم أولاً';
+  _loadStatementData();
+}
+
 function closeCustomerStatementModal() {
-  const modal = document.getElementById('customerStatementModal');
+  var modal = document.getElementById('customerStatementModal');
   if (modal) modal.classList.remove('active');
   currentStatementData = null;
+  _stmtCurrentCustomerId = null;
 }
 
 function renderCustomerStatementHtml(st) {
@@ -8917,15 +8980,22 @@ function renderCustomerStatementHtml(st) {
         typeBadge = '<span style="background:#f0fdf4; color:#15803d; padding:3px 8px; border-radius:4px; font-weight:700; font-size:0.78rem; border:1px solid #bbf7d0;">💰 سند قبض</span>';
       }
 
+      const isVoucher = isPayment || isReceipt;
+      const isInvoiceType = isSalesInv || isPurchaseInv || isSalesRet || isPurchaseRet;
+      const sectionBadge = isVoucher
+        ? '<span style="background:#f0fdf4; color:#15803d; padding:2px 7px; border-radius:4px; font-size:0.72rem; font-weight:800; border:1px solid #bbf7d0; display:block; text-align:center;">💵 سند</span>'
+        : '<span style="background:#eff6ff; color:#1d4ed8; padding:2px 7px; border-radius:4px; font-size:0.72rem; font-weight:800; border:1px solid #bfdbfe; display:block; text-align:center;">🧾 فاتورة</span>';
+
       return `
-        <tr>
+        <tr style="background:${isVoucher ? '#f0fdf4' : (idx % 2 === 0 ? '#fff' : '#fafafa')};">
           <td style="text-align: center; border: 1px solid #cbd5e1; padding: 7px; font-weight: 700;">${idx + 1}</td>
           <td style="border: 1px solid #cbd5e1; padding: 7px; font-size: 0.8rem; color: #475569;">${formatAppDateTime(m.date)}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 6px; text-align:center;">${sectionBadge}</td>
           <td style="border: 1px solid #cbd5e1; padding: 7px;">
-            ${typeBadge} <strong>#${escapeHtml(String(m.number))}</strong>
-            ${(isSalesInv || isPurchaseInv || isSalesRet || isPurchaseRet) ? `
+            ${typeBadge} <strong style="font-size:0.8rem;">#${escapeHtml(String(m.number))}</strong>
+            ${isInvoiceType ? `
               <button class="btn btn-xs btn-primary no-print" onclick="openInvoiceViewModalById('${m.id}')" title="عرض تفاصيل الأصناف والربح" style="margin-right: 4px; padding: 2px 7px; font-size: 0.72rem; cursor: pointer;">
-                🔍 الأصناف (${m.itemsCount || 0})
+                🔍 (${m.itemsCount || 0})
               </button>
             ` : ''}
           </td>
@@ -8936,7 +9006,7 @@ function renderCustomerStatementHtml(st) {
           <td style="border: 1px solid #cbd5e1; padding: 7px; text-align: left; font-weight: 700; color: ${m.credit > 0 ? '#16a34a' : '#94a3b8'};">
             ${m.credit > 0 ? `${m.credit.toLocaleString('en-US')} ${cur}` : '--'}
           </td>
-          <td style="border: 1px solid #cbd5e1; padding: 7px; text-align: left; font-weight: 800; color: #0f172a;">
+          <td style="border: 1px solid #cbd5e1; padding: 7px; text-align: left; font-weight: 800; color: ${(m.balanceAfter || 0) > 0 ? '#dc2626' : ((m.balanceAfter || 0) < 0 ? '#2563eb' : '#16a34a')};">
             ${(m.balanceAfter || 0).toLocaleString('en-US')} ${cur}
           </td>
         </tr>
@@ -8945,7 +9015,7 @@ function renderCustomerStatementHtml(st) {
   } else {
     movementsHtml = `
       <tr>
-        <td colspan="7" style="text-align: center; padding: 1.5rem; color: #64748b; border: 1px solid #cbd5e1;">
+        <td colspan="8" style="text-align: center; padding: 1.5rem; color: #64748b; border: 1px solid #cbd5e1;">
           لا توجد فواتير أو سندات مسجلة بعد لهذا الحساب في النظام. الرصيد الحالي: ${bal.toLocaleString('en-US')} ${cur}
         </td>
       </tr>
@@ -8967,6 +9037,12 @@ function renderCustomerStatementHtml(st) {
             كشف حساب زبون تفصيلي
           </div>
           <div style="font-size: 0.8rem; color: #64748b; margin-top: 0.25rem;">تاريخ الإصدار: ${formatAppDateTime(new Date())}</div>
+          ${(st.appliedFilters && (st.appliedFilters.fromDate || st.appliedFilters.toDate || st.appliedFilters.filterType !== 'all')) ? `
+            <div style="font-size:0.75rem; color:#6366f1; margin-top:0.2rem; background:#eef2ff; padding:3px 8px; border-radius:4px; border:1px solid #c7d2fe; display:inline-block;">
+              🔍 فلتر مطبق: ${st.appliedFilters.fromDate ? 'من ' + st.appliedFilters.fromDate : ''} ${st.appliedFilters.toDate ? 'إلى ' + st.appliedFilters.toDate : ''} ${st.appliedFilters.filterType !== 'all' ? '| نوع: ' + st.appliedFilters.filterType : ''}
+              — عرض ${st.filteredCount ?? st.movements?.length ?? 0} من ${st.allMovementsCount ?? st.movements?.length ?? 0} حركة
+            </div>
+          ` : ''}
         </div>
       </div>
 
@@ -9029,12 +9105,13 @@ function renderCustomerStatementHtml(st) {
         <thead>
           <tr style="background: #f1f5f9; color: #0f172a;">
             <th style="border: 1px solid #cbd5e1; padding: 8px; width: 40px; text-align: center;">#</th>
-            <th style="border: 1px solid #cbd5e1; padding: 8px; width: 130px;">التاريخ والوقت</th>
-            <th style="border: 1px solid #cbd5e1; padding: 8px; width: 140px;">نوع الحركة ورقمها</th>
-            <th style="border: 1px solid #cbd5e1; padding: 8px;">البيان / الملاحظات</th>
-            <th style="border: 1px solid #cbd5e1; padding: 8px; width: 110px; text-align: left;">مدين (+)</th>
-            <th style="border: 1px solid #cbd5e1; padding: 8px; width: 110px; text-align: left;">دائن (-)</th>
-            <th style="border: 1px solid #cbd5e1; padding: 8px; width: 120px; text-align: left;">الرصيد بعد الحركة</th>
+            <th style="border: 1px solid #cbd5e1; padding: 8px; width: 120px;">&#x627;&#x644;&#x62A;&#x627;&#x631;&#x64A;&#x62E;</th>
+            <th style="border: 1px solid #cbd5e1; padding: 8px; width: 72px; background:#f8fafc; text-align:center;">&#x627;&#x644;&#x642;&#x633;&#x645;</th>
+            <th style="border: 1px solid #cbd5e1; padding: 8px; width: 165px;">&#x646;&#x648;&#x639; &#x627;&#x644;&#x62D;&#x631;&#x643;&#x629; &#x648;&#x631;&#x642;&#x645;&#x647;&#x627;</th>
+            <th style="border: 1px solid #cbd5e1; padding: 8px;">&#x627;&#x644;&#x628;&#x64A;&#x627;&#x646; / &#x627;&#x644;&#x645;&#x644;&#x627;&#x62D;&#x638;&#x627;&#x62A;</th>
+            <th style="border: 1px solid #cbd5e1; padding: 8px; width: 105px; text-align: left;">&#x645;&#x62F;&#x64A;&#x646; (+)</th>
+            <th style="border: 1px solid #cbd5e1; padding: 8px; width: 105px; text-align: left;">&#x62F;&#x627;&#x626;&#x646; (-)</th>
+            <th style="border: 1px solid #cbd5e1; padding: 8px; width: 115px; text-align: left;">&#x627;&#x644;&#x631;&#x635;&#x64A;&#x62F; &#x628;&#x639;&#x62F; &#x627;&#x644;&#x62D;&#x631;&#x643;&#x629;</th>
           </tr>
         </thead>
         <tbody>

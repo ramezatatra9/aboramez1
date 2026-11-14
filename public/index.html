@@ -2853,16 +2853,39 @@
   <!-- MODAL: كشف حساب تفصيلي للزبون (Customer Statement) -->
   <!-- ======================================================= -->
   <div class="modal-backdrop" id="customerStatementModal">
-    <div class="modal-card" style="max-width: 900px;">
+    <div class="modal-card" style="max-width: 980px;">
       <div class="modal-header no-print">
         <div style="display: flex; align-items: center; gap: 0.6rem;">
           <span style="font-size: 1.5rem;">📑</span>
           <div>
-            <h3 style="margin: 0; font-size: 1.2rem; font-weight: 800; color: #0f172a;">كشف حساب تفصيلي للزبون</h3>
-            <span style="font-size: 0.82rem; color: #64748b;" id="statementSubTitle">سجل الفواتير وسندات القبض وحركة الرصيد المالي</span>
+            <h3 style="margin: 0; font-size: 1.2rem; font-weight: 800; color: #0f172a;">كشف حساب تفصيلي للزبون / المورد</h3>
+            <span style="font-size: 0.82rem; color: #64748b;" id="statementSubTitle">سجل الفواتير وسندات القبض والصرف وحركة الرصيد</span>
           </div>
         </div>
         <button class="close-btn" onclick="closeCustomerStatementModal()">✕</button>
+      </div>
+
+      <!-- شريط الفلاتر والتحكم -->
+      <div class="no-print" id="stmtFilterBar" style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:0.75rem 1.25rem; display:flex; flex-wrap:wrap; gap:0.6rem; align-items:center; direction:rtl;">
+        <div style="display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap;">
+          <span style="font-size:0.82rem; font-weight:700; color:#374151;">📅 من:</span>
+          <input type="date" id="stmtFromDate" style="padding:4px 8px; border:1px solid #cbd5e1; border-radius:5px; font-size:0.82rem;" oninput="applyStatementFilters()">
+          <span style="font-size:0.82rem; font-weight:700; color:#374151;">إلى:</span>
+          <input type="date" id="stmtToDate" style="padding:4px 8px; border:1px solid #cbd5e1; border-radius:5px; font-size:0.82rem;" oninput="applyStatementFilters()">
+          <button onclick="clearStatementDateFilter()" style="padding:4px 10px; border:1px solid #cbd5e1; border-radius:5px; background:#fff; font-size:0.78rem; cursor:pointer; color:#64748b;">✕ مسح</button>
+        </div>
+        <div style="display:flex; align-items:center; gap:0.3rem; flex-wrap:wrap;">
+          <span style="font-size:0.82rem; font-weight:700; color:#374151;">نوع:</span>
+          <button class="stmt-type-btn active" data-type="all" onclick="setStatementTypeFilter('all', this)" style="padding:4px 10px; border:1px solid #2563eb; border-radius:5px; background:#eff6ff; color:#2563eb; font-size:0.78rem; font-weight:700; cursor:pointer;">الكل</button>
+          <button class="stmt-type-btn" data-type="invoices" onclick="setStatementTypeFilter('invoices', this)" style="padding:4px 10px; border:1px solid #cbd5e1; border-radius:5px; background:#fff; color:#374151; font-size:0.78rem; font-weight:700; cursor:pointer;">🧾 الفواتير</button>
+          <button class="stmt-type-btn" data-type="vouchers" onclick="setStatementTypeFilter('vouchers', this)" style="padding:4px 10px; border:1px solid #cbd5e1; border-radius:5px; background:#fff; color:#374151; font-size:0.78rem; font-weight:700; cursor:pointer;">💵 السندات</button>
+          <button class="stmt-type-btn" data-type="receipts" onclick="setStatementTypeFilter('receipts', this)" style="padding:4px 10px; border:1px solid #cbd5e1; border-radius:5px; background:#fff; color:#374151; font-size:0.78rem; font-weight:700; cursor:pointer;">📥 قبض</button>
+          <button class="stmt-type-btn" data-type="payments" onclick="setStatementTypeFilter('payments', this)" style="padding:4px 10px; border:1px solid #cbd5e1; border-radius:5px; background:#fff; color:#374151; font-size:0.78rem; font-weight:700; cursor:pointer;">📤 صرف</button>
+        </div>
+        <div style="display:flex; align-items:center; gap:0.4rem; margin-right:auto;">
+          <span style="font-size:0.78rem; color:#64748b;" id="stmtRowCount"></span>
+          <button id="stmtSortToggle" onclick="toggleStatementSort()" style="padding:4px 12px; border:1px solid #6366f1; border-radius:5px; background:#eef2ff; color:#4338ca; font-size:0.78rem; font-weight:700; cursor:pointer;">⬇️ الأحدث أولاً</button>
+        </div>
       </div>
 
       <div class="modal-body" style="padding: 0;">
@@ -2874,11 +2897,11 @@
       <div class="modal-footer no-print">
         <button type="button" class="btn btn-telegram" id="btnSendStatementTelegram" onclick="sendCustomerStatementPdfToTelegram()">
           <span>✈️</span>
-          <span>إرسال كشف الحساب PDF لتيليجرام</span>
+          <span>إرسال PDF لتيليجرام</span>
         </button>
         <button type="button" class="btn btn-success" onclick="downloadCustomerStatementPdf()">
           <span>📥</span>
-          <span>تحميل كشف الحساب PDF</span>
+          <span>تحميل PDF</span>
         </button>
         <button type="button" class="btn btn-secondary" onclick="closeCustomerStatementModal()">إغلاق</button>
         <button type="button" class="btn btn-primary" onclick="printCustomerStatement()">

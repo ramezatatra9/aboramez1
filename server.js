@@ -1780,7 +1780,11 @@ app.get('/api/customers/download-template', (req, res) => {
 // جلب كشف حساب زبون تفصيلي
 app.get('/api/customers/:id/statement', (req, res) => {
   try {
-    const statement = dataStore.getCustomerStatement(req.params.id);
+    const fromDate = req.query.from || null;
+    const toDate = req.query.to || null;
+    const sortOrder = req.query.sort || 'desc'; // 'asc' or 'desc'
+    const filterType = req.query.type || 'all'; // 'all','invoices','vouchers','receipts','payments'
+    const statement = dataStore.getCustomerStatement(req.params.id, { fromDate, toDate, sortOrder, filterType });
     if (!statement) {
       return res.status(404).json({ success: false, error: 'الزبون غير موجود' });
     }
