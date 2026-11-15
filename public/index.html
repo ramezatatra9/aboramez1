@@ -16,14 +16,14 @@
   <!-- Critical Anti-Leak Shield: Completely blocks any page rendering before PIN authentication -->
   <style id="criticalAuthShield">
     body.auth-locked {
-      background: #020617 !important;
       overflow: hidden !important;
       user-select: none !important;
-      height: 100vh !important;
-      margin: 0 !important;
     }
-    body.auth-locked > *:not(#pinLockScreen) {
-      display: none !important;
+    body.auth-locked .app-header,
+    body.auth-locked .app-layout,
+    body.auth-locked .mobile-bottom-nav,
+    body.auth-locked .tab-content,
+    body.auth-locked .floating-cart-bar {
       visibility: hidden !important;
       opacity: 0 !important;
       pointer-events: none !important;
@@ -2780,7 +2780,7 @@
   <!-- ======================================================= -->
   <!-- MODAL: معاينة صور المنتج النظيفة بالكامل مع التكبير المباشر (Pure Image Lightbox & Zoom) -->
   <!-- ======================================================= -->
-  <div class="pure-image-preview-backdrop" id="customerProductPreviewModal" style="display: none; position: fixed; inset: 0; background: rgba(5, 7, 12, 0.96); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); z-index: 99999; overflow: hidden; align-items: center; justify-content: center; user-select: none; touch-action: none;">
+  <div class="pure-image-preview-backdrop" id="customerProductPreviewModal" onclick="if(event.target===this)closeCustomerProductPreview()" style="display: none; position: fixed; inset: 0; background: rgba(5, 7, 12, 0.96); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); z-index: 99999; overflow: hidden; align-items: center; justify-content: center; user-select: none;">
     
     <!-- زر إغلاق عائم أعلى الزاوية -->
     <button type="button" class="preview-float-close-btn" onclick="closeCustomerProductPreview()" title="إغلاق المعاينة (Esc)" style="position: absolute; top: 18px; right: 20px; z-index: 100003; background: rgba(255, 255, 255, 0.14); border: 1px solid rgba(255, 255, 255, 0.25); color: #ffffff; width: 46px; height: 46px; border-radius: 50%; font-size: 1.4rem; display: flex; align-items: center; justify-content: center; cursor: pointer; backdrop-filter: blur(8px); transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
@@ -4486,11 +4486,11 @@
   <script src="js/html2pdf.bundle.min.js?v=8.4.1"></script>
   <script src="js/warranties.js"></script>
   <script src="js/brandsAudit.js"></script>
-  <script src="js/app.js?v=9.0.0"></script>
+  <script src="js/app.js?v=9.1.0"></script>
   <script src="js/pwa.js?v=8.4.1"></script>
   <!-- مكتبة مسح الباركود المحلية السريعة -->
   <script src="js/html5-qrcode.min.js?v=3.5.0"></script>
-  <script src="js/pin-barcode.js?v=7.9.0"></script>
+  <script src="js/pin-barcode.js?v=8.0.0"></script>
 
 
 

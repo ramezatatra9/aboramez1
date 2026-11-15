@@ -129,15 +129,23 @@ async function loadSecuritySettings() {
 }
 
 // بدء فحص القفل
-(async function initSecuritySystem() {
-  await loadSecuritySettings();
-
-  // إلزام تسجيل الدخول وطلب رمز PIN في كل زيارة بدون تخطي تلقائي
+(function initSecuritySystem() {
   showPinLockScreen();
+  loadSecuritySettings().then(() => {
+    updatePinScreenUserHints();
+  }).catch(e => {
+    console.warn('loadSecuritySettings error:', e);
+  });
 })();
 
 // تطبيق صلاحيات المستخدم على كامل واجهة الموقع
 function applyUserRole(user) {
+  // 1. إزالة قفل الحماية فوراً من الـ body
+  try {
+    document.body.classList.remove('auth-locked');
+    document.body.style.overflow = '';
+  } catch (e) {}
+
   window.currentUser = user;
 
   // حفظ الجلسة
@@ -148,7 +156,7 @@ function applyUserRole(user) {
     }));
   } catch (e) {}
 
-  // تحديث كلاسات الـ body للتحكم بالصلاحيات (لا نزيل auth-locked هنا - تُزال بعد إخفاء شاشة القفل)
+  // تحديث كلاسات الـ body للتحكم بالصلاحيات
   document.body.classList.remove('role-admin', 'role-cashier');
   document.body.classList.add(`role-${user.role}`);
 
@@ -177,23 +185,24 @@ function applyUserRole(user) {
   }
 
   // تحديث ظهور الأقسام في القوائم
-  updateRoleRestrictedNavigation(user.role);
+  try {
+    updateRoleRestrictedNavigation(user.role);
+  } catch (e) {}
 
-  // إخفاء شاشة القفل بشكل سلس
+  // إخفاء شاشة القفل بشكل سلس ونظيف ومنع أي طبقة حاجبة
   const screen = document.getElementById('pinLockScreen');
   if (screen) {
-    // أولاً: أزل auth-locked حتى يظهر المحتوى خلف الشاشة الشفافة
-    document.body.classList.remove('auth-locked');
-    document.body.style.overflow = '';
-    // ثانياً: fade out سلس
-    screen.style.transition = 'opacity 0.28s cubic-bezier(0.16, 1, 0.3, 1)';
+    screen.style.transition = 'opacity 0.22s ease-out';
     screen.style.opacity = '0';
-    screen.style.pointerEvents = 'none'; // لا تعترض على النقرات خلف الشاشة
+    screen.style.pointerEvents = 'none';
     setTimeout(() => {
       screen.style.display = 'none';
-      screen.style.opacity = '1';
-      screen.style.pointerEvents = '';
-    }, 300);
+      screen.style.visibility = 'hidden';
+      screen.style.opacity = '0';
+      screen.style.pointerEvents = 'none';
+      document.body.classList.remove('auth-locked');
+      document.body.style.overflow = '';
+    }, 240);
   }
 }
 
@@ -230,9 +239,12 @@ let targetRoleFilter = 'admin'; // 'admin' | 'cashier'
 function showPinLockScreen() {
   const screen = document.getElementById('pinLockScreen');
   if (!screen) return;
-  screen.style.display = 'flex';
-  screen.style.opacity = '1';
+  document.body.classList.add('auth-locked');
   document.body.style.overflow = 'hidden';
+  screen.style.display = 'flex';
+  screen.style.visibility = 'visible';
+  screen.style.opacity = '1';
+  screen.style.pointerEvents = 'all';
   resetPinBuffer();
   updatePinScreenUserHints();
 }

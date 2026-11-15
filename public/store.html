@@ -57,7 +57,6 @@
     /* عندما تفتح السلة: إلغاء التمرير والتحكم بالصفحة الخلفية تماماً */
     body.cart-open {
       overflow: hidden !important;
-      touch-action: none;
     }
 
     .num-en {
@@ -1263,11 +1262,13 @@
       padding: 1rem;
       opacity: 0;
       visibility: hidden;
-      transition: all 0.3s ease;
+      pointer-events: none;
+      transition: all 0.28s ease;
     }
     .promo-popup-overlay.active {
       opacity: 1;
       visibility: visible;
+      pointer-events: all;
     }
     .promo-popup-box {
       background: #ffffff;
@@ -1342,11 +1343,13 @@
       padding: 1rem;
       opacity: 0;
       visibility: hidden;
-      transition: all 0.3s;
+      pointer-events: none;
+      transition: all 0.28s ease;
     }
     .quick-view-overlay.active {
       opacity: 1;
       visibility: visible;
+      pointer-events: all;
     }
     .quick-view-modal {
       background: #ffffff;
@@ -1735,25 +1738,30 @@
   </aside>
 
   <!-- Promotional Popup Modal -->
-  <div class="promo-popup-overlay" id="promoPopup">
+  <div class="promo-popup-overlay" id="promoPopup" onclick="if(event.target===this)closePromoPopup()">
     <div class="promo-popup-box">
-      <button class="btn-close-popup" onclick="closePromoPopup()">✕</button>
+      <button type="button" class="btn-close-popup" onclick="closePromoPopup()" title="إغلاق النافذة (Esc)">✕</button>
       <img id="popupImg" class="popup-img" src="" alt="عرض ترويجي">
       <div class="popup-content">
         <span class="popup-badge" id="popupBadge">عرض خاص</span>
         <h3 class="popup-title" id="popupTitle">أهلاً بكم في متجرنا</h3>
         <p class="popup-desc" id="popupDesc">تصفح أحدث الأجهزة والعروض الحصرية</p>
-        <button class="btn-hero-main" style="width: 100%; justify-content: center;" id="popupBtn" onclick="handlePopupClick()">
+        <button type="button" class="btn-hero-main" style="width: 100%; justify-content: center;" id="popupBtn" onclick="handlePopupClick()">
           <span>تصفح المعرض الآن</span>
         </button>
+        <div style="margin-top: 0.85rem;">
+          <button type="button" onclick="closePromoPopupPermanently()" style="background: none; border: none; color: #64748b; font-size: 0.82rem; cursor: pointer; text-decoration: underline; font-family: inherit;">
+            عدم إظهار هذا الإعلان مرة أخرى
+          </button>
+        </div>
       </div>
     </div>
   </div>
 
   <!-- Quick View Product Modal -->
-  <div class="quick-view-overlay" id="quickViewModal">
+  <div class="quick-view-overlay" id="quickViewModal" onclick="if(event.target===this)closeQuickView()">
     <div class="quick-view-modal">
-      <button class="btn-close-qv" onclick="closeQuickView()">✕</button>
+      <button type="button" class="btn-close-qv" onclick="closeQuickView()" title="إغلاق (Esc)">✕</button>
       <div class="qv-grid" id="qvGridContent">
         <!-- ديناميكي -->
       </div>
@@ -2100,10 +2108,17 @@
       applyFiltersAndSort();
     }
 
+    const STORE_PAGE_SIZE = 24;
+    let storeCurrentPage = 1;
+    let searchDebounceTimer = null;
+
     function handleSearchInput() {
       const val = document.getElementById('storeSearchInput').value;
       document.getElementById('searchClearBtn').style.display = val ? 'block' : 'none';
-      applyFiltersAndSort();
+      if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = setTimeout(() => {
+        applyFiltersAndSort();
+      }, 160);
     }
 
     function clearSearch() {
@@ -2114,6 +2129,7 @@
 
     // 5. Apply Filters and Sort
     function applyFiltersAndSort() {
+      storeCurrentPage = 1;
       const q = (document.getElementById('storeSearchInput').value || '').trim().toLowerCase();
       const sortVal = document.getElementById('sortSelect').value;
 
@@ -2171,7 +2187,7 @@
       wrap.innerHTML = tags.join('');
     }
 
-    // 6. Render Products Grid
+    // 6. Render Products Grid (سريع ومجزأ على دفعات خفيفة لمنع أي تعليق)
     function renderProductsGrid() {
       const grid = document.getElementById('productsGrid');
       const countEl = document.getElementById('prodsCountText');
@@ -2194,7 +2210,9 @@
       const waPhone = (companySettings.whatsapp || companySettings.phone || '').replace(/[^\d+]/g, '');
       const waPrefix = waPhone.startsWith('0') ? '970' + waPhone.slice(1) : waPhone;
 
-      grid.innerHTML = filteredProducts.map(p => {
+      const visibleSlice = filteredProducts.slice(0, storeCurrentPage * STORE_PAGE_SIZE);
+
+      const cardsHtml = visibleSlice.map(p => {
         const priceFormatted = formatMoney(p.sellPrice);
         const pricePlain = formatMoneyPlain(p.sellPrice);
         const img = p.image || 'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=500';
@@ -2235,7 +2253,7 @@
                 </div>
 
                 <div class="card-action-btns">
-                  <button class="btn-add-cart" onclick="addToCart('${escapeJsStr(p.id)}')">
+                  <button type="button" class="btn-add-cart" onclick="addToCart('${escapeJsStr(p.id)}')">
                     <span>🛒</span>
                     <span>أضف للطلب</span>
                   </button>
@@ -2249,6 +2267,25 @@
           </div>
         `;
       }).join('');
+
+      const remaining = filteredProducts.length - visibleSlice.length;
+      let loadMoreHtml = '';
+      if (remaining > 0) {
+        loadMoreHtml = `
+          <div style="grid-column: 1 / -1; text-align: center; padding: 2.2rem 1rem; margin-top: 0.5rem;">
+            <button type="button" class="btn-hero-main" onclick="loadMoreStoreProducts()" style="padding: 0.95rem 2.5rem; font-size: 1.05rem; box-shadow: 0 4px 18px rgba(37, 99, 235, 0.28);">
+              <span>عرض المزيد من الأجهزة المتاحة (${remaining} صنف إضافي) ⬇️</span>
+            </button>
+          </div>
+        `;
+      }
+
+      grid.innerHTML = cardsHtml + loadMoreHtml;
+    }
+
+    function loadMoreStoreProducts() {
+      storeCurrentPage++;
+      renderProductsGrid();
     }
 
     function clearAllFilters() {
@@ -2573,6 +2610,7 @@
     // 9. Promo Popup Modal Handling
     function checkPromoPopup(popupOffer) {
       if (!popupOffer || !popupOffer.enabled) return;
+      if (localStorage.getItem('promo_popup_disabled') === '1') return;
       if (sessionStorage.getItem('promo_popup_seen')) return;
 
       document.getElementById('popupTitle').textContent = popupOffer.title || 'أهلاً بكم في متجرنا';
@@ -2594,8 +2632,14 @@
     }
 
     function closePromoPopup() {
-      document.getElementById('promoPopup').classList.remove('active');
+      const popup = document.getElementById('promoPopup');
+      if (popup) popup.classList.remove('active');
       sessionStorage.setItem('promo_popup_seen', 'true');
+    }
+
+    function closePromoPopupPermanently() {
+      localStorage.setItem('promo_popup_disabled', '1');
+      closePromoPopup();
     }
 
     function handlePopupClick() {
@@ -2603,6 +2647,15 @@
       const target = document.getElementById('categoriesSection');
       if (target) target.scrollIntoView({ behavior: 'smooth' });
     }
+
+    // إغلاق سريع لأي نافذة منبثقة أو سلة عبر زر Escape
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closePromoPopup();
+        closeQuickView();
+        closeCartDrawer();
+      }
+    });
 
     // Security escaping helpers
     function escapeHtml(str) {

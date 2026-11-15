@@ -1082,6 +1082,65 @@ const state = {
   dashboardEndDate: ''
 };
 
+// -------------------------------------------------------------
+// =============================================================
+// خريطة المسارات وعناوين الصفحات (SPA Router & Direct Page URLs)
+// =============================================================
+const ROUTE_MAP = {
+  '': 'catalog',
+  'home': 'catalog',
+  'catalog': 'catalog',
+  'products': 'catalog',
+  'pos': 'pos',
+  'customers': 'customers',
+  'suppliers': 'customers',
+  'invoices': 'invoices-list',
+  'invoices-list': 'invoices-list',
+  'create-invoice': 'create-invoice',
+  'new-invoice': 'create-invoice',
+  'receipts': 'receipts',
+  'vouchers': 'receipts',
+  'inventory': 'inventory',
+  'stocktake': 'inventory',
+  'warranties': 'warranties',
+  'dashboard': 'dashboard',
+  'settings': 'settings',
+  'brands-audit': 'brands-audit',
+  'store': 'store-manager',
+  'store-manager': 'store-manager',
+  'orders': 'store-manager'
+};
+
+const TAB_TO_ROUTE = {
+  'catalog': '/admin/home',
+  'pos': '/admin/pos',
+  'customers': '/admin/customers',
+  'invoices-list': '/admin/invoices',
+  'create-invoice': '/admin/create-invoice',
+  'receipts': '/admin/receipts',
+  'inventory': '/admin/inventory',
+  'warranties': '/admin/warranties',
+  'dashboard': '/admin/dashboard',
+  'settings': '/admin/settings',
+  'brands-audit': '/admin/brands-audit',
+  'store-manager': '/admin/store-manager'
+};
+
+const PAGE_TITLES = {
+  'catalog': 'الكتالوج والأصناف | رامز عطاطرة',
+  'pos': 'نقطة البيع السريعة | رامز عطاطرة',
+  'customers': 'الزبائن والموردين | رامز عطاطرة',
+  'invoices-list': 'أرشيف وسجل الفواتير | رامز عطاطرة',
+  'create-invoice': 'إنشاء فاتورة جديدة | رامز عطاطرة',
+  'receipts': 'سندات القبض والصرف | رامز عطاطرة',
+  'inventory': 'إدارة الجرد والمخزون | رامز عطاطرة',
+  'warranties': 'الكفالات والضمان | رامز عطاطرة',
+  'dashboard': 'لوحة التحكم والتقارير | رامز عطاطرة',
+  'settings': 'إعدادات النظام | رامز عطاطرة',
+  'brands-audit': 'تدقيق الماركات | رامز عطاطرة',
+  'store-manager': 'إدارة المتجر والطلبات | رامز عطاطرة'
+};
+
 // تشغيل عند تحميل الصفحة
 document.addEventListener('DOMContentLoaded', () => {
   initApp();
@@ -1257,65 +1316,6 @@ async function initApp() {
     Promise.allSettled([loadInvoices(), loadReceipts(), loadCustomers(), loadDashboard()]).catch(() => {});
   }
 }
-
-// -------------------------------------------------------------
-// =============================================================
-// خريطة المسارات وعناوين الصفحات (SPA Router & Direct Page URLs)
-// =============================================================
-const ROUTE_MAP = {
-  '': 'catalog',
-  'home': 'catalog',
-  'catalog': 'catalog',
-  'products': 'catalog',
-  'pos': 'pos',
-  'customers': 'customers',
-  'suppliers': 'customers',
-  'invoices': 'invoices-list',
-  'invoices-list': 'invoices-list',
-  'create-invoice': 'create-invoice',
-  'new-invoice': 'create-invoice',
-  'receipts': 'receipts',
-  'vouchers': 'receipts',
-  'inventory': 'inventory',
-  'stocktake': 'inventory',
-  'warranties': 'warranties',
-  'dashboard': 'dashboard',
-  'settings': 'settings',
-  'brands-audit': 'brands-audit',
-  'store': 'store-manager',
-  'store-manager': 'store-manager',
-  'orders': 'store-manager'
-};
-
-const TAB_TO_ROUTE = {
-  'catalog': '/admin/home',
-  'pos': '/admin/pos',
-  'customers': '/admin/customers',
-  'invoices-list': '/admin/invoices',
-  'create-invoice': '/admin/create-invoice',
-  'receipts': '/admin/receipts',
-  'inventory': '/admin/inventory',
-  'warranties': '/admin/warranties',
-  'dashboard': '/admin/dashboard',
-  'settings': '/admin/settings',
-  'brands-audit': '/admin/brands-audit',
-  'store-manager': '/admin/store-manager'
-};
-
-const PAGE_TITLES = {
-  'catalog': 'الكتالوج والأصناف | رامز عطاطرة',
-  'pos': 'نقطة البيع السريعة | رامز عطاطرة',
-  'customers': 'الزبائن والموردين | رامز عطاطرة',
-  'invoices-list': 'أرشيف وسجل الفواتير | رامز عطاطرة',
-  'create-invoice': 'إنشاء فاتورة جديدة | رامز عطاطرة',
-  'receipts': 'سندات القبض والصرف | رامز عطاطرة',
-  'inventory': 'إدارة الجرد والمخزون | رامز عطاطرة',
-  'warranties': 'الكفالات والضمان | رامز عطاطرة',
-  'dashboard': 'لوحة التحكم والتقارير | رامز عطاطرة',
-  'settings': 'إعدادات النظام | رامز عطاطرة',
-  'brands-audit': 'تدقيق الماركات | رامز عطاطرة',
-  'store-manager': 'إدارة المتجر والطلبات | رامز عطاطرة'
-};
 
 // إدارة التبويبات والتاريخ مع حماية الإعدادات
 // -------------------------------------------------------------
@@ -10021,23 +10021,25 @@ function closeProductDetailSheet() {
     });
   });
 
-  try {
-    if (document.body) {
-      observer.observe(document.body, {
-        attributes: true,
-        subtree: true,
-        attributeFilter: ['class', 'style']
-      });
-    } else {
-      document.addEventListener('DOMContentLoaded', () => {
-        observer.observe(document.body, {
+  // مراقبة ظهور النوافذ المنبثقة بشكل خفيف وعالي الأداء
+  function initModalBackdropObserver() {
+    try {
+      const modalElements = document.querySelectorAll('.modal-backdrop, .modal-overlay, #modalStocktakeSheet, #productDetailSheet');
+      modalElements.forEach(m => {
+        if (m.id === 'pinLockScreen') return;
+        observer.observe(m, {
           attributes: true,
-          subtree: true,
           attributeFilter: ['class', 'style']
         });
       });
-    }
-  } catch (e) {}
+    } catch (e) {}
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initModalBackdropObserver);
+  } else {
+    initModalBackdropObserver();
+  }
 
   // الاستماع لزر الرجوع الفعلي بهواتف أندرويد وآيفون والمتصفح
   window.addEventListener('popstate', (event) => {
