@@ -2928,16 +2928,30 @@ app.use((req, res, next) => {
   next();
 });
 
-app.get(['/', '/store', '/shop'], (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'store.html'));
-});
+const APP_MODE = (process.env.APP_MODE || 'full').toLowerCase(); // 'full' | 'admin_only' | 'store_only'
+
+if (APP_MODE === 'admin_only') {
+  app.get(['/', '/store', '/shop'], (req, res) => {
+    res.redirect('/admin');
+  });
+} else {
+  app.get(['/', '/store', '/shop'], (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'store.html'));
+  });
+}
 
 // 6. واجهة نظام الإدارة والكاشير الداخلي المحمي (Protected Admin System)
 // مسارات نظام الأدمن - كل شيء تحت /admin
 app.get('/admin', (req, res) => {
+  if (APP_MODE === 'store_only') {
+    return res.status(404).sendFile(path.join(__dirname, 'public', 'store.html'));
+  }
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 app.get('/admin/*', (req, res, next) => {
+  if (APP_MODE === 'store_only') {
+    return res.status(404).sendFile(path.join(__dirname, 'public', 'store.html'));
+  }
   // إذا كان الطلب لملف ثابت (مثل /admin/js/... أو /admin/css/...) يتم تقديمه من مجلد public بدلاً من إعادة index.html
   if (req.path.includes('.')) {
     const relativeAsset = req.path.replace(/^\/admin\//, '');
@@ -2955,7 +2969,11 @@ app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api') || req.path.startsWith('/uploads') || req.path.includes('.')) {
     return next();
   }
+  if (APP_MODE === 'admin_only') {
+    return res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  }
   if (req.path.startsWith('/admin')) {
+    if (APP_MODE === 'store_only') return res.status(404).sendFile(path.join(__dirname, 'public', 'store.html'));
     return res.sendFile(path.join(__dirname, 'public', 'index.html'));
   }
   res.sendFile(path.join(__dirname, 'public', 'store.html'));
