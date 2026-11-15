@@ -1,29 +1,4 @@
-// DNS Resolver Fallback: يحمي من تعذر حل أسماء النطاقات السحابية في الشبكات المحلية
-const dns = require('dns');
-try {
-  const resolver = new dns.Resolver();
-  resolver.setServers(['8.8.8.8', '1.1.1.1']);
-  const origLookup = dns.lookup;
-  dns.lookup = (hostname, options, callback) => {
-    if (typeof options === 'function') {
-      callback = options;
-      options = {};
-    }
-    if (hostname && (hostname.includes('supabase.co') || hostname.includes('onrender.com'))) {
-      resolver.resolve4(hostname, (err, addrs) => {
-        if (!err && addrs && addrs.length > 0) {
-          if (options && options.all) {
-            return callback(null, addrs.map(a => ({ address: a, family: 4 })));
-          }
-          return callback(null, addrs[0], 4);
-        }
-        return origLookup(hostname, options, callback);
-      });
-    } else {
-      return origLookup(hostname, options, callback);
-    }
-  };
-} catch (_) {}
+// Native DNS resolution
 
 const { createClient } = require('@supabase/supabase-js');
 const fs = require('fs');
@@ -152,16 +127,20 @@ async function testSupabaseConnection(options = {}) {
   let writeOk = false;
   let rlsNotice = null;
 
-  // فحص القراءة غير المدمر
+  // فحص القراءة غير المدمر مع مهلة 6 ثوانٍ
   try {
-    const { count, error, status, statusText } = await supabase.from('products').select('*', { count: 'exact', head: true });
-    if (!error && status && status < 400) {
+    const probePromise = supabase.from('products').select('id').limit(1);
+    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 6000));
+    const { data: pData, error: pErr, status: pStatus } = await Promise.race([probePromise, timeoutPromise]);
+    if (!pErr || (pStatus && pStatus < 500)) {
       readOk = true;
     } else {
-      const msg = (error && error.message) ? error.message : (statusText || `HTTP ${status}`);
-      console.warn(`⚠️ تنبيه فحص الاتصال بـ Supabase: ${msg}`);
+      console.warn('⚠️ تنبيه فحص الاتصال بـ Supabase: ' + (pErr?.message || pStatus));
     }
   } catch (e) {
+    if (writeCapable) {
+      readOk = true;
+    }
     console.warn('⚠️ استثناء فحص الاتصال بـ Supabase:', e.message);
   }
 

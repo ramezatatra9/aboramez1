@@ -5566,8 +5566,9 @@ div[style*="overflow-x: auto"]::-webkit-scrollbar-track,
     bottom: 0;
     left: 0;
     right: 0;
-    height: calc(68px + env(safe-area-inset-bottom, 0px));
-    padding: 0 0.4rem env(safe-area-inset-bottom, 0px) 0.4rem;
+    min-height: calc(64px + env(safe-area-inset-bottom, 0px));
+    height: auto;
+    padding: 4px 0.3rem max(4px, env(safe-area-inset-bottom, 0px)) 0.3rem;
     background: rgba(255, 255, 255, 0.97);
     backdrop-filter: blur(24px);
     -webkit-backdrop-filter: blur(24px);
@@ -5587,14 +5588,15 @@ div[style*="overflow-x: auto"]::-webkit-scrollbar-track,
     background: transparent;
     border: none;
     color: #64748b;
-    padding: 7px 8px;
+    padding: 4px 2px;
     border-radius: 16px;
     cursor: pointer;
     position: relative;
     transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
     font-family: inherit;
-    flex: 1;
-    min-height: 54px;
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 48px;
     text-decoration: none;
     -webkit-tap-highlight-color: transparent;
   }
@@ -5665,10 +5667,15 @@ div[style*="overflow-x: auto"]::-webkit-scrollbar-track,
   }
 
   .mob-nav-label {
-    font-size: 0.78rem;
+    font-size: clamp(0.64rem, 2.3vw, 0.78rem);
     font-weight: 700;
-    line-height: 1;
+    line-height: 1.1;
     letter-spacing: -0.2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    text-align: center;
   }
 
   .mob-nav-btn.active .mob-nav-label {
@@ -7003,7 +7010,7 @@ html, body {
     width: 100% !important;
     min-width: 0 !important;
     box-sizing: border-box !important;
-    overflow-x: hidden !important;
+    overflow: visible !important;
   }
 
   /* نموذج سند القبض - grid يتحول لعمود واحد */
@@ -7036,11 +7043,15 @@ html, body {
     box-sizing: border-box !important;
   }
 
-  /* الجدول نفسه يستخدم table-layout: fixed لمنع التمدد */
+  /* إخفاء رأس جدول السندات لأن الصفوف تعرض كبطاقات مالية متكاملة على الهواتف */
+  #tab-receipts table thead {
+    display: none !important;
+  }
   #tab-receipts table {
-    table-layout: fixed !important;
+    display: block !important;
     width: 100% !important;
     min-width: 0 !important;
+    border: none !important;
   }
 
   /* تأكيد: tafqeet-box لا يخرج من الشاشة */
@@ -7142,14 +7153,13 @@ html, body {
   /* ─── إصلاح safe-area-inset-bottom على أندرويد ─── */
   /* Android ما قبل 12 لا يدعم env() → fallback صريح */
   body {
-    padding-bottom: 80px !important;
-    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)) !important;
+    padding-bottom: 90px !important;
+    padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px)) !important;
   }
   .mobile-bottom-nav {
-    height: 68px !important;
-    height: calc(68px + env(safe-area-inset-bottom, 0px)) !important;
-    padding-bottom: 0 !important;
-    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+    min-height: 64px !important;
+    height: auto !important;
+    padding: 4px 0.3rem max(6px, env(safe-area-inset-bottom, 0px)) 0.3rem !important;
   }
 
   /* ─── منع content انزلاق تحت شريط النظام على أندرويد ─── */
@@ -7189,6 +7199,27 @@ html, body {
 
 /* ─── منع أي عنصر من التسبب بـ horizontal scroll ─── */
 @media (max-width: 480px) {
+  /* شاشات صغيرة جداً: منع تداخل كروت الأصناف وتنسيق النصوص */
+  .products-grid:not(.view-list-mode) {
+    grid-template-columns: 1fr !important;
+    gap: 0.75rem !important;
+  }
+  .product-img-wrapper {
+    height: 175px !important;
+  }
+  .product-title {
+    font-size: 0.92rem !important;
+    height: auto !important;
+    min-height: auto !important;
+    max-height: none !important;
+    -webkit-line-clamp: 2 !important;
+  }
+  .brand-title {
+    font-size: 1.05rem !important;
+  }
+  .header-actions {
+    gap: 0.25rem !important;
+  }
   /* شاشات صغيرة جداً: ضغط إضافي */
   .card {
     border-radius: 12px !important;
@@ -7227,8 +7258,10 @@ html, body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 1.5rem;
+  justify-content: flex-start;
+  padding: 1rem 1rem calc(2rem + env(safe-area-inset-bottom, 0px)) 1rem;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
   backdrop-filter: blur(28px);
   -webkit-backdrop-filter: blur(28px);
   user-select: none;
@@ -7242,6 +7275,8 @@ html, body {
   display: flex;
   flex-direction: column;
   align-items: center;
+  margin: auto !important;
+  padding: 1rem 0;
 }
 
 .pin-brand-header {
@@ -8746,4 +8781,16 @@ body.role-cashier #pdsProfitBox {
   padding: 0.65rem 1.25rem;
   border-radius: 10px;
   font-weight: 600;
+}
+
+
+/* سجل الفواتير: تمرير أفقي سلس ومريح على الهواتف */
+#invoicesListTable {
+  min-width: 760px !important;
+  width: 100% !important;
+}
+#tab-invoices-list div[style*="overflow-x: auto"] {
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  width: 100% !important;
 }

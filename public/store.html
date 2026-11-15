@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>معرض ومتجر الأجهزة الكهربائية والمنزلية المعتمد | تسوق واطلب مباشرة</title>
   
   <meta name="description" content="المعرض والمتجر الرسمي المعتمد. تصفح أحدث الأجهزة الكهربائية والمنزلية الأصلية بأسعار معتمدة مع كفالة رسمية وإمكانية الطلب المباشر والتوصيل لكافة المناطق والدفع عند الاستلام.">
@@ -1503,6 +1503,17 @@
       .hero-heading { font-size: 2rem; }
       .footer-container { grid-template-columns: 1fr; }
       .cart-drawer-panel { max-width: 100%; }
+    }
+    @media (max-width: 480px) {
+      .products-grid { grid-template-columns: 1fr !important; gap: 0.85rem; }
+      .header-actions { gap: 0.4rem; }
+      .btn-header-cart { padding: 0.55rem 0.75rem; font-size: 0.82rem; }
+      .btn-header-wa { padding: 0.55rem 0.75rem; font-size: 0.82rem; }
+      .btn-header-wa span:last-child { display: none; }
+      .brand-text-name { font-size: 1.05rem; }
+      .top-announcement { font-size: 0.76rem; padding: 0.45rem 0.6rem; }
+      .top-announcement-inner { justify-content: center; text-align: center; gap: 0.35rem; }
+      .announcement-links { justify-content: center; }
     }
   </style>
   <!-- Flash Shield: هيد الصفحة حتى تكتمل بيانات الشركة من الـ API لمنع الوميض -->

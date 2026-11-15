@@ -120,7 +120,7 @@ runTest('2-1: رفض إضافة المنتجات وحذفها وتعديل ال�
     { method: 'POST', path: '/api/products' },
     { method: 'DELETE', path: '/api/products/prod-123' },
     { method: 'POST', path: '/api/inventory/update' },
-    { method: 'POST', path: '/api/sync/batch' }
+    { method: 'POST', path: '/api/categories' }
   ];
 
   for (const r of mutatingRoutes) {
@@ -173,6 +173,27 @@ runTest('2-3: رفض إصدار الفواتير وتحويل عروض الأس�
       json() {}
     }, () => {});
     assert.strictEqual(code, 503);
+  }
+});
+
+runTest('2-4: مسارات مزامنة الشامل لايت (/api/sync) مسموح لها بالمرور لتوثيق requireSyncAuth الخاص بها ولا تحظر بـ 503', () => {
+  systemMode.setSystemMode('read-only');
+  const syncRoutes = [
+    { method: 'POST', path: '/api/sync/batch' },
+    { method: 'POST', path: '/api/sync/customers' },
+    { method: 'POST', path: '/api/sync/vouchers' },
+    { method: 'POST', path: '/api/sync/invoices' }
+  ];
+
+  for (const r of syncRoutes) {
+    let nextCalled = false;
+    let code = null;
+    systemMode.requireWritePermission(r, {
+      status(c) { code = c; return this; },
+      json() {}
+    }, () => { nextCalled = true; });
+    assert.strictEqual(nextCalled, true, `المسار ${r.path} يجب أن يمر لتوثيق المزامنة الخاص`);
+    assert.strictEqual(code, null);
   }
 });
 

@@ -32,6 +32,8 @@ const SAFE_POST_ROUTES = [
 ];
 
 function isSafePostRoute(path) {
+  // مسارات مزامنة برنامج الشامل لايت - لها توثيق خاص بها (requireSyncAuth) ويجب ألا تُحظر أبداً بـ 503
+  if (path.startsWith('/api/sync')) return true;
   if (SAFE_POST_ROUTES.includes(path)) return true;
   if (/^\/api\/invoices\/[^/]+\/resend-telegram$/.test(path)) return true;
   if (/^\/api\/customers\/[^/]+\/(send-statement-telegram|send-reminder-telegram)$/.test(path)) return true;

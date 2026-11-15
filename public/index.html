@@ -20,7 +20,7 @@
       // Immediately force-unregister ANY old service worker so stale JS is never served
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistrations().then(function(regs) {
-          var currentVersion = 'aboramez-pos-v11.0.2';
+          var currentVersion = 'aboramez-pos-v11.0.3';
           regs.forEach(function(reg) {
             // Check if this SW is outdated
             if (reg.active && reg.active.scriptURL) {
@@ -54,15 +54,17 @@
   <style id="criticalAuthShield">
     body.auth-locked {
       background: radial-gradient(circle at 50% 20%, #1e3a5f 0%, #0f172a 75%, #020617 100%) !important;
-      overflow: hidden !important;
+      overflow-y: auto !important;
+      -webkit-overflow-scrolling: touch !important;
       user-select: none !important;
-      height: 100vh !important;
+      min-height: 100vh !important;
+      min-height: 100dvh !important;
       margin: 0 !important;
     }
     body.auth-locked > *:not(#pinLockScreen) {
       display: none !important;
     }
-    /* تعريف مبكر لشاشة القفل - يظهر فوراً قبل تحميل style.css الخارجي */
+    /* تعريف مبكر لشاشة القفل - يظهر فوراً ويدعم التمرير على الهواتف والشاشات الصغيرة عند تكبير الخط */
     #pinLockScreen:not(.pin-hidden) {
       position: fixed;
       inset: 0;
@@ -71,8 +73,13 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      padding: 1.5rem;
+      justify-content: flex-start;
+      padding: 1rem 1rem calc(2rem + env(safe-area-inset-bottom, 0px)) 1rem;
+      overflow-y: auto !important;
+      -webkit-overflow-scrolling: touch !important;
+    }
+    #pinLockScreen .pin-lock-container {
+      margin: auto !important;
     }
     /* عند الإخفاء بعد الدخول الصحيح */
     #pinLockScreen.pin-hidden {
@@ -85,7 +92,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/style.css?v=11.0.0">
+  <link rel="stylesheet" href="/css/style.css?v=11.0.3">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💼</text></svg>">
   
   <!-- PWA & Mobile Web App Meta Tags -->
@@ -4539,11 +4546,11 @@
   <script src="/js/html2pdf.bundle.min.js?v=11.0.0"></script>
   <script src="/js/warranties.js"></script>
   <script src="/js/brandsAudit.js"></script>
-  <script src="/js/app.js?v=11.0.0"></script>
-  <script src="/js/pwa.js?v=11.0.0"></script>
+  <script src="/js/app.js?v=11.0.3"></script>
+  <script src="/js/pwa.js?v=11.0.3"></script>
   <!-- مكتبة مسح الباركود المحلية السريعة -->
   <script src="/js/html5-qrcode.min.js?v=3.5.0"></script>
-  <script src="/js/pin-barcode.js?v=11.0.2"></script>
+  <script src="/js/pin-barcode.js?v=11.0.3"></script>
 
 
 
