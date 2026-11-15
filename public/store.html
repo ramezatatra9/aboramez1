@@ -1505,20 +1505,25 @@
       .cart-drawer-panel { max-width: 100%; }
     }
   </style>
+  <!-- Flash Shield: هيد الصفحة حتى تكتمل بيانات الشركة من الـ API لمنع الوميض -->
+  <style id="storeFlashShield">
+    body.store-loading { opacity: 0 !important; pointer-events: none !important; }
+    body.store-ready { opacity: 1; transition: opacity 0.18s ease; }
+  </style>
 </head>
-<body>
+<body class="store-loading">
 
   <!-- Top Announcement Bar -->
   <div class="top-announcement" id="topAnnouncement">
     <div class="top-announcement-inner">
       <div class="announcement-text" id="announcementText">
         <span>✨</span>
-        <span id="announcementContent">كل ما يحتاجه بيتك، في مكان واحد • كفالة رسمية معتمدة • توصيل سريع لكافة المناطق</span>
+        <span id="announcementContent">🚚 توصيل سريع لكافة المناطق والدفع عند الاستلام • 🛡️ بضاعة أصلية ومكفولة بالكامل • 💬 خدمة عملاء مباشرة</span>
       </div>
       <div class="announcement-links">
         <span id="announcementHours">🕒 يومياً 8:00 ص - 9:00 م</span>
         <span>•</span>
-        <a id="announcementPhoneLink" href="tel:0599000000">📞 اتصال مباشر</a>
+        <a id="announcementPhoneLink" href="tel:0595979592">📞 0595979592</a>
       </div>
     </div>
   </div>
@@ -1529,7 +1534,7 @@
       <a href="/" class="brand-logo">
         <div class="brand-icon-box">🏠</div>
         <div>
-          <div class="brand-text-name" id="headerCompanyName">شركة رامز عطاطرة</div>
+          <div class="brand-text-name" id="headerCompanyName">شركة أبو رامز</div>
           <div class="brand-text-sub">
             <span>معرض الأجهزة المعتمد</span>
             <span class="badge-verified">موثق ✓</span>
@@ -1554,7 +1559,7 @@
           <span class="cart-badge-count" id="headerCartCount">0</span>
         </button>
 
-        <a id="headerWaDirect" href="https://wa.me/" target="_blank" class="btn-header-wa">
+        <a id="headerWaDirect" href="https://wa.me/970595979592" target="_blank" class="btn-header-wa">
           <span>💬</span>
           <span>واتساب</span>
         </a>
@@ -1566,17 +1571,17 @@
   <section class="hero-banner">
     <div class="hero-container">
       <div>
-        <div class="hero-badge-tag" id="heroBadge">🌟 المعرض التجاري المعتمد 2026</div>
+        <div class="hero-badge-tag" id="heroBadge">🌟 المعرض المعتمد 2026</div>
         <h1 class="hero-heading" id="heroTitle">كل ما يحتاجه بيتك،<br>في مكان واحد.</h1>
         <p class="hero-subheading" id="heroSubtitle">
-          تصفّح تشكيلة الأجهزة الكهربائية والمنزلية الأصلية بالمستودع بأسعار معتمدة ومكفولة، مع إمكانية الطلب المباشر والتوصيل لكافة المدن والدفع عند الاستلام.
+          معرض الأجهزة الكهربائية والمنزلية المعتمد • أفضل الموديلات والأسعار المكفولة مع إمكانية الطلب المباشر والتوصيل لكافة المناطق والدفع عند الاستلام.
         </p>
         <div class="hero-buttons">
           <a href="#categoriesSection" class="btn-hero-main">
             <span>🏷️</span>
             <span>تصفّح أقسام المعرض</span>
           </a>
-          <a id="heroWaBtn" href="#" target="_blank" class="btn-hero-sub">
+          <a id="heroWaBtn" href="https://wa.me/970595979592" target="_blank" class="btn-hero-sub">
             <span>💬</span>
             <span>تواصل واستفسر هاتفياً</span>
           </a>
@@ -1777,7 +1782,7 @@
   <footer class="site-footer">
     <div class="footer-container">
       <div class="footer-col">
-        <h3 id="footerTitle">شركة رامز عطاطرة</h3>
+        <h3 id="footerTitle">شركة أبو رامز</h3>
         <p id="footerAboutText">
           المعرض المعتمد لتوفير كافة الأجهزة الكهربائية والمنزلية الكبيرة والصغيرة بأفضل الأسعار وأعلى معايير الكفاءة والضمان الأصلي. خدمة توصيل سريعة لكافة المحافظات والمناطق.
         </p>
@@ -1801,15 +1806,15 @@
         <h3>معلومات التواصل</h3>
         <div class="footer-contact-row">
           <span>📞</span>
-          <span id="footerPhone">هاتف: جاري التحميل...</span>
+          <span id="footerPhone">هاتف: 0595979592</span>
         </div>
         <div class="footer-contact-row">
           <span>📍</span>
-          <span id="footerAddress">العنوان: جاري التحميل...</span>
+          <span id="footerAddress">العنوان: يعبد - الشارع الرئيسي</span>
         </div>
         <div class="footer-contact-row">
           <span>🕒</span>
-          <span id="footerHours">ساعات العمل: يومياً 8 ص - 9 م</span>
+          <span id="footerHours">ساعات العمل: يومياً 8:00 ص - 9:00 م</span>
         </div>
       </div>
 
@@ -1823,7 +1828,7 @@
 
     <div class="footer-bottom-bar">
       <div>
-        جميع الحقوق محفوظة © <span id="yearSpan">2026</span> <strong id="copyCompany">شركة رامز عطاطرة للأجهزة الكهربائية</strong>
+        جميع الحقوق محفوظة © <span id="yearSpan">2026</span> <strong id="copyCompany">شركة أبو رامز للأجهزة الكهربائية</strong>
       </div>
       <div>
         <span>نظام المتجر الإلكتروني والمعرض التجاري المعتمد</span>
@@ -1843,10 +1848,10 @@
     let offersList = [];
     let storeConfig = {};
     let companySettings = {
-      name: 'شركة رامز عطاطرة',
-      phone: '',
-      whatsapp: '',
-      address: '',
+      name: 'شركة أبو رامز',
+      phone: '0595979592',
+      whatsapp: '0595979592',
+      address: 'يعبد - الشارع الرئيسي',
       currency: 'شيكل'
     };
 
@@ -1880,6 +1885,10 @@
         }
       } catch (err) {
         console.error('Failed to load store data:', err);
+      } finally {
+        // إظهار الصفحة بعد اكتمال البيانات (أو عند الفشل) لمنع الوميض
+        document.body.classList.remove('store-loading');
+        document.body.classList.add('store-ready');
       }
     }
 
@@ -1898,7 +1907,7 @@
 
     // Render Company & Text Settings
     function renderCompanyInfo() {
-      const name = companySettings.name || 'شركة رامز عطاطرة';
+      const name = companySettings.name || 'شركة أبو رامز';
       document.getElementById('headerCompanyName').textContent = name;
       document.getElementById('footerTitle').textContent = name;
       document.getElementById('copyCompany').textContent = name;
@@ -2673,7 +2682,14 @@
     }
 
     // Initialize Store on DOM Load
-    window.addEventListener('DOMContentLoaded', initStore);
+    window.addEventListener('DOMContentLoaded', () => {
+      // Fallback: إظهار الصفحة بعد 2.5 ثانية على أقصى تقدير حتى في حال بطء الشبكة
+      const flashFallback = setTimeout(() => {
+        document.body.classList.remove('store-loading');
+        document.body.classList.add('store-ready');
+      }, 2500);
+      initStore().finally(() => clearTimeout(flashFallback));
+    });
   </script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-﻿// صورة المنتج الافتراضية الخفيفة المضمنة (تحميل فوري 0ms بدون استهلاك شبكة)
+// صورة المنتج الافتراضية الخفيفة المضمنة (تحميل فوري 0ms بدون استهلاك شبكة)
 const DEFAULT_PRODUCT_IMG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'%3E%3Crect width='400' height='300' fill='%23f8fafc'/%3E%3Cg fill='%2394a3b8'%3E%3Cpath d='M150 110h100v80H150z' stroke='%23cbd5e1' stroke-width='6' fill='%23ffffff' rx='10'/%3E%3Ccircle cx='180' cy='150' r='16' fill='%23e2e8f0'/%3E%3Cpath d='M215 145h20M215 155h15' stroke='%2394a3b8' stroke-width='4' stroke-linecap='round'/%3E%3C/g%3E%3Ctext x='50%25' y='230' font-family='system-ui, sans-serif' font-size='14' font-weight='700' fill='%2394a3b8' text-anchor='middle'%3Eمعرض أبو رامز%3C/text%3E%3C/svg%3E";
 
 /**
