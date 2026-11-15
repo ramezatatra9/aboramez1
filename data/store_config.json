@@ -727,6 +727,8 @@
     "buttonText": "تصفّح أقسام المعرض الآن",
     "buttonLink": "#categoriesSection"
   },
-  "customProductNames": {},
+  "customProductNames": {
+    "prod-i00001017": "رامز"
+  },
   "manuallyShownOutOfStock": []
 }

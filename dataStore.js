@@ -4045,84 +4045,141 @@ const dataStore = {
     return { success: true, order };
   },
 
-  // تحديث دوري خفيف من Supabase لمزامنة البيانات بين السيرفرات
+  // تحديث دوري ذكي من سيرفر الأدمن المباشر ومن Supabase
   async refreshFromCloud() {
-    if (!supabase) return { success: false, error: 'Supabase غير متصل' };
     const results = { updated: [] };
-    try {
-      // تحديث المنتجات
-      let allSbProducts = [];
-      let page = 0;
-      const pageSize = 500;
-      let hasMore = true;
-      while (hasMore) {
-        const { data, error } = await supabase.from('products').select('*').range(page * pageSize, (page + 1) * pageSize - 1);
-        if (error) break;
-        if (data && data.length > 0) { allSbProducts = allSbProducts.concat(data); page++; hasMore = data.length === pageSize; }
-        else hasMore = false;
-      }
-      if (allSbProducts.length > 0) {
-        const currentLocal = readJson(PRODUCTS_FILE, []);
-        const localMap = new Map();
-        currentLocal.forEach(p => { if (p.code) localMap.set(String(p.code).toUpperCase(), p); if (p.id) localMap.set(String(p.id), p); });
-        const merged = allSbProducts.map(p => {
-          const loc = localMap.get(String(p.code || '').toUpperCase()) || localMap.get(String(p.id));
-          return {
-            id: p.id, code: p.code || '', name: p.name || '',
-            mainCategory: (loc && loc.mainCategory) ? loc.mainCategory : (p.category || 'أجهزة كهربائية كبيرة'),
-            category: (loc && loc.category) ? loc.category : (p.subcategory || p.category || 'عام'),
-            costPrice: Number(p.costPrice) || 0, sellPrice: Number(p.sellPrice) || 0,
-            stock: parseInt(p.stock) || 0, unit: p.unit || 'قطعة',
-            image: (loc && loc.image && !loc.image.includes('placeholder')) ? loc.image : (p.image || ''),
-            description: (loc && loc.description) ? loc.description : (p.description || ''),
-            barcode: (loc && loc.barcode) ? loc.barcode : (p.barcode || ''),
-            isSuspended: loc ? Boolean(loc.isSuspended) : Boolean(p.isSuspended),
-            brand: (loc && loc.brand && loc.brand !== 'أخرى') ? loc.brand : (p.brand || 'أخرى'),
-            brandAr: (loc && loc.brandAr && loc.brandAr !== 'أخرى / عام') ? loc.brandAr : (p.brandAr || 'أخرى / عام'),
-            images: Array.isArray(p.images) && p.images.length > 0 ? p.images : (loc && Array.isArray(loc.images) ? loc.images : []),
-            lastStockUpdate: p.lastStockUpdate || (loc ? loc.lastStockUpdate : null),
-            lastStockEditor: p.lastStockEditor || (loc ? loc.lastStockEditor : null),
-            createdAt: p.createdAt || (loc ? loc.createdAt : new Date().toISOString()),
-            updatedAt: p.updatedAt || (loc ? loc.updatedAt : null),
-            lastSyncAt: p.lastSyncAt || (loc ? loc.lastSyncAt : null)
-          };
+    const adminUrl = process.env.ADMIN_URL || 'https://aboramez1-admin.onrender.com';
+    const currentHost = (process.env.RENDER_EXTERNAL_HOSTNAME || '').toLowerCase();
+    const isStoreOnly = (process.env.APP_MODE || '').toLowerCase() === 'store_only' || currentHost.includes('aboramez1.') || currentHost.includes('aboramez.store');
+
+    const withTimeout = (promise, ms = 6000) => Promise.race([
+      promise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout after ' + ms + 'ms')), ms))
+    ]);
+
+    // 1. إذا كان هذا السيرفر هو متجر الزبائن، اسحب فوراً أحدث الإعدادات والمنتجات من سيرفر الأدمن الحي
+    if (isStoreOnly && adminUrl && !currentHost.includes('admin')) {
+      try {
+        const fetchMod = adminUrl.startsWith('https') ? require('https') : require('http');
+        const adminConfig = await new Promise((resolve, reject) => {
+          const req = fetchMod.get(adminUrl + '/api/admin/store-config', (res) => {
+            let data = '';
+            res.on('data', chunk => data += chunk);
+            res.on('end', () => {
+              try { resolve(JSON.parse(data)); } catch (e) { reject(e); }
+            });
+          });
+          req.on('error', reject);
+          req.setTimeout(5000, () => { req.destroy(); reject(new Error('Admin store-config timeout')); });
         });
-        writeJson(PRODUCTS_FILE, merged);
-        _productsCache = merged;
-        _productsCacheTime = Date.now();
-        results.updated.push('products:' + merged.length);
-      }
 
-      // تحديث إعدادات المتجر (store_config)
-      const { data: scRow } = await supabase.from('settings').select('data').eq('id', 'store_config').maybeSingle();
-      if (scRow && scRow.data && typeof scRow.data === 'object' && Object.keys(scRow.data).length > 0) {
-        writeJson(STORE_CONFIG_FILE, scRow.data);
-        results.updated.push('store_config');
+        if (adminConfig && adminConfig.config) {
+          writeJson(STORE_CONFIG_FILE, adminConfig.config);
+          results.updated.push('store_config_from_admin');
+        }
+      } catch (adminErr) {
+        console.warn('⚠️ تعذر السحب المباشر من سيرفر الأدمن:', adminErr.message);
       }
-
-      // تحديث الإعدادات العامة
-      const { data: stRow } = await supabase.from('settings').select('data').eq('id', 'general').maybeSingle();
-      if (stRow && stRow.data && typeof stRow.data === 'object' && Object.keys(stRow.data).length > 0) {
-        writeJson(SETTINGS_FILE, stRow.data);
-        results.updated.push('settings');
-      }
-
-      // تحديث الزبائن
-      const { data: cRow } = await supabase.from('settings').select('data').eq('id', 'customers').maybeSingle();
-      if (cRow && Array.isArray(cRow.data) && cRow.data.length > 0) {
-        writeJson(CUSTOMERS_FILE, cRow.data);
-        results.updated.push('customers:' + cRow.data.length);
-      }
-
-      results.success = true;
-      if (results.updated.length > 0) {
-        console.log('✅ تحديث دوري من Supabase: ' + results.updated.join(', '));
-      }
-      return results;
-    } catch (err) {
-      console.warn('⚠️ خطأ في التحديث الدوري من Supabase:', err.message);
-      return { success: false, error: err.message };
     }
+
+    // 2. مزامنة قاعدة بيانات Supabase (مع مهلة أمان لمنع التعليق عند انقطاع السحابة)
+    if (supabase) {
+      try {
+        // أ) تحديث إعدادات المتجر من Supabase إذا لم تُسحب من الأدمن
+        if (!results.updated.includes('store_config_from_admin')) {
+          try {
+            const scRes = await withTimeout(supabase.from('settings').select('data').eq('id', 'store_config').maybeSingle(), 5000);
+            if (scRes && scRes.data && scRes.data.data && typeof scRes.data.data === 'object' && Object.keys(scRes.data.data).length > 0) {
+              writeJson(STORE_CONFIG_FILE, scRes.data.data);
+              results.updated.push('store_config_from_supabase');
+            }
+          } catch (e) {
+            console.warn('⚠️ Supabase store_config check timed out / failed:', e.message);
+          }
+        }
+
+        // ب) تحديث المنتجات من جدول products
+        try {
+          let allSbProducts = [];
+          let page = 0;
+          const pageSize = 500;
+          let hasMore = true;
+          while (hasMore) {
+            const { data, error } = await withTimeout(
+              supabase.from('products').select('*').range(page * pageSize, (page + 1) * pageSize - 1),
+              8000
+            );
+            if (error) break;
+            if (data && data.length > 0) {
+              allSbProducts = allSbProducts.concat(data);
+              page++;
+              hasMore = data.length === pageSize;
+            } else {
+              hasMore = false;
+            }
+          }
+
+          if (allSbProducts.length > 0) {
+            const currentLocal = readJson(PRODUCTS_FILE, []);
+            const localMap = new Map();
+            currentLocal.forEach(p => {
+              if (p.code) localMap.set(String(p.code).toUpperCase(), p);
+              if (p.id) localMap.set(String(p.id), p);
+            });
+            const merged = allSbProducts.map(p => {
+              const loc = localMap.get(String(p.code || '').toUpperCase()) || localMap.get(String(p.id));
+              return {
+                id: p.id,
+                code: p.code || '',
+                name: p.name || '',
+                mainCategory: (loc && loc.mainCategory) ? loc.mainCategory : (p.category || 'أجهزة كهربائية كبيرة'),
+                category: (loc && loc.category) ? loc.category : (p.subcategory || p.category || 'عام'),
+                costPrice: Number(p.costPrice) || 0,
+                sellPrice: Number(p.sellPrice) || 0,
+                stock: parseInt(p.stock) || 0,
+                unit: p.unit || 'قطعة',
+                image: (loc && loc.image && !loc.image.includes('placeholder')) ? loc.image : (p.image || ''),
+                description: (loc && loc.description) ? loc.description : (p.description || ''),
+                barcode: (loc && loc.barcode) ? loc.barcode : (p.barcode || ''),
+                isSuspended: loc ? Boolean(loc.isSuspended) : Boolean(p.isSuspended),
+                brand: (loc && loc.brand && loc.brand !== 'أخرى') ? loc.brand : (p.brand || 'أخرى'),
+                brandAr: (loc && loc.brandAr && loc.brandAr !== 'أخرى / عام') ? loc.brandAr : (p.brandAr || 'أخرى / عام'),
+                images: Array.isArray(p.images) && p.images.length > 0 ? p.images : (loc && Array.isArray(loc.images) ? loc.images : []),
+                lastStockUpdate: p.lastStockUpdate || (loc ? loc.lastStockUpdate : null),
+                lastStockEditor: p.lastStockEditor || (loc ? loc.lastStockEditor : null),
+                createdAt: p.createdAt || (loc ? loc.createdAt : new Date().toISOString()),
+                updatedAt: p.updatedAt || (loc ? loc.updatedAt : null),
+                lastSyncAt: p.lastSyncAt || (loc ? loc.lastSyncAt : null)
+              };
+            });
+            writeJson(PRODUCTS_FILE, merged);
+            _productsCache = merged;
+            _productsCacheTime = Date.now();
+            results.updated.push('products:' + merged.length);
+          }
+        } catch (pErr) {
+          console.warn('⚠️ Supabase products refresh timed out / failed:', pErr.message);
+        }
+
+        // ج) تحديث الإعدادات العامة
+        try {
+          const stRes = await withTimeout(supabase.from('settings').select('data').eq('id', 'general').maybeSingle(), 5000);
+          if (stRes && stRes.data && stRes.data.data && typeof stRes.data.data === 'object' && Object.keys(stRes.data.data).length > 0) {
+            writeJson(SETTINGS_FILE, stRes.data.data);
+            results.updated.push('settings');
+          }
+        } catch (e) {}
+
+      } catch (err) {
+        console.warn('⚠️ خطأ في التحديث الدوري من السحابة:', err.message);
+      }
+    }
+
+    results.success = true;
+    if (results.updated.length > 0) {
+      console.log('✅ تحديث دوري ناجح: ' + results.updated.join(', '));
+    }
+    return results;
   },
 
 };
