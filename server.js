@@ -759,12 +759,14 @@ app.get('/api/sync/status', requireSyncAuth, (req, res) => {
 // 2. إرسال دفعة أصناف للمزامنة (Upsert)
 app.post('/api/sync/batch', requireSyncAuth, async (req, res) => {
   try {
-    const { items, mode = 'full', dryRun = false } = req.body;
+    const items = req.body.items || req.body.products;
+    const mode = req.body.mode || 'full';
+    const dryRun = req.body.dryRun || false;
     
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({
         success: false,
-        error: 'يجب إرسال مصفوفة أصناف صالحة في الحقل items'
+        error: 'يجب إرسال مصفوفة أصناف صالحة في الحقل items أو products'
       });
     }
 
@@ -852,10 +854,12 @@ app.get('/api/sync/contacts/status', requireSyncAuth, (req, res) => {
 // 5. مزامنة دفعة زبائن من الشامل
 app.post('/api/sync/customers', requireSyncAuth, async (req, res) => {
   try {
-    const { items, dryRun = false, syncMode = 'upsert' } = req.body;
+    const items = req.body.items || req.body.customers;
+    const dryRun = req.body.dryRun || false;
+    const syncMode = req.body.syncMode || 'upsert';
 
     if (!Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ success: false, error: 'يجب إرسال مصفوفة زبائن صالحة في الحقل items' });
+      return res.status(400).json({ success: false, error: 'يجب إرسال مصفوفة زبائن صالحة في الحقل items أو customers' });
     }
     if (items.length > 1000) {
       return res.status(400).json({ success: false, error: 'الحد الأقصى للدفعة هو 1000 زبون' });
@@ -881,10 +885,12 @@ app.post('/api/sync/customers', requireSyncAuth, async (req, res) => {
 // 6. مزامنة دفعة موردين من الشامل
 app.post('/api/sync/suppliers', requireSyncAuth, async (req, res) => {
   try {
-    const { items, dryRun = false, syncMode = 'upsert' } = req.body;
+    const items = req.body.items || req.body.suppliers;
+    const dryRun = req.body.dryRun || false;
+    const syncMode = req.body.syncMode || 'upsert';
 
     if (!Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ success: false, error: 'يجب إرسال مصفوفة موردين صالحة في الحقل items' });
+      return res.status(400).json({ success: false, error: 'يجب إرسال مصفوفة موردين صالحة في الحقل items أو suppliers' });
     }
     if (items.length > 500) {
       return res.status(400).json({ success: false, error: 'الحد الأقصى للدفعة هو 500 مورد' });
@@ -969,9 +975,11 @@ app.get('/api/sync/invoices/status', requireSyncAuth, (req, res) => {
 // 10. مزامنة دفعة فواتير من الشامل لايت
 app.post('/api/sync/invoices', requireSyncAuth, async (req, res) => {
   try {
-    const { items, dryRun = false, syncMode = 'upsert' } = req.body;
+    const items = req.body.items || req.body.invoices;
+    const dryRun = req.body.dryRun || false;
+    const syncMode = req.body.syncMode || 'upsert';
     if (!Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ success: false, error: 'يجب إرسال مصفوفة فواتير صالحة في الحقل items' });
+      return res.status(400).json({ success: false, error: 'يجب إرسال مصفوفة فواتير صالحة في الحقل items أو invoices' });
     }
     if (items.length > 500) {
       return res.status(400).json({ success: false, error: 'الحد الأقصى للدفعة هو 500 فاتورة لضمان سرعة واستقرار الخادم' });
@@ -1016,9 +1024,11 @@ app.get('/api/sync/vouchers/status', requireSyncAuth, (req, res) => {
 // 12. مزامنة دفعة سندات قبض وصرف من الشامل لايت
 app.post('/api/sync/vouchers', requireSyncAuth, async (req, res) => {
   try {
-    const { items, dryRun = false, syncMode = 'upsert' } = req.body;
+    const items = req.body.items || req.body.vouchers || req.body.receipts;
+    const dryRun = req.body.dryRun || false;
+    const syncMode = req.body.syncMode || 'upsert';
     if (!Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ success: false, error: 'يجب إرسال مصفوفة سندات صالحة في الحقل items' });
+      return res.status(400).json({ success: false, error: 'يجب إرسال مصفوفة سندات صالحة في الحقل items أو vouchers أو receipts' });
     }
     if (items.length > 500) {
       return res.status(400).json({ success: false, error: 'الحد الأقصى للدفعة هو 500 سند' });

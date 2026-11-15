@@ -15,6 +15,8 @@ const SYNC_INVOICES_META_FILE = path.join(DATA_DIR, 'sync_invoices_meta.json');
 const SYNC_VOUCHERS_META_FILE = path.join(DATA_DIR, 'sync_vouchers_meta.json');
 const STORE_CONFIG_FILE = path.join(DATA_DIR, 'store_config.json');
 const ORDERS_FILE = path.join(DATA_DIR, 'orders.json');
+let debounceInvoicesSnapshotTimer = null;
+let debounceReceiptsSnapshotTimer = null;
 const BACKUPS_DIR = path.join(__dirname, 'backups');
 if (!fs.existsSync(BACKUPS_DIR)) {
   fs.mkdirSync(BACKUPS_DIR, { recursive: true });
@@ -3086,7 +3088,16 @@ const dataStore = {
           try {
             await supabase.from('settings').upsert({ id: 'sync_invoices_meta', data: invMeta });
             // حفظ نسخة snapshot كاملة في جدول settings لضمان استرجاع الفواتير بعد إعادة تشغيل الخادم
-            await supabase.from('settings').upsert({ id: 'invoices', data: updatedInvoices });
+            // جدولة حفظ نسخة snapshot كاملة بـ debounce لتجنب تكرار رفع 15MB مع كل دفعة متتالية واستهلاك الذاكرة
+            if (debounceInvoicesSnapshotTimer) clearTimeout(debounceInvoicesSnapshotTimer);
+            debounceInvoicesSnapshotTimer = setTimeout(async () => {
+              try {
+                const latestInvoices = readJson(INVOICES_FILE, []);
+                await supabase.from('settings').upsert({ id: 'invoices', data: latestInvoices });
+              } catch (snErr) {
+                console.warn('⚠️ تنبيه أثناء حفظ لقطة الفواتير الكاملة في Supabase:', snErr.message);
+              }
+            }, 8000);
 
             // حفظ فواتير الدفعة الحالية في جدول invoices مع تنظيف رقم الفاتورة كـ integer
             const currentBatchIds = new Set(items.map(it => 'shamel-inv-' + (it.shamelId || it.invoiceNumber || it.id)));
@@ -3293,7 +3304,16 @@ const dataStore = {
           try {
             await supabase.from('settings').upsert({ id: 'sync_vouchers_meta', data: vchMeta });
             // حفظ نسخة snapshot كاملة في جدول settings لضمان استرجاع السندات بعد إعادة تشغيل الخادم
-            await supabase.from('settings').upsert({ id: 'receipts', data: updatedReceipts });
+            // جدولة حفظ نسخة snapshot كاملة بـ debounce لتجنب تكرار رفع السندات مع كل دفعة متتالية
+            if (debounceReceiptsSnapshotTimer) clearTimeout(debounceReceiptsSnapshotTimer);
+            debounceReceiptsSnapshotTimer = setTimeout(async () => {
+              try {
+                const latestReceipts = readJson(RECEIPTS_FILE, []);
+                await supabase.from('settings').upsert({ id: 'receipts', data: latestReceipts });
+              } catch (snErr) {
+                console.warn('⚠️ تنبيه أثناء حفظ لقطة السندات الكاملة في Supabase:', snErr.message);
+              }
+            }, 8000);
 
             const currentBatchIds = new Set(items.map(it => 'shamel-vch-' + (it.shamelId || it.voucherNumber || it.id)));
             const sbVouchers = updatedReceipts.filter(v => currentBatchIds.has(v.id)).map(v => ({
