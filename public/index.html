@@ -20,7 +20,7 @@
       // Immediately force-unregister ANY old service worker so stale JS is never served
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistrations().then(function(regs) {
-          var currentVersion = 'aboramez-pos-v11.0.0';
+          var currentVersion = 'aboramez-pos-v11.0.1';
           regs.forEach(function(reg) {
             // Check if this SW is outdated
             if (reg.active && reg.active.scriptURL) {
@@ -4543,7 +4543,7 @@
   <script src="/js/pwa.js?v=11.0.0"></script>
   <!-- مكتبة مسح الباركود المحلية السريعة -->
   <script src="/js/html5-qrcode.min.js?v=3.5.0"></script>
-  <script src="/js/pin-barcode.js?v=11.0.0"></script>
+  <script src="/js/pin-barcode.js?v=11.0.1"></script>
 
 
 

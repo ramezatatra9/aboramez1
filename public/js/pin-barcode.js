@@ -280,6 +280,8 @@ function updatePinScreenUserHints() {
 
 function resetPinBuffer() {
   pinBuffer = '';
+  lastPinPressTime = 0;
+  lastPinPressDigit = null;
   updatePinDots();
   const hintText = document.getElementById('pinRoleHintText');
   const hintIcon = document.getElementById('pinRoleHintIcon');
@@ -302,7 +304,18 @@ function updatePinDots() {
   }
 }
 
+let lastPinPressTime = 0;
+let lastPinPressDigit = null;
+
 function pinKeyPress(digit) {
+  const now = Date.now();
+  // حماية ضد التكرار البرمجي المزدوج للنقر (إذا تكرر نفس الرقم في أقل من 60ms)
+  if (now - lastPinPressTime < 60 && lastPinPressDigit === digit) {
+    return;
+  }
+  lastPinPressTime = now;
+  lastPinPressDigit = digit;
+
   if (pinBuffer.length >= 6) return;
   pinBuffer += digit;
   updatePinDots();
@@ -328,7 +341,12 @@ function pinKeyPress(digit) {
   }
 }
 
+let lastPinDeleteTime = 0;
 function pinKeyDelete() {
+  const now = Date.now();
+  if (now - lastPinDeleteTime < 60) return;
+  lastPinDeleteTime = now;
+
   if (pinBuffer.length > 0) {
     pinBuffer = pinBuffer.slice(0, -1);
     updatePinDots();
@@ -340,6 +358,8 @@ function pinKeyDelete() {
 function quickFillPin(code) {
   resetPinBuffer();
   for (let i = 0; i < code.length; i++) {
+    lastPinPressTime = 0;
+    lastPinPressDigit = null;
     pinKeyPress(code[i]);
   }
 }
@@ -418,33 +438,10 @@ window.resetPinBuffer      = resetPinBuffer;
 window.verifyEnteredPin    = verifyEnteredPin;
 window.applyUserRole       = applyUserRole;
 
-// طبقة حماية: تسجيل مستمعي الأحداث مباشرة على أزرار الكيباد
-// (لا يعتمد فقط على onclick attributes بل يضيف addEventListener كاحتياط)
-function attachDirectKeypadListeners() {
-  const keypad = document.getElementById('pinKeypad');
-  if (!keypad) return;
-  // حدث واحد مفوّض على الحاوية بالكامل
-  keypad.addEventListener('click', function(e) {
-    const btn = e.target.closest('.pin-key');
-    if (!btn) return;
-    if (btn.classList.contains('pin-key-del')) {
-      pinKeyDelete();
-    } else if (btn.classList.contains('pin-key-empty')) {
-      // زر فارغ - لا شيء
-    } else {
-      const numEl = btn.querySelector('.k-num');
-      if (numEl) {
-        pinKeyPress(numEl.textContent.trim());
-      }
-    }
-  }, true); // useCapture=true لضمان التقاط الحدث حتى لو كان هناك عنصر آخر يمنعه
-}
-
 // بدء فحص وتشغيل نظام الأمان فور جاهزية الصفحة
 function initSecuritySystem() {
   try {
     showPinLockScreen();
-    attachDirectKeypadListeners();
     loadSecuritySettings().then(() => {
       updatePinScreenUserHints();
     }).catch(e => {
