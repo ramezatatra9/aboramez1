@@ -138,6 +138,30 @@ async function loadSecuritySettings() {
   });
 })();
 
+// تأكيد وجود الدوال على window للاستدعاء من onclick في HTML
+window.pinKeyPress    = pinKeyPress;
+window.pinKeyDelete   = pinKeyDelete;
+window.quickFillPin   = quickFillPin;
+window.showPinLockScreen = showPinLockScreen;
+window.lockAppScreen  = lockAppScreen;
+window.selectPinTargetUser = selectPinTargetUser;
+
+// إضافة event listeners مباشرةً كبديل آمن من onclick
+(function attachPinKeypadListeners() {
+  var keypad = document.getElementById('pinKeypad');
+  if (!keypad) return;
+  keypad.addEventListener('click', function(e) {
+    var btn = e.target.closest('.pin-key');
+    if (!btn) return;
+    if (btn.classList.contains('pin-key-del')) {
+      pinKeyDelete();
+    } else if (!btn.classList.contains('pin-key-empty')) {
+      var numEl = btn.querySelector('.k-num');
+      if (numEl) pinKeyPress(numEl.textContent.trim());
+    }
+  });
+})();
+
 // تطبيق صلاحيات المستخدم على كامل واجهة الموقع
 function applyUserRole(user) {
   // 1. إزالة قفل الحماية فوراً من الـ body
