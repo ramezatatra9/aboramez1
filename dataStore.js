@@ -177,9 +177,10 @@ async function deleteProductFromSupabase(id) {
 async function syncInvoiceToSupabase(invoice) {
   if (!supabase) return { success: false, error: 'Supabase غير متصل' };
   try {
+    const cleanInvNum = parseInt(String(invoice.invoiceNumber || '').replace(/\D/g, '')) || 0;
     const { error } = await supabase.from('invoices').upsert({
       id: String(invoice.id),
-      invoiceNumber: invoice.invoiceNumber,
+      invoiceNumber: cleanInvNum,
       invoiceType: invoice.invoiceType || 'sales',
       isQuotation: Boolean(invoice.isQuotation),
       createdAt: invoice.createdAt,
@@ -231,9 +232,10 @@ async function deleteInvoiceFromSupabase(id) {
 async function syncReceiptToSupabase(receipt) {
   if (!supabase) return { success: false, error: 'Supabase غير متصل' };
   try {
+    const cleanRcpNum = parseInt(String(receipt.receiptNumber || '').replace(/\D/g, '')) || 0;
     const { error } = await supabase.from('receipts').upsert({
       id: String(receipt.id),
-      receiptNumber: receipt.receiptNumber,
+      receiptNumber: cleanRcpNum,
       createdAt: receipt.createdAt,
       employeeName: receipt.employeeName,
       customerName: receipt.customerName,
@@ -662,6 +664,7 @@ const dataStore = {
 
     invoices.unshift(invoice);
     writeJson(INVOICES_FILE, invoices);
+    if (supabase) { supabase.from('settings').upsert({ id: 'invoices', data: invoices }).catch(() => {}); }
 
     // إذا كانت فاتورة مبيعات فعلية (وليست للعرض فقط وليست مشتريات)
     if (!isQuotation && invoice.invoiceType === 'sales') {
@@ -972,6 +975,7 @@ const dataStore = {
 
     receipts.unshift(receipt);
     writeJson(RECEIPTS_FILE, receipts);
+    if (supabase) { supabase.from('settings').upsert({ id: 'receipts', data: receipts }).catch(() => {}); }
     return receipt;
   },
 
@@ -3127,11 +3131,14 @@ const dataStore = {
         Promise.resolve().then(async () => {
           try {
             await supabase.from('settings').upsert({ id: 'sync_invoices_meta', data: invMeta });
-            // حفظ فقط فواتير الدفعة الحالية لتفادي إرسال مئات السجلات في كل دفعة
+            // حفظ نسخة snapshot كاملة في جدول settings لضمان استرجاع الفواتير بعد إعادة تشغيل الخادم
+            await supabase.from('settings').upsert({ id: 'invoices', data: updatedInvoices });
+
+            // حفظ فواتير الدفعة الحالية في جدول invoices مع تنظيف رقم الفاتورة كـ integer
             const currentBatchIds = new Set(items.map(it => 'shamel-inv-' + (it.shamelId || it.invoiceNumber || it.id)));
             const sbInvoices = updatedInvoices.filter(inv => currentBatchIds.has(inv.id)).map(inv => ({
               id: String(inv.id),
-              invoiceNumber: String(inv.invoiceNumber || ''),
+              invoiceNumber: parseInt(String(inv.invoiceNumber || inv.shamelNo || inv.shamelId || '').replace(/\D/g, '')) || 0,
               invoiceType: inv.invoiceType || 'sales',
               createdAt: inv.createdAt,
               employeeName: inv.employeeName,
@@ -3144,9 +3151,14 @@ const dataStore = {
               items: inv.items
             }));
             if (sbInvoices.length > 0) {
-              await supabase.from('invoices').upsert(sbInvoices);
+              const { error: sbErr } = await supabase.from('invoices').upsert(sbInvoices, { onConflict: 'id' });
+              if (sbErr) {
+                console.warn('⚠️ تنبيه أثناء حفظ الفواتير في جدول invoices بـ Supabase:', sbErr.message);
+              }
             }
-          } catch (_) {}
+          } catch (sbEx) {
+            console.warn('⚠️ استثناء أثناء حفظ الفواتير في Supabase:', sbEx.message);
+          }
         });
       }
     }
@@ -3326,10 +3338,13 @@ const dataStore = {
         Promise.resolve().then(async () => {
           try {
             await supabase.from('settings').upsert({ id: 'sync_vouchers_meta', data: vchMeta });
+            // حفظ نسخة snapshot كاملة في جدول settings لضمان استرجاع السندات بعد إعادة تشغيل الخادم
+            await supabase.from('settings').upsert({ id: 'receipts', data: updatedReceipts });
+
             const currentBatchIds = new Set(items.map(it => 'shamel-vch-' + (it.shamelId || it.voucherNumber || it.id)));
             const sbVouchers = updatedReceipts.filter(v => currentBatchIds.has(v.id)).map(v => ({
               id: String(v.id),
-              receiptNumber: String(v.receiptNumber || v.voucherNumber || ''),
+              receiptNumber: parseInt(String(v.receiptNumber || v.voucherNumber || v.shamelNo || '').replace(/\D/g, '')) || 0,
               createdAt: v.createdAt,
               employeeName: v.employeeName,
               customerName: v.customerName,
@@ -3340,9 +3355,14 @@ const dataStore = {
               paymentMethod: v.paymentMethod
             }));
             if (sbVouchers.length > 0) {
-              await supabase.from('receipts').upsert(sbVouchers);
+              const { error: sbErr } = await supabase.from('receipts').upsert(sbVouchers, { onConflict: 'id' });
+              if (sbErr) {
+                console.warn('⚠️ تنبيه أثناء حفظ السندات في جدول receipts بـ Supabase:', sbErr.message);
+              }
             }
-          } catch (_) {}
+          } catch (sbEx) {
+            console.warn('⚠️ استثناء أثناء حفظ السندات في Supabase:', sbEx.message);
+          }
         });
       }
     }
@@ -3379,23 +3399,98 @@ const dataStore = {
       console.warn('⚠️ تعذر استعادة الإعدادات العامة من Supabase:', e.message);
     }
 
-    // 2. الفواتير
+    // 2. الفواتير — استعادة كاملة ومضمونة عبر snapshot وجدول invoices المقسم على صفحات
     try {
-      const { data: invRows, error: invErr } = await supabase.from('invoices').select('*').order('invoiceNumber', { ascending: false });
-      if (!invErr && Array.isArray(invRows) && invRows.length > 0) {
-        writeJson(INVOICES_FILE, invRows);
-        console.log(`✅ تم استعادة ${invRows.length} فاتورة من Supabase`);
+      let restoredInvoices = [];
+      const { data: invSnap } = await supabase.from('settings').select('data').eq('id', 'invoices').maybeSingle();
+      if (invSnap && Array.isArray(invSnap.data) && invSnap.data.length > 0) {
+        restoredInvoices = invSnap.data;
+        console.log(`✅ تم استعادة ${restoredInvoices.length} فاتورة من snapshot في Supabase settings`);
+      }
+
+      // جلب جدول invoices بالتقسيم على صفحات لجلب جميع السجلات دون التقيد بالحد الأقصى (1000)
+      let invPage = 0;
+      const invPageSize = 500;
+      let hasMoreInvoices = true;
+      let allSbInvoices = [];
+
+      while (hasMoreInvoices) {
+        const { data, error } = await supabase
+          .from('invoices')
+          .select('*')
+          .range(invPage * invPageSize, (invPage + 1) * invPageSize - 1);
+
+        if (error) break;
+
+        if (data && data.length > 0) {
+          allSbInvoices = allSbInvoices.concat(data);
+          invPage++;
+          hasMoreInvoices = data.length === invPageSize;
+        } else {
+          hasMoreInvoices = false;
+        }
+      }
+
+      if (allSbInvoices.length > 0) {
+        const invMap = new Map();
+        restoredInvoices.forEach(inv => invMap.set(String(inv.id), inv));
+        allSbInvoices.forEach(inv => invMap.set(String(inv.id), { ...invMap.get(String(inv.id)), ...inv }));
+        const finalInvoices = Array.from(invMap.values());
+        writeJson(INVOICES_FILE, finalInvoices);
+        console.log(`✅ تم استعادة ودمج ${finalInvoices.length} فاتورة من Supabase`);
+      } else if (restoredInvoices.length > 0) {
+        writeJson(INVOICES_FILE, restoredInvoices);
+      } else {
+        const local = readJson(INVOICES_FILE, []);
+        console.log(`ℹ️ Supabase لم يرجع فواتير - تم الحفاظ على ${local.length} فاتورة من الملف المحلي`);
       }
     } catch (e) {
       console.warn('⚠️ تعذر استعادة الفواتير من Supabase:', e.message);
     }
 
-    // 3. سندات القبض
+    // 3. سندات القبض والصرف — استعادة كاملة عبر snapshot وجدول receipts المقسم على صفحات
     try {
-      const { data: rcpRows, error: rcpErr } = await supabase.from('receipts').select('*').order('receiptNumber', { ascending: false });
-      if (!rcpErr && Array.isArray(rcpRows) && rcpRows.length > 0) {
-        writeJson(RECEIPTS_FILE, rcpRows);
-        console.log(`✅ تم استعادة ${rcpRows.length} سند قبض من Supabase`);
+      let restoredReceipts = [];
+      const { data: rcpSnap } = await supabase.from('settings').select('data').eq('id', 'receipts').maybeSingle();
+      if (rcpSnap && Array.isArray(rcpSnap.data) && rcpSnap.data.length > 0) {
+        restoredReceipts = rcpSnap.data;
+        console.log(`✅ تم استعادة ${restoredReceipts.length} سند من snapshot في Supabase settings`);
+      }
+
+      let rcpPage = 0;
+      const rcpPageSize = 500;
+      let hasMoreReceipts = true;
+      let allSbReceipts = [];
+
+      while (hasMoreReceipts) {
+        const { data, error } = await supabase
+          .from('receipts')
+          .select('*')
+          .range(rcpPage * rcpPageSize, (rcpPage + 1) * rcpPageSize - 1);
+
+        if (error) break;
+
+        if (data && data.length > 0) {
+          allSbReceipts = allSbReceipts.concat(data);
+          rcpPage++;
+          hasMoreReceipts = data.length === rcpPageSize;
+        } else {
+          hasMoreReceipts = false;
+        }
+      }
+
+      if (allSbReceipts.length > 0) {
+        const rcpMap = new Map();
+        restoredReceipts.forEach(r => rcpMap.set(String(r.id), r));
+        allSbReceipts.forEach(r => rcpMap.set(String(r.id), { ...rcpMap.get(String(r.id)), ...r }));
+        const finalReceipts = Array.from(rcpMap.values());
+        writeJson(RECEIPTS_FILE, finalReceipts);
+        console.log(`✅ تم استعادة ودمج ${finalReceipts.length} سند من Supabase`);
+      } else if (restoredReceipts.length > 0) {
+        writeJson(RECEIPTS_FILE, restoredReceipts);
+      } else {
+        const local = readJson(RECEIPTS_FILE, []);
+        console.log(`ℹ️ Supabase لم يرجع سندات - تم الحفاظ على ${local.length} سند من الملف المحلي`);
       }
     } catch (e) {
       console.warn('⚠️ تعذر استعادة سندات القبض من Supabase:', e.message);
