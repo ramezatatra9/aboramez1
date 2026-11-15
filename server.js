@@ -115,6 +115,9 @@ app.get('/api/ready', (req, res) => {
 // بيانات آمنة 100% بحجب كامل لأسعار التكلفة والموردين + دعم الأقسام والماركات والعروض
 // ================================================================
 app.get('/api/public/store-data', (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
   try {
     const products = dataStore.getProducts() || [];
     const settings = dataStore.getSettings() || {};
@@ -293,6 +296,16 @@ app.post('/api/admin/store-config', (req, res) => {
   try {
     const updated = dataStore.saveStoreConfig(req.body);
     res.json({ success: true, config: updated, message: 'تم حفظ إعدادات المتجر بنجاح.' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// تحديث البيانات من Supabase يدوياً (لمزامنة التعديلات بين السيرفرات)
+app.get('/api/refresh-from-cloud', async (req, res) => {
+  try {
+    const result = await dataStore.refreshFromCloud();
+    res.json({ success: true, message: 'تم تحديث البيانات من Supabase بنجاح', result });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -3029,4 +3042,15 @@ app.listen(PORT, '0.0.0.0', async () => {
 
   // استعادة البيانات من Supabase
   await dataStore.initFromSupabase();
+
+  // تحديث دوري كل 3 دقائق لمزامنة البيانات بين السيرفرات
+  const CLOUD_REFRESH_INTERVAL = 3 * 60 * 1000; // 3 دقائق
+  setInterval(async () => {
+    try {
+      await dataStore.refreshFromCloud();
+    } catch (err) {
+      console.warn('⚠️ خطأ في التحديث الدوري من Supabase:', err.message);
+    }
+  }, CLOUD_REFRESH_INTERVAL);
+  console.log('✅ تم تفعيل التحديث الدوري من Supabase كل 3 دقائق');
 });

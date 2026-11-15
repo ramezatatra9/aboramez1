@@ -1875,7 +1875,7 @@
     // 1. Initial Load from Public Store API
     async function initStore() {
       try {
-        const res = await fetch('/api/public/store-data');
+        const res = await fetch('/api/public/store-data', { cache: 'no-store' });
         const data = await res.json();
         if (data.success) {
           allProducts = data.products || [];

@@ -180,6 +180,12 @@ async function run() {
   }
   console.log('✅ Admin Panel (index.html) contains complete Store Manager & Orders interface.');
 
+  // Cleanup test artifacts
+  await request('/api/admin/store/custom-name', {
+    method: 'POST',
+    body: { productId: testProduct.id, customName: '' }
+  });
+
   console.log('\n🎉 ALL STORE & ORDERS TESTS PASSED SUCCESSFULLY! 🚀');
   process.exit(0);
 }

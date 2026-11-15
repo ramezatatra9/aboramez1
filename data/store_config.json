@@ -727,8 +727,6 @@
     "buttonText": "تصفّح أقسام المعرض الآن",
     "buttonLink": "#categoriesSection"
   },
-  "customProductNames": {
-    "prod-i00001017": "طباخ أوتوماتيك فخم إصدار 2026"
-  },
+  "customProductNames": {},
   "manuallyShownOutOfStock": []
 }
