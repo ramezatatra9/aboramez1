@@ -1,5 +1,5 @@
-﻿// Service Worker Ù„Ù†Ø¸Ø§Ù… Ù…Ø¨ÙŠØ¹Ø§Øª ÙˆØ¬Ø±Ø¯ Ø£Ø¨Ùˆ Ø±Ø§Ù…Ø² (PWA Service Worker)
-const CACHE_VERSION = 'aboramez-pos-v9.0.0';
+﻿// Service Worker لنظام مبيعات وجرد أبو رامز (PWA Service Worker)
+const CACHE_VERSION = 'aboramez-pos-v10.0.0';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `dynamic-${CACHE_VERSION}`;
 

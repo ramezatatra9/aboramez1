@@ -11661,7 +11661,6 @@ window.uploadStoreImage = uploadStoreImage;
 window.escapeJsStr = escapeJsStr;
 
 window.refreshStoreSubtabContent = refreshStoreSubtabContent;
-window.filterAdminProductsTable = filterAdminProductsTable;
 window.moveCategoryOrder = moveCategoryOrder;
 window.editCategoryOrderNum = editCategoryOrderNum;
 window.renameCategoryForStore = renameCategoryForStore;

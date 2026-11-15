@@ -23,6 +23,8 @@ const DEFAULT_SECURITY_USERS = [
 let appSecurityUsers = [...DEFAULT_SECURITY_USERS];
 let isPinLockActive = true;
 let hideCostsForCashier = true;
+let pinBuffer = '';
+let targetRoleFilter = 'admin'; // 'admin' | 'cashier'
 
 // المستخدم الحالي المسجل دخوله
 window.currentUser = null;
@@ -128,40 +130,6 @@ async function loadSecuritySettings() {
   }
 }
 
-// بدء فحص القفل
-(function initSecuritySystem() {
-  showPinLockScreen();
-  loadSecuritySettings().then(() => {
-    updatePinScreenUserHints();
-  }).catch(e => {
-    console.warn('loadSecuritySettings error:', e);
-  });
-})();
-
-// تأكيد وجود الدوال على window للاستدعاء من onclick في HTML
-window.pinKeyPress    = pinKeyPress;
-window.pinKeyDelete   = pinKeyDelete;
-window.quickFillPin   = quickFillPin;
-window.showPinLockScreen = showPinLockScreen;
-window.lockAppScreen  = lockAppScreen;
-window.selectPinTargetUser = selectPinTargetUser;
-
-// إضافة event listeners مباشرةً كبديل آمن من onclick
-(function attachPinKeypadListeners() {
-  var keypad = document.getElementById('pinKeypad');
-  if (!keypad) return;
-  keypad.addEventListener('click', function(e) {
-    var btn = e.target.closest('.pin-key');
-    if (!btn) return;
-    if (btn.classList.contains('pin-key-del')) {
-      pinKeyDelete();
-    } else if (!btn.classList.contains('pin-key-empty')) {
-      var numEl = btn.querySelector('.k-num');
-      if (numEl) pinKeyPress(numEl.textContent.trim());
-    }
-  });
-})();
-
 // تطبيق صلاحيات المستخدم على كامل واجهة الموقع
 function applyUserRole(user) {
   // 1. إزالة قفل الحماية فوراً من الـ body
@@ -257,9 +225,6 @@ function updateRoleRestrictedNavigation(role) {
 // ─────────────────────────────────────────────
 //  [4] شاشة القفل التفاعلية (Lock Screen)
 // ─────────────────────────────────────────────
-let pinBuffer = '';
-let targetRoleFilter = 'admin'; // 'admin' | 'cashier'
-
 function showPinLockScreen() {
   const screen = document.getElementById('pinLockScreen');
   if (!screen) return;
@@ -437,6 +402,35 @@ function verifyEnteredPin() {
       resetPinBuffer();
     }, 600);
   }
+}
+
+// ─────────────────────────────────────────────
+// تصدير دوال الأمان إلى النطاق العام (window) لضمان استجابة أزرار HTML
+// ─────────────────────────────────────────────
+window.pinKeyPress         = pinKeyPress;
+window.pinKeyDelete        = pinKeyDelete;
+window.quickFillPin        = quickFillPin;
+window.showPinLockScreen   = showPinLockScreen;
+window.lockAppScreen       = lockAppScreen;
+window.selectPinTargetUser = selectPinTargetUser;
+window.resetPinBuffer      = resetPinBuffer;
+window.verifyEnteredPin    = verifyEnteredPin;
+window.applyUserRole       = applyUserRole;
+
+// بدء فحص وتشغيل نظام الأمان فور جاهزية الصفحة
+function initSecuritySystem() {
+  showPinLockScreen();
+  loadSecuritySettings().then(() => {
+    updatePinScreenUserHints();
+  }).catch(e => {
+    console.warn('loadSecuritySettings error:', e);
+  });
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initSecuritySystem);
+} else {
+  initSecuritySystem();
 }
 
 // ─────────────────────────────────────────────
