@@ -196,8 +196,8 @@ function applyUserRole(user) {
     screen.style.opacity = '0';
     screen.style.pointerEvents = 'none';
     setTimeout(() => {
-      screen.style.display = 'none';
-      screen.style.visibility = 'hidden';
+      // استخدام class لضمان الإخفاء حتى مع !important في CSS
+      screen.classList.add('pin-hidden');
       screen.style.opacity = '0';
       screen.style.pointerEvents = 'none';
       document.body.classList.remove('auth-locked');
@@ -241,6 +241,8 @@ function showPinLockScreen() {
   if (!screen) return;
   document.body.classList.add('auth-locked');
   document.body.style.overflow = 'hidden';
+  // إزالة class الإخفاء وإعادة إظهار شاشة القفل
+  screen.classList.remove('pin-hidden');
   screen.style.display = 'flex';
   screen.style.visibility = 'visible';
   screen.style.opacity = '1';

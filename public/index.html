@@ -25,17 +25,24 @@
     body.auth-locked > *:not(#pinLockScreen) {
       display: none !important;
     }
-    /* تعريف مبكر لشاشة القفل قبل تحميل style.css الخارجي لمنع الوميض */
-    #pinLockScreen {
-      position: fixed !important;
-      inset: 0 !important;
-      z-index: 100000 !important;
-      background: radial-gradient(circle at 50% 20%, #1e3a5f 0%, #0f172a 75%, #020617 100%) !important;
-      display: flex !important;
-      flex-direction: column !important;
-      align-items: center !important;
-      justify-content: center !important;
-      padding: 1.5rem !important;
+    /* تعريف مبكر لشاشة القفل - يظهر فوراً قبل تحميل style.css الخارجي */
+    #pinLockScreen:not(.pin-hidden) {
+      position: fixed;
+      inset: 0;
+      z-index: 100000;
+      background: radial-gradient(circle at 50% 20%, #1e3a5f 0%, #0f172a 75%, #020617 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+    /* عند الإخفاء بعد الدخول الصحيح */
+    #pinLockScreen.pin-hidden {
+      display: none !important;
+      visibility: hidden !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
     }
   </style>
   <link rel="preconnect" href="https://fonts.googleapis.com">
