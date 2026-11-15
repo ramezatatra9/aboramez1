@@ -1,9 +1,9 @@
 // Service Worker لنظام مبيعات وجرد أبو رامز (PWA Service Worker)
-const CACHE_VERSION = 'aboramez-pos-v10.0.0';
+const CACHE_VERSION = 'aboramez-pos-v11.0.0';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `dynamic-${CACHE_VERSION}`;
 
-// Ø§Ù„Ù…Ù„ÙØ§Øª Ø§Ù„Ø£Ø³Ø§Ø³ÙŠØ© Ù„Ù„ØªØ®Ø²ÙŠÙ† Ø§Ù„Ù…Ø¤Ù‚Øª Ø§Ù„Ù…Ø³Ø¨Ù‚
+// الملفات الأساسية للتخزين المؤقت المسبق
 const CORE_ASSETS = [
   '/',
   '/index.html',
@@ -19,7 +19,7 @@ const CORE_ASSETS = [
   '/icons/apple-touch-icon.png'
 ];
 
-// Ù…Ø±Ø­Ù„Ø© Ø§Ù„ØªØ«Ø¨ÙŠØª: Ø­ÙØ¸ Ø§Ù„Ù…Ù„ÙØ§Øª Ø§Ù„Ø£Ø³Ø§Ø³ÙŠØ© ÙÙŠ Ø§Ù„ÙƒØ§Ø´
+// مرحلة التثبيت: حفظ الملفات الأساسية في الكاش
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(STATIC_CACHE).then((cache) => {
@@ -31,7 +31,7 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Ù…Ø±Ø­Ù„Ø© Ø§Ù„ØªÙØ¹ÙŠÙ„: ØªÙ†Ø¸ÙŠÙ Ø§Ù„ÙƒØ§Ø´ Ø§Ù„Ù‚Ø¯ÙŠÙ…
+// مرحلة التفعيل: تنظيف الكاش القديم
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
@@ -47,18 +47,17 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Ø§Ø¹ØªØ±Ø§Ø¶ ÙˆØ§Ø³ØªØ¬Ø§Ø¨Ø© Ø§Ù„Ø·Ù„Ø¨Ø§Øª (Fetch Event)
+// اعتراض واستجابة الطلبات (Fetch Event)
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // 1. Ù„Ø§ Ù†ØªØ¯Ø®Ù„ ÙÙŠ Ø·Ù„Ø¨Ø§Øª Ø§Ù„Ù€ POST / PUT / DELETE (ØªØ°Ù‡Ø¨ Ù…Ø¨Ø§Ø´Ø±Ø© Ù„Ù„Ø®Ø§Ø¯Ù…)
+  // 1. لا نتدخل في طلبات POST / PUT / DELETE (تذهب مباشرة للخادم)
   if (request.method !== 'GET') {
     return;
   }
 
-  // 2. ØªØ³Ø±ÙŠØ¹ ÙÙˆØ±ÙŠ Ù„ÙƒØªØ§Ù„ÙˆØ¬ Ø§Ù„Ù…Ù†ØªØ¬Ø§Øª: Stale-While-Revalidate
-  // ÙŠÙØªØ­ Ø§Ù„ÙƒØªØ§Ù„ÙˆØ¬ ÙÙˆØ±Ø§Ù‹ (0ms) Ù…Ù† Ø§Ù„ÙƒØ§Ø´ Ø§Ù„Ù…Ø­Ù„ÙŠ Ø«Ù… ÙŠØ­Ø¯Ø«Ù‡ ØµØ§Ù…ØªØ§Ù‹ ÙÙŠ Ø§Ù„Ø®Ù„ÙÙŠØ©
+  // 2. تسريع فوري لكتالوج المنتجات: Stale-While-Revalidate
   if (url.pathname === '/api/products' || url.pathname === '/api/settings') {
     event.respondWith(
       caches.open(DYNAMIC_CACHE).then((cache) => {
@@ -77,12 +76,11 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 3. Ø¨Ø§Ù‚ÙŠ Ø·Ù„Ø¨Ø§Øª Ø§Ù„Ù€ API: Network-First
+  // 3. باقي طلبات الـ API: Network-First
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(
       fetch(request)
         .then((networkResponse) => {
-          // ÙŠÙ…ÙƒÙ† Ø­ÙØ¸ Ù†Ø³Ø®Ø© Ù…Ø¤Ù‚ØªØ© Ù„Ø·Ù„Ø¨Ø§Øª Ø§Ù„Ù€ GET ÙÙ‚Ø·
           if (networkResponse && networkResponse.status === 200) {
             const clone = networkResponse.clone();
             caches.open(DYNAMIC_CACHE).then((cache) => {
@@ -92,7 +90,6 @@ self.addEventListener('fetch', (event) => {
           return networkResponse;
         })
         .catch(() => {
-          // Ø¥Ø°Ø§ Ø§Ù†Ù‚Ø·Ø¹ Ø§Ù„Ø¥Ù†ØªØ±Ù†ØªØŒ Ù†Ø­Ø§ÙˆÙ„ Ø¬Ù„Ø¨ Ø¢Ø®Ø± Ù†Ø³Ø®Ø© Ù…Ø®Ø²Ù†Ø© Ù…Ø¤Ù‚ØªØ§Ù‹
           return caches.match(request).then((cachedResponse) => {
             if (cachedResponse) {
               return cachedResponse;
@@ -101,7 +98,7 @@ self.addEventListener('fetch', (event) => {
               JSON.stringify({
                 success: false,
                 offline: true,
-                error: 'Ø£Ù†Øª ØªØ¹Ù…Ù„ Ø­Ø§Ù„ÙŠØ§Ù‹ ÙÙŠ ÙˆØ¶Ø¹ ØºÙŠØ± Ù…ØªØµÙ„ Ø¨Ø§Ù„Ø¥Ù†ØªØ±Ù†Øª'
+                error: 'أنت تعمل حالياً في وضع غير متصل بالإنترنت'
               }),
               { headers: { 'Content-Type': 'application/json' } }
             );
@@ -111,7 +108,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 3. Ø·Ù„Ø¨Ø§Øª Ø§Ù„ØªÙ†Ù‚Ù„ Ø¨ÙŠÙ† Ø§Ù„ØµÙØ­Ø§Øª (HTML Navigation)
+  // 4. طلبات التنقل بين الصفحات (HTML Navigation)
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request).catch(() => {
@@ -121,7 +118,27 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 4. Ø§Ù„Ù…Ù„ÙØ§Øª Ø§Ù„Ø«Ø§Ø¨ØªØ© (CSS, JS, Fonts, Images): Stale-While-Revalidate
+  // 5. ملفات JS و CSS: Network-First لضمان تحميل أحدث نسخة دائماً عند F5
+  if (url.pathname.endsWith('.js') || url.pathname.endsWith('.css')) {
+    event.respondWith(
+      fetch(request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const clone = networkResponse.clone();
+            caches.open(STATIC_CACHE).then((cache) => {
+              cache.put(request, clone);
+            });
+          }
+          return networkResponse;
+        })
+        .catch(() => {
+          return caches.match(request);
+        })
+    );
+    return;
+  }
+
+  // 6. بقية الملفات الثابتة (Fonts, Images): Stale-While-Revalidate
   event.respondWith(
     caches.match(request).then((cachedResponse) => {
       const fetchPromise = fetch(request)
@@ -135,7 +152,7 @@ self.addEventListener('fetch', (event) => {
           return networkResponse;
         })
         .catch(() => {
-          // Ø®Ø·Ø£ ÙÙŠ Ø§Ù„Ø´Ø¨ÙƒØ©ØŒ Ù†Ø³ØªÙ…Ø± Ø¨Ø§Ù„Ø§Ø¹ØªÙ…Ø§Ø¯ Ø¹Ù„Ù‰ Ø§Ù„ÙƒØ§Ø´
+          // خطأ في الشبكة، نستمر بالاعتماد على الكاش
         });
 
       return cachedResponse || fetchPromise;
@@ -143,12 +160,9 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// Ø§Ù„Ø§Ø³ØªÙ…Ø§Ø¹ Ù„Ø±Ø³Ø§Ø¦Ù„ Ø§Ù„ØªØ­Ø¯ÙŠØ« Ø§Ù„Ù…Ø¨Ø§Ø´Ø±
+// الاستماع لرسائل التحديث المباشر
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
 });
-
-
-

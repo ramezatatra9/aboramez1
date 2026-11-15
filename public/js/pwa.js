@@ -1,12 +1,12 @@
 // تفريغ الكاش القديم تلقائياً عند صدور إصدار جديد لضمان ظهور التحديثات فوراً
-const CURRENT_APP_BUILD = '8.4.1';
+const CURRENT_APP_BUILD = '11.0.0';
 try {
   if (localStorage.getItem('aboramez_cached_build') !== CURRENT_APP_BUILD) {
     localStorage.setItem('aboramez_cached_build', CURRENT_APP_BUILD);
     if ('caches' in window) {
       caches.keys().then(keys => {
         keys.forEach(k => {
-          if (!k.includes('8.0.0')) caches.delete(k);
+          if (!k.includes(CURRENT_APP_BUILD)) caches.delete(k);
         });
       });
     }

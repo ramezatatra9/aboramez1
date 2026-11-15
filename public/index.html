@@ -14,6 +14,42 @@
   <meta property="og:title" content="لوحة التحكم والإدارة">
   <meta property="og:description" content="لوحة التحكم والإدارة الرسمية المعتمدة">
   
+  <!-- Force clear old Service Workers on every page load to prevent stale JS caching -->
+  <script>
+    (function() {
+      // Immediately force-unregister ANY old service worker so stale JS is never served
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          var currentVersion = 'aboramez-pos-v11.0.0';
+          regs.forEach(function(reg) {
+            // Check if this SW is outdated
+            if (reg.active && reg.active.scriptURL) {
+              reg.unregister().then(function() {
+                console.log('[Boot] Old Service Worker unregistered');
+              });
+            }
+          });
+        }).catch(function(){});
+        // Also purge ALL caches to ensure fresh JS
+        if ('caches' in window) {
+          caches.keys().then(function(keys) {
+            keys.forEach(function(k) { caches.delete(k); });
+          }).catch(function(){});
+        }
+      }
+      // Inline fallback: if pin-barcode.js fails to load or crashes, these still work
+      window.__pinFallbackReady = false;
+      window.pinKeyPress = window.pinKeyPress || function(digit) {
+        // Fallback will be overwritten by pin-barcode.js when it loads
+        console.warn('[Fallback] pinKeyPress called before pin-barcode.js loaded, digit:', digit);
+      };
+      window.pinKeyDelete = window.pinKeyDelete || function() {
+        console.warn('[Fallback] pinKeyDelete called before pin-barcode.js loaded');
+      };
+      window.selectPinTargetUser = window.selectPinTargetUser || function() {};
+    })();
+  </script>
+
   <!-- Critical Anti-Leak Shield: Completely blocks any page rendering before PIN authentication -->
   <style id="criticalAuthShield">
     body.auth-locked {
@@ -49,7 +85,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/style.css?v=8.4.1">
+  <link rel="stylesheet" href="/css/style.css?v=11.0.0">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💼</text></svg>">
   
   <!-- PWA & Mobile Web App Meta Tags -->
@@ -4500,14 +4536,14 @@
   </div>
 
   <!-- JavaScript -->
-  <script src="/js/html2pdf.bundle.min.js?v=8.4.1"></script>
+  <script src="/js/html2pdf.bundle.min.js?v=11.0.0"></script>
   <script src="/js/warranties.js"></script>
   <script src="/js/brandsAudit.js"></script>
-  <script src="/js/app.js?v=9.2.1"></script>
-  <script src="/js/pwa.js?v=8.4.1"></script>
+  <script src="/js/app.js?v=11.0.0"></script>
+  <script src="/js/pwa.js?v=11.0.0"></script>
   <!-- مكتبة مسح الباركود المحلية السريعة -->
   <script src="/js/html5-qrcode.min.js?v=3.5.0"></script>
-  <script src="/js/pin-barcode.js?v=10.0.1"></script>
+  <script src="/js/pin-barcode.js?v=11.0.0"></script>
 
 
 

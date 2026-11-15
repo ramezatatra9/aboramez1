@@ -418,14 +418,42 @@ window.resetPinBuffer      = resetPinBuffer;
 window.verifyEnteredPin    = verifyEnteredPin;
 window.applyUserRole       = applyUserRole;
 
+// طبقة حماية: تسجيل مستمعي الأحداث مباشرة على أزرار الكيباد
+// (لا يعتمد فقط على onclick attributes بل يضيف addEventListener كاحتياط)
+function attachDirectKeypadListeners() {
+  const keypad = document.getElementById('pinKeypad');
+  if (!keypad) return;
+  // حدث واحد مفوّض على الحاوية بالكامل
+  keypad.addEventListener('click', function(e) {
+    const btn = e.target.closest('.pin-key');
+    if (!btn) return;
+    if (btn.classList.contains('pin-key-del')) {
+      pinKeyDelete();
+    } else if (btn.classList.contains('pin-key-empty')) {
+      // زر فارغ - لا شيء
+    } else {
+      const numEl = btn.querySelector('.k-num');
+      if (numEl) {
+        pinKeyPress(numEl.textContent.trim());
+      }
+    }
+  }, true); // useCapture=true لضمان التقاط الحدث حتى لو كان هناك عنصر آخر يمنعه
+}
+
 // بدء فحص وتشغيل نظام الأمان فور جاهزية الصفحة
 function initSecuritySystem() {
-  showPinLockScreen();
-  loadSecuritySettings().then(() => {
-    updatePinScreenUserHints();
-  }).catch(e => {
-    console.warn('loadSecuritySettings error:', e);
-  });
+  try {
+    showPinLockScreen();
+    attachDirectKeypadListeners();
+    loadSecuritySettings().then(() => {
+      updatePinScreenUserHints();
+    }).catch(e => {
+      console.warn('loadSecuritySettings error:', e);
+    });
+    console.log('[PIN] Security system initialized successfully');
+  } catch(e) {
+    console.error('[PIN] initSecuritySystem failed:', e);
+  }
 }
 
 if (document.readyState === 'loading') {
