@@ -1661,8 +1661,8 @@
     "isStopped": false,
     "updatedAt": "2026-10-30T17:46:34.053+00:00",
     "lastSyncAt": null,
-    "shamelCode": "",
-    "systemNumber": "",
+    "shamelCode": "C-POS-77",
+    "systemNumber": "C-POS-77",
     "shamelBalance": 0,
     "balanceHistory": [
       {
@@ -6632,8 +6632,8 @@
     "isStopped": false,
     "updatedAt": "2026-10-30T17:49:49.368+00:00",
     "lastSyncAt": null,
-    "shamelCode": null,
-    "systemNumber": null,
+    "shamelCode": "C-POS-299",
+    "systemNumber": "C-POS-299",
     "shamelBalance": 0,
     "balanceHistory": [
       {
