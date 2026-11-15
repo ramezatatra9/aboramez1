@@ -2937,7 +2937,16 @@ app.get(['/', '/store', '/shop'], (req, res) => {
 app.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
-app.get('/admin/*', (req, res) => {
+app.get('/admin/*', (req, res, next) => {
+  // إذا كان الطلب لملف ثابت (مثل /admin/js/... أو /admin/css/...) يتم تقديمه من مجلد public بدلاً من إعادة index.html
+  if (req.path.includes('.')) {
+    const relativeAsset = req.path.replace(/^\/admin\//, '');
+    const assetPath = path.join(__dirname, 'public', relativeAsset);
+    if (fs.existsSync(assetPath)) {
+      return res.sendFile(assetPath);
+    }
+    return next();
+  }
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 

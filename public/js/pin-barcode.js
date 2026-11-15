@@ -25,6 +25,7 @@ let isPinLockActive = true;
 let hideCostsForCashier = true;
 let pinBuffer = '';
 let targetRoleFilter = 'admin'; // 'admin' | 'cashier'
+let liveScannerStream = null;
 
 // المستخدم الحالي المسجل دخوله
 window.currentUser = null;
@@ -1261,9 +1262,7 @@ document.addEventListener('visibilitychange', () => {
 });
 
 window.addEventListener('beforeunload', () => {
-  if (liveScannerStream) {
-    try { liveScannerStream.getTracks().forEach(t => t.stop()); } catch(e) {}
-  }
+  try { stopLiveCameraScanner(); } catch(e) {}
 });
 
 window.addEventListener('pagehide', () => {
