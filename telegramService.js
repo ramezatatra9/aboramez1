@@ -931,7 +931,7 @@ ${balDesc}${diffText}
         modeEmoji + ' <b>وضع التشغيل:</b> ' + modeText,
         statusLine,
         sep,
-        '<i>🌐 https://aboramez1.onrender.com</i>'
+        '<i>🌐 https://aboramez.store</i>'
       ].join('\n');
     } else {
       message = [

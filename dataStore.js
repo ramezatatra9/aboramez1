@@ -395,6 +395,78 @@ async function syncStoreConfigToSupabase(config) {
 }
 
 // تأكد من وجود مجلد البيانات
+
+// ================================================================
+// مزامنة ودمج الطلبات الإلكترونية بين السيرفرات وقاعدة بيانات Supabase
+// ================================================================
+function mergeOrdersList(localList, remoteList) {
+  const map = new Map();
+  (localList || []).forEach(o => {
+    if (o && o.id) map.set(String(o.id), o);
+  });
+  (remoteList || []).forEach(r => {
+    if (!r || !r.id) return;
+    const id = String(r.id);
+    if (!map.has(id)) {
+      map.set(id, r);
+    } else {
+      const loc = map.get(id);
+      if (r.status !== 'pending' && loc.status === 'pending') {
+        map.set(id, { ...loc, ...r });
+      } else if (new Date(r.updatedAt || r.approvedAt || r.cancelledAt || 0) > new Date(loc.updatedAt || loc.approvedAt || loc.cancelledAt || 0)) {
+        map.set(id, { ...loc, ...r });
+      }
+    }
+  });
+  return Array.from(map.values()).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+}
+
+async function syncOrdersToSupabase(orders) {
+  if (!supabase) return { success: false, error: 'Supabase غير مهيأ' };
+  try {
+    const { error } = await supabase.from('settings').upsert({
+      id: 'orders',
+      data: orders
+    }, { onConflict: 'id' });
+    if (error) {
+      console.error('Supabase orders sync error:', error.message);
+      return { success: false, error: error.message };
+    }
+    console.log('✅ تم مزامنة الطلبات مع Supabase بنجاح (' + orders.length + ' طلب)');
+    return { success: true };
+  } catch (err) {
+    console.error('Supabase orders sync error:', err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+async function notifyAdminServerNewOrder(order) {
+  const adminUrl = process.env.ADMIN_URL || 'https://aboramez1-admin.onrender.com';
+  const currentHost = (process.env.RENDER_EXTERNAL_HOSTNAME || '').toLowerCase();
+  try {
+    const u = new URL(adminUrl);
+    if (currentHost && u.hostname.toLowerCase() === currentHost) return;
+    const httpModule = u.protocol === 'https:' ? require('https') : require('http');
+    const postData = JSON.stringify({ order });
+    const req = httpModule.request(adminUrl + '/api/internal/orders/receive', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData)
+      },
+      timeout: 6000
+    }, (res) => { res.resume(); });
+    req.on('error', (e) => {
+      console.warn('⚠️ تعذر إشعار سيرفر الأدمن مباشرة:', e.message);
+    });
+    req.write(postData);
+    req.end();
+    console.log('📡 تم إرسال إشعار مباشر لسيرفر الأدمن بالطلب #' + order.id);
+  } catch (e) {
+    console.warn('⚠️ خطأ في notifyAdminServerNewOrder:', e.message);
+  }
+}
+
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
@@ -3896,6 +3968,15 @@ const dataStore = {
 
     orders.unshift(newOrder);
     writeJson(ORDERS_FILE, orders);
+
+    // مزامنة الطلبات مع Supabase فوراً لتصل للأدمن في الوقت الحقيقي
+    syncOrdersToSupabase(orders).catch(err => {
+      console.warn('⚠️ تعذر مزامنة الطلب الجديد مع Supabase:', err.message);
+    });
+
+    // إشعار سيرفر الأدمن مباشرة لسحب الطلبات الجديدة
+    notifyAdminServerNewOrder(newOrder).catch(() => {});
+
     return newOrder;
   },
 
@@ -3906,6 +3987,10 @@ const dataStore = {
       orders[idx].telegramSent = Boolean(sent);
       orders[idx].telegramError = error ? String(error) : null;
       writeJson(ORDERS_FILE, orders);
+
+      // مزامنة تحديث حالة التيليجرام مع Supabase
+      syncOrdersToSupabase(orders).catch(() => {});
+
       return orders[idx];
     }
     return null;
@@ -4098,6 +4183,20 @@ const dataStore = {
           if (stRes && stRes.data && stRes.data.data && typeof stRes.data.data === 'object' && Object.keys(stRes.data.data).length > 0) {
             writeJson(SETTINGS_FILE, stRes.data.data);
             results.updated.push('settings');
+
+        // د) تحديث ومزامنة الطلبات الإلكترونية بين السيرفرات من Supabase
+        try {
+          const ordRes = await withTimeout(supabase.from('settings').select('data').eq('id', 'orders').maybeSingle(), 5000);
+          if (ordRes && ordRes.data && Array.isArray(ordRes.data.data)) {
+            const localOrders = readJson(ORDERS_FILE, []);
+            const merged = mergeOrdersList(localOrders, ordRes.data.data);
+            writeJson(ORDERS_FILE, merged);
+            results.updated.push('orders:' + merged.length);
+          }
+        } catch (e) {
+          console.warn('⚠️ خطأ في سحب الطلبات من Supabase:', e.message);
+        }
+
           }
         } catch (e) {}
 

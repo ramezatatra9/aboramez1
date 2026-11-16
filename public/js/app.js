@@ -10175,10 +10175,11 @@ function playSoundWarning() {
 // =============================================================
 function getPublicPreviewBaseUrl() {
   const custom = (state.settings && state.settings.previewBaseUrl) ? state.settings.previewBaseUrl.trim() : '';
-  if (custom) {
+  if (custom && !custom.includes('admin') && !custom.includes('onrender')) {
     return custom.replace(/\/+$/, '');
   }
-  return window.location.origin;
+  // حماية صارمة 100%: منع ظهور رابط الأدمن السري للزبائن في أي رابط معاينة
+  return 'https://aboramez.store';
 }
 
 function shareCurrentProductWhatsApp() {
@@ -11671,3 +11672,58 @@ window.toggleCatProductCheck = toggleCatProductCheck;
 window.autoSelectDefaultMatchingCategoryProducts = autoSelectDefaultMatchingCategoryProducts;
 window.clearAllSelectedCatProducts = clearAllSelectedCatProducts;
 window.saveCategoryProductsAssignment = saveCategoryProductsAssignment;
+// ================================================================
+// فحص دوري ذكي لاستقبال طلبات المتجر الجديدة فوراً في لوحة الأدمن
+// ================================================================
+let _lastKnownOrderCount = -1;
+let _ordersPollTimer = null;
+
+function startAdminOrdersPolling() {
+  if (_ordersPollTimer) clearInterval(_ordersPollTimer);
+  _ordersPollTimer = setInterval(async () => {
+    try {
+      const res = await fetch('/api/admin/orders');
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data && data.success && Array.isArray(data.orders)) {
+        const prevCount = _lastKnownOrderCount;
+        _storeManagerOrders = data.orders;
+        _lastKnownOrderCount = data.orders.length;
+        if (typeof updatePendingOrdersBadges === 'function') updatePendingOrdersBadges();
+        
+        // تحديث جدول الطلبات تلقائياً إذا كان التبويب مفتوحاً
+        const subOrders = document.getElementById('storeSubtab-orders');
+        if (subOrders && subOrders.classList.contains('active')) {
+          if (typeof renderAdminOrdersTable === 'function') renderAdminOrdersTable(_storeManagerOrders);
+        }
+        
+        // إشعار صوتي وتنبيه مرئي عند وصول طلب جديد
+        if (prevCount !== -1 && data.orders.length > prevCount) {
+          const newest = data.orders[0];
+          const custName = (newest && newest.customer && newest.customer.name) ? newest.customer.name : 'زبون المتجر';
+          if (typeof showToast === 'function') {
+            showToast('🛍️ وصل طلب شراء جديد #' + newest.id + ' من: ' + custName, 'success');
+          }
+          try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+            osc.frequency.setValueAtTime(880, ctx.currentTime + 0.15);
+            gain.gain.setValueAtTime(0.3, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.4);
+          } catch (_) {}
+        }
+      }
+    } catch (_) {}
+  }, 12000);
+}
+
+// بدء الفحص عند تحميل الواجهة
+if (typeof window !== 'undefined') {
+  setTimeout(() => { startAdminOrdersPolling(); }, 3000);
+}

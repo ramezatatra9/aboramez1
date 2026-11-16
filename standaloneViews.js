@@ -88,7 +88,8 @@ function renderProductPreviewHtml(product, settings, req) {
   const waPhone = cleanPhone.startsWith('0') ? '970' + cleanPhone.slice(1) : cleanPhone;
 
   const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
-  const host = req.headers['x-forwarded-host'] || req.get('host') || 'aboramez1.onrender.com';
+  let host = req.headers['x-forwarded-host'] || req.get('host') || 'aboramez.store';
+  if (host.includes('admin') || host.includes('onrender')) host = 'aboramez.store';
   const currentUrl = `${protocol}://${host}${req.originalUrl}`;
 
   let imgs = [];
@@ -1031,7 +1032,8 @@ function renderPublicCatalogHtml(products, settings, req) {
   const cleanPhone = companyPhone.replace(/[^\d+]/g, '');
 
   const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
-  const host = req.headers['x-forwarded-host'] || req.get('host') || 'aboramez1.onrender.com';
+  let host = req.headers['x-forwarded-host'] || req.get('host') || 'aboramez.store';
+  if (host.includes('admin') || host.includes('onrender')) host = 'aboramez.store';
 
   const prods = (products || []).filter(p => p && p.name && (parseFloat(p.sellPrice) > 0 || p.image));
 

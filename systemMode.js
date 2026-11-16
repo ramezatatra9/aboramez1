@@ -15,6 +15,7 @@ let healthCheckTimer = null;
 
 // قائمة بالمسارات الآمنة التي لا تعدل الحسابات ويُسمح بها في وضع القراءة فقط
 const SAFE_POST_ROUTES = [
+  '/api/internal/orders/receive',
   '/api/public/orders',
   '/api/store-config',
   '/api/admin/store-config',

@@ -222,6 +222,33 @@ app.get('/api/public/store-data', (req, res) => {
 // إرسال وتأكيد طلب شراء إلكتروني جديد من متجر الزبائن
 // مع إشعار فوري لتيليجرام وحفظ الطلب في النظام
 // ================================================================
+
+// ================================================================
+// نقطة استلام الطلبات الداخلية المباشرة بين سيرفر المتجر وسيرفر الأدمن
+// ================================================================
+app.post('/api/internal/orders/receive', (req, res) => {
+  try {
+    const order = req.body && req.body.order;
+    if (!order || !order.id) {
+      return res.status(400).json({ success: false, error: 'بيانات الطلب غير صالحة' });
+    }
+    const orders = dataStore.getOrders();
+    const existingIdx = orders.findIndex(o => String(o.id) === String(order.id));
+    if (existingIdx !== -1) {
+      orders[existingIdx] = { ...orders[existingIdx], ...order };
+    } else {
+      orders.unshift(order);
+    }
+    const ORDERS_FILE = path.join(__dirname, 'data', 'orders.json');
+    fs.writeFileSync(ORDERS_FILE, JSON.stringify(orders, null, 2), 'utf-8');
+    console.log(`📡 [Admin/Store Sync] تم استلام وحفظ الطلب #${order.id} بنجاح من السيرفر الشقيق`);
+    res.json({ success: true, message: 'تم استلام الطلب بنجاح' });
+  } catch (err) {
+    console.error('Error receiving internal order:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.post('/api/public/orders', async (req, res) => {
   try {
     const { customer, items } = req.body;
@@ -243,10 +270,12 @@ app.post('/api/public/orders', async (req, res) => {
 
     // إرسال إشعار فوري لتيليجرام
     const settings = dataStore.getSettings() || {};
+    const telegramBotToken = settings.telegramBotToken || process.env.TELEGRAM_BOT_TOKEN || '8796168868:AAGmJPZWGM_s0Z8FhDVNjFu1IuLPS92s0mk';
+    const telegramChatId = settings.telegramChatId || process.env.TELEGRAM_CHAT_ID || '-5562183330';
     let telegramResult = { ok: false, error: 'غير مهيأ' };
-    if (settings.telegramBotToken && settings.telegramChatId) {
+    if (telegramBotToken && telegramChatId) {
       try {
-        telegramResult = await telegramService.sendStoreOrderNotification(newOrder, settings);
+        telegramResult = await telegramService.sendStoreOrderNotification(newOrder, { ...settings, telegramBotToken, telegramChatId });
         dataStore.updateOrderTelegramStatus(newOrder.id, telegramResult.ok, telegramResult.error);
       } catch (telErr) {
         console.error('Telegram notification on store order error:', telErr.message);
@@ -312,9 +341,20 @@ app.get('/api/refresh-from-cloud', async (req, res) => {
 });
 
 // 3. جلب جميع الطلبات الإلكترونية
-app.get('/api/admin/orders', (req, res) => {
+app.get('/api/admin/orders', async (req, res) => {
   try {
-    const orders = dataStore.getOrders();
+    let orders = dataStore.getOrders();
+    // إذا كانت القائمة فارغة على سيرفر الأدمن، حاول السحب الفوري من Supabase
+    if (orders.length === 0 && supabase) {
+      try {
+        const { data: ordRow } = await supabase.from('settings').select('data').eq('id', 'orders').maybeSingle();
+        if (ordRow && Array.isArray(ordRow.data) && ordRow.data.length > 0) {
+          const ORDERS_FILE = path.join(__dirname, 'data', 'orders.json');
+          fs.writeFileSync(ORDERS_FILE, JSON.stringify(ordRow.data, null, 2), 'utf-8');
+          orders = ordRow.data;
+        }
+      } catch (_) {}
+    }
     res.json({ success: true, orders: orders });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

@@ -6,6 +6,7 @@
   "telegramChatId": "-5562183330",
   "telegramBotToken": "8796168868:AAGmJPZWGM_s0Z8FhDVNjFu1IuLPS92s0mk",
   "invoiceFooterText": "شكراً لتعاملكم معنا - بضاعة الشركة مكفولة حسب شروط الضمان",
+  "previewBaseUrl": "https://aboramez.store",
   "pinLockEnabled": true,
   "securityUsers": [
     {
