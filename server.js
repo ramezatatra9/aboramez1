@@ -399,11 +399,11 @@ app.post('/api/admin/orders/:id/cancel', (req, res) => {
 // 6. ØªØ¹Ø¯ÙŠÙ„ Ø§Ù„Ø§Ø³Ù… Ø§Ù„Ù…Ø®ØµØµ Ù„ØµÙ†Ù Ù„Ù„Ø¸Ù‡ÙˆØ± ÙÙŠ Ø§Ù„Ù…ØªØ¬Ø±
 
 // ØªØ¹Ø¯ÙŠÙ„ Ø§Ù„Ù‚Ø³Ù… Ø§Ù„Ù…Ø®ØµØµ Ù„ØµÙ†Ù ÙÙŠ Ù…ØªØ¬Ø± Ø§Ù„Ø²Ø¨Ø§Ø¦Ù† Ù…Ø¹ Ù…Ù†Ø¹ Ø§Ù„ØªÙƒØ±Ø§Ø±
-app.post('/api/admin/store/custom-category', (req, res) => {
+app.post('/api/admin/store/custom-category', async (req, res) => {
   try {
     const { productId, category } = req.body;
     if (!productId) return res.status(400).json({ success: false, error: 'Ù…Ø¹Ø±Ù Ø§Ù„ØµÙ†Ù Ù…Ø·Ù„ÙˆØ¨' });
-    const config = dataStore.updateCustomProductCategory(productId, category);
+    const config = await dataStore.updateCustomProductCategory(productId, category);
     res.json({ success: true, customProductCategories: config.customProductCategories });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

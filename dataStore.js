@@ -3870,7 +3870,7 @@ const dataStore = {
   },
 
   
-  updateCustomProductCategory(productId, category) {
+  async updateCustomProductCategory(productId, category) {
     const config = this.getStoreConfig();
     if (!config.customProductCategories) config.customProductCategories = {};
     const pId = String(productId);
@@ -3885,19 +3885,47 @@ const dataStore = {
     // إزالة الصنف فوراً من أي قسم آخر لتجنب تكرار ظهوره في أكثر من قسم
     if (Array.isArray(config.categories)) {
       config.categories.forEach(c => {
-        if (Array.isArray(c.customProductIds)) {
-          const isTargetCat = (c.name === catName || c.storeName === catName || c.id === catName);
-          if (isTargetCat) {
-            if (!c.customProductIds.includes(pId)) c.customProductIds.push(pId);
-          } else {
-            c.customProductIds = c.customProductIds.filter(id => String(id) !== pId);
-          }
+        if (!Array.isArray(c.customProductIds)) c.customProductIds = [];
+        const isTargetCat = (c.name === catName || c.storeName === catName || c.id === catName);
+        if (isTargetCat) {
+          if (!c.customProductIds.includes(pId)) c.customProductIds.push(pId);
+        } else {
+          c.customProductIds = c.customProductIds.filter(id => String(id) !== pId);
         }
       });
     }
 
     writeJson(STORE_CONFIG_FILE, config);
     syncStoreConfigToSupabase(config).catch(() => {});
+
+    // تحديث وتوحيد قسم الصنف في ملف المنتجات الأساسية وقاعدة بيانات Supabase
+    if (catName) {
+      const products = this.getProducts();
+      const prod = products.find(p => String(p.id) === pId || String(p.code) === pId);
+      if (prod) {
+        prod.category = catName;
+        prod.updatedAt = new Date().toISOString();
+        writeJson(PRODUCTS_FILE, products);
+        if (supabase) {
+          try {
+            await supabase.from('products').upsert({
+              id: prod.id,
+              code: prod.code,
+              name: prod.name,
+              category: catName,
+              brand: prod.brand,
+              cost_price: prod.costPrice,
+              sell_price: prod.sellPrice,
+              stock: prod.stock,
+              image: prod.image,
+              images: prod.images,
+              updated_at: prod.updatedAt
+            }, { onConflict: 'id' });
+          } catch (err) {}
+        }
+      }
+    }
+
     notifyStoreServers();
     return config;
   },

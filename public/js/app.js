@@ -11527,11 +11527,23 @@ function searchStoreProductsTable() {
       activeCatName = p.category || 'عام';
     }
 
-    const catOptionsHtml = allCategories.map(c => {
+    // مطابقة ذكية مع أقسام المتجر
+    if (!activeCatName) {
+      const matched = allCategories.find(c => c.name === p.category || c.storeName === p.category || c.originalName === p.category);
+      activeCatName = matched ? (matched.storeName || matched.name) : (p.category || 'عام');
+    }
+
+    let hasMatchedOption = false;
+    let catOptionsHtml = allCategories.map(c => {
       const cName = c.storeName || c.name;
-      const isSel = (cName === activeCatName || c.originalName === activeCatName || c.name === activeCatName) ? 'selected' : '';
-      return `<option value="${escapeHtml(cName)}" ${isSel}>${escapeHtml(cName)}</option>`;
+      const isSel = (cName === activeCatName || c.originalName === activeCatName || c.name === activeCatName);
+      if (isSel) hasMatchedOption = true;
+      return `<option value="${escapeHtml(cName)}" ${isSel ? 'selected' : ''}>${escapeHtml(cName)}</option>`;
     }).join('');
+
+    if (!hasMatchedOption && activeCatName) {
+      catOptionsHtml = `<option value="${escapeHtml(activeCatName)}" selected>⚠️ ${escapeHtml(activeCatName)} (التصنيف الحالي)</option>` + catOptionsHtml;
+    }
     const stock = parseInt(p.stock) || 0;
     const isManualShow = manualShown.has(pId);
     const stockBadge = stock > 0 
@@ -11559,7 +11571,7 @@ function searchStoreProductsTable() {
           <input type="checkbox" id="chkManualShow_${pId}" ${isManualShow ? 'checked' : ''} onchange="toggleProductManualShow('${pId}', this)" style="width:18px; height:18px; cursor:pointer;" title="إظهار هذا الصنف بالمتجر حتى لو نفد المخزون">
         </td>
         <td>
-          <button type="button" class="btn btn-sm btn-primary" onclick="saveStoreProductRow('${pId}')" style="font-weight:700; padding:0.35rem 0.75rem; display:inline-flex; align-items:center; gap:0.25rem;">
+          <button type="button" class="btn btn-sm btn-primary" onclick="saveStoreProductRow('${pId}', this)" style="font-weight:700; padding:0.35rem 0.75rem; display:inline-flex; align-items:center; gap:0.25rem;">
             💾 حفظ
           </button>
         </td>
@@ -11793,13 +11805,25 @@ if (typeof window !== 'undefined') {
   setTimeout(() => { startAdminOrdersPolling(); }, 3000);
 }
 
-async function saveStoreProductRow(productId) {
+async function saveStoreProductRow(productId, btnEl) {
   const pId = String(productId);
   const nameInput = document.getElementById('custNameInput_' + pId);
   const catSelect = document.getElementById('custCatSelect_' + pId);
+  const chkManual = document.getElementById('chkManualShow_' + pId);
 
   const customName = nameInput ? nameInput.value.trim() : '';
   const selectedCat = catSelect ? catSelect.value.trim() : '';
+
+  if (!selectedCat) {
+    showToast('يرجى اختيار القسم المطلوب', 'warning');
+    return;
+  }
+
+  const origBtnText = btnEl ? btnEl.innerHTML : '💾 حفظ';
+  if (btnEl) {
+    btnEl.disabled = true;
+    btnEl.innerHTML = '⏳ جاري الحفظ...';
+  }
 
   try {
     const promises = [
@@ -11823,16 +11847,52 @@ async function saveStoreProductRow(productId) {
       else delete _storeManagerConfig.customProductNames[pId];
 
       if (!_storeManagerConfig.customProductCategories) _storeManagerConfig.customProductCategories = {};
-      if (selectedCat) _storeManagerConfig.customProductCategories[pId] = selectedCat;
-      else delete _storeManagerConfig.customProductCategories[pId];
+      _storeManagerConfig.customProductCategories[pId] = selectedCat;
+
+      // تحديث الصنف في الذاكرة الحية فوراً للواجهتين
+      const prodInAll = _storeManagerAllProducts.find(p => String(p.id) === pId || String(p.code) === pId);
+      if (prodInAll) prodInAll.category = selectedCat;
+      const prodInState = (state.products || []).find(p => String(p.id) === pId || String(p.code) === pId);
+      if (prodInState) prodInState.category = selectedCat;
+
+      if (btnEl) {
+        btnEl.disabled = false;
+        btnEl.innerHTML = '✅ تم الحفظ!';
+        btnEl.style.background = '#15803d';
+        btnEl.style.borderColor = '#15803d';
+        btnEl.style.color = '#ffffff';
+        setTimeout(() => {
+          btnEl.innerHTML = '💾 حفظ';
+          btnEl.style.background = '';
+          btnEl.style.borderColor = '';
+          btnEl.style.color = '';
+        }, 2500);
+      }
 
       showToast('✅ تم حفظ التعديلات ونقل الصنف إلى قسم "' + selectedCat + '" بنجاح!', 'success');
+
+      // فحص المخزون وتنبيه المستخدم إذا كان المخزون 0
+      const stock = prodInAll ? parseInt(prodInAll.stock) : 0;
+      const isManual = chkManual && chkManual.checked;
+      if (stock <= 0 && !isManual) {
+        setTimeout(() => {
+          showToast('💡 تنبيه: الصنف مخزونه (0)، ولن يظهر للزبائن بالمتجر إلا بعد وضع علامة صح على "إظهار حتى لو نفد المخزون".', 'info', 6000);
+        }, 1200);
+      }
     } else {
-      showToast('حدث خطأ أثناء الحفظ', 'error');
+      if (btnEl) {
+        btnEl.disabled = false;
+        btnEl.innerHTML = origBtnText;
+      }
+      showToast('حدث خطأ أثناء الحفظ: ' + ((catRes && catRes.error) || 'غير معروف'), 'error');
     }
   } catch (err) {
+    if (btnEl) {
+      btnEl.disabled = false;
+      btnEl.innerHTML = origBtnText;
+    }
     console.error('Error saving store product row:', err);
-    showToast('تعذر حفظ التعديلات', 'error');
+    showToast('تعذر حفظ التعديلات: ' + err.message, 'error');
   }
 }
 window.saveStoreProductRow = saveStoreProductRow;
