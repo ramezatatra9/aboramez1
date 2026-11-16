@@ -20,6 +20,7 @@ const SAFE_POST_ROUTES = [
   '/api/store-config',
   '/api/admin/store-config',
   '/api/admin/store/custom-name',
+  '/api/admin/store/custom-category',
   '/api/admin/store/toggle-manual-show',
   '/api/telegram/test',
   '/api/brands-classification/check-conflict',

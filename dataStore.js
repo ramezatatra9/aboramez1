@@ -3869,6 +3869,39 @@ const dataStore = {
     return updated;
   },
 
+  
+  updateCustomProductCategory(productId, category) {
+    const config = this.getStoreConfig();
+    if (!config.customProductCategories) config.customProductCategories = {};
+    const pId = String(productId);
+    const catName = category ? String(category).trim() : '';
+
+    if (catName) {
+      config.customProductCategories[pId] = catName;
+    } else {
+      delete config.customProductCategories[pId];
+    }
+
+    // إزالة الصنف فوراً من أي قسم آخر لتجنب تكرار ظهوره في أكثر من قسم
+    if (Array.isArray(config.categories)) {
+      config.categories.forEach(c => {
+        if (Array.isArray(c.customProductIds)) {
+          const isTargetCat = (c.name === catName || c.storeName === catName || c.id === catName);
+          if (isTargetCat) {
+            if (!c.customProductIds.includes(pId)) c.customProductIds.push(pId);
+          } else {
+            c.customProductIds = c.customProductIds.filter(id => String(id) !== pId);
+          }
+        }
+      });
+    }
+
+    writeJson(STORE_CONFIG_FILE, config);
+    syncStoreConfigToSupabase(config).catch(() => {});
+    notifyStoreServers();
+    return config;
+  },
+
   updateCustomProductName(productId, customName) {
     const config = this.getStoreConfig();
     if (!config.customProductNames) config.customProductNames = {};

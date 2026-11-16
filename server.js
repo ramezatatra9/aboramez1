@@ -124,6 +124,7 @@ app.get('/api/public/store-data', (req, res) => {
     const storeConfig = dataStore.getStoreConfig() || {};
     const manualShowSet = new Set((storeConfig.manuallyShownOutOfStock || []).map(String));
     const customNames = storeConfig.customProductNames || {};
+    const customCategories = storeConfig.customProductCategories || {};
 
     // 1. جلب الأقسام والماركات الفعالة أولاً لتحديد الأقسام المخصصة للأصناف
     const activeCategories = (storeConfig.categories || [])
@@ -165,12 +166,17 @@ app.get('/api/public/store-data', (req, res) => {
         const displayName = customNames[String(p.id)] || p.name;
         const sellPrice = Math.round(parseFloat(p.sellPrice) || 0);
 
-        // تحديد القسم الذي ينتمي له الصنف في متجر الزبائن (تخصيص يدوي أو حسب اسم القسم المعروض)
+        // تحديد القسم الذي ينتمي له الصنف في متجر الزبائن (أولوية مطلقة للقسم المخصص لمنع التكرار)
         let prodStoreCategory = null;
-        for (const c of activeCategories) {
-          if (c.customProductIds.includes(String(p.id))) {
-            prodStoreCategory = c.name;
-            break;
+        const pIdStr = String(p.id);
+        if (customCategories[pIdStr]) {
+          prodStoreCategory = customCategories[pIdStr];
+        } else {
+          for (const c of activeCategories) {
+            if (Array.isArray(c.customProductIds) && c.customProductIds.includes(pIdStr)) {
+              prodStoreCategory = c.name;
+              break;
+            }
           }
         }
         if (!prodStoreCategory) {
@@ -391,6 +397,19 @@ app.post('/api/admin/orders/:id/cancel', (req, res) => {
 });
 
 // 6. تعديل الاسم المخصص لصنف للظهور في المتجر
+
+// تعديل القسم المخصص لصنف في متجر الزبائن مع منع التكرار
+app.post('/api/admin/store/custom-category', (req, res) => {
+  try {
+    const { productId, category } = req.body;
+    if (!productId) return res.status(400).json({ success: false, error: 'معرف الصنف مطلوب' });
+    const config = dataStore.updateCustomProductCategory(productId, category);
+    res.json({ success: true, customProductCategories: config.customProductCategories });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.post('/api/admin/store/custom-name', (req, res) => {
   try {
     const { productId, customName } = req.body;

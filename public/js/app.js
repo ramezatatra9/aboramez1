@@ -11219,7 +11219,16 @@ async function saveCategoryProductsAssignment() {
   const cat = (_storeManagerConfig.categories || []).find(c => String(c.id) === String(_currentEditingCatId));
   if (!cat) return;
 
-  cat.customProductIds = Array.from(_catProductsSelectedIds);
+  const selectedArr = Array.from(_catProductsSelectedIds);
+  cat.customProductIds = selectedArr;
+  
+  // تنظيف الأصناف المحددة من باقي الأقسام لمنع التكرار نهائياً
+  (_storeManagerConfig.categories || []).forEach(otherCat => {
+    if (String(otherCat.id) !== String(_currentEditingCatId) && Array.isArray(otherCat.customProductIds)) {
+      otherCat.customProductIds = otherCat.customProductIds.filter(id => !selectedArr.includes(String(id)));
+    }
+  });
+
   await saveStoreConfigToServer(_storeManagerConfig);
   closeCategoryProductsModal();
   renderAdminCategories(_storeManagerConfig.categories);
@@ -11468,9 +11477,32 @@ function searchStoreProductsTable() {
     return;
   }
 
+  const allCategories = (_storeManagerConfig && Array.isArray(_storeManagerConfig.categories)) ? _storeManagerConfig.categories : [];
+  const customCats = (_storeManagerConfig && _storeManagerConfig.customProductCategories) ? _storeManagerConfig.customProductCategories : {};
+
   tbody.innerHTML = displaySlice.map(p => {
     const pId = String(p.id);
     const customName = customNames[pId] || '';
+    
+    // القسم الفعلي المحدد للصنف في المتجر
+    let activeCatName = customCats[pId] || '';
+    if (!activeCatName) {
+      for (const c of allCategories) {
+        if (Array.isArray(c.customProductIds) && c.customProductIds.includes(pId)) {
+          activeCatName = c.storeName || c.name;
+          break;
+        }
+      }
+    }
+    if (!activeCatName) {
+      activeCatName = p.category || 'عام';
+    }
+
+    const catOptionsHtml = allCategories.map(c => {
+      const cName = c.storeName || c.name;
+      const isSel = (cName === activeCatName || c.originalName === activeCatName || c.name === activeCatName) ? 'selected' : '';
+      return `<option value="${escapeHtml(cName)}" ${isSel}>${escapeHtml(cName)}</option>`;
+    }).join('');
     const stock = parseInt(p.stock) || 0;
     const isManualShow = manualShown.has(pId);
     const stockBadge = stock > 0 
@@ -11487,14 +11519,18 @@ function searchStoreProductsTable() {
           <input type="text" id="custNameInput_${pId}" class="form-control form-control-sm" value="${escapeHtml(customName)}" placeholder="الاسم الذي يظهر للزبون..." style="width:200px; font-weight:700;">
         </td>
         <td>${escapeHtml(p.brand || '--')}</td>
-        <td style="font-size:0.85rem;">${escapeHtml(p.category || '--')}</td>
+        <td>
+          <select id="custCatSelect_${pId}" class="form-select form-select-sm" style="font-weight:700; font-size:0.85rem; padding:0.25rem 0.5rem; border-radius:6px; min-width:140px;">
+            ${catOptionsHtml}
+          </select>
+        </td>
         <td style="font-weight:800;">${(parseFloat(p.sellPrice) || 0).toLocaleString('en-US')} ₪</td>
         <td>${stockBadge}</td>
         <td style="text-align:center;">
           <input type="checkbox" id="chkManualShow_${pId}" ${isManualShow ? 'checked' : ''} onchange="toggleProductManualShow('${pId}', this)" style="width:18px; height:18px; cursor:pointer;" title="إظهار هذا الصنف بالمتجر حتى لو نفد المخزون">
         </td>
         <td>
-          <button type="button" class="btn btn-sm btn-primary" onclick="saveProductCustomName('${pId}')" style="font-weight:700; padding:0.25rem 0.6rem;">
+          <button type="button" class="btn btn-sm btn-primary" onclick="saveStoreProductRow('${pId}')" style="font-weight:700; padding:0.35rem 0.75rem; display:inline-flex; align-items:center; gap:0.25rem;">
             💾 حفظ
           </button>
         </td>
@@ -11727,3 +11763,47 @@ function startAdminOrdersPolling() {
 if (typeof window !== 'undefined') {
   setTimeout(() => { startAdminOrdersPolling(); }, 3000);
 }
+
+async function saveStoreProductRow(productId) {
+  const pId = String(productId);
+  const nameInput = document.getElementById('custNameInput_' + pId);
+  const catSelect = document.getElementById('custCatSelect_' + pId);
+
+  const customName = nameInput ? nameInput.value.trim() : '';
+  const selectedCat = catSelect ? catSelect.value.trim() : '';
+
+  try {
+    const promises = [
+      fetch('/api/admin/store/custom-name', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId: pId, customName })
+      }).then(r => r.json()),
+      fetch('/api/admin/store/custom-category', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId: pId, category: selectedCat })
+      }).then(r => r.json())
+    ];
+
+    const [nameRes, catRes] = await Promise.all(promises);
+
+    if (nameRes.success && catRes.success) {
+      if (!_storeManagerConfig.customProductNames) _storeManagerConfig.customProductNames = {};
+      if (customName) _storeManagerConfig.customProductNames[pId] = customName;
+      else delete _storeManagerConfig.customProductNames[pId];
+
+      if (!_storeManagerConfig.customProductCategories) _storeManagerConfig.customProductCategories = {};
+      if (selectedCat) _storeManagerConfig.customProductCategories[pId] = selectedCat;
+      else delete _storeManagerConfig.customProductCategories[pId];
+
+      showToast('✅ تم حفظ التعديلات ونقل الصنف إلى قسم "' + selectedCat + '" بنجاح!', 'success');
+    } else {
+      showToast('حدث خطأ أثناء الحفظ', 'error');
+    }
+  } catch (err) {
+    console.error('Error saving store product row:', err);
+    showToast('تعذر حفظ التعديلات', 'error');
+  }
+}
+window.saveStoreProductRow = saveStoreProductRow;

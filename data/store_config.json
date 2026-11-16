@@ -730,5 +730,6 @@
   "customProductNames": {
     "prod-i00001017": "رامز"
   },
-  "manuallyShownOutOfStock": []
+  "manuallyShownOutOfStock": [],
+  "customProductCategories": {}
 }
