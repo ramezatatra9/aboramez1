@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const compression = require('compression');
 const cors = require('cors');
 const path = require('path');
@@ -21,13 +21,13 @@ const {
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// إعداد مجلد الرفع
+// Ø¥Ø¹Ø¯Ø§Ø¯ Ù…Ø¬Ù„Ø¯ Ø§Ù„Ø±ÙØ¹
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
 if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 }
 
-// إعداد Multer لتخزين صور المنتجات
+// Ø¥Ø¹Ø¯Ø§Ø¯ Multer Ù„ØªØ®Ø²ÙŠÙ† ØµÙˆØ± Ø§Ù„Ù…Ù†ØªØ¬Ø§Øª
 function formatServerDateTime(dateInput) {
   const d = new Date(dateInput || Date.now());
   const day = d.getDate();
@@ -35,9 +35,9 @@ function formatServerDateTime(dateInput) {
   const year = d.getFullYear();
   let hours = d.getHours();
   const minutes = d.getMinutes().toString().padStart(2, '0');
-  const period = hours >= 12 ? 'مسائاً' : 'صباحاً';
+  const period = hours >= 12 ? 'Ù…Ø³Ø§Ø¦Ø§Ù‹' : 'ØµØ¨Ø§Ø­Ø§Ù‹';
   hours = hours % 12 || 12;
-  return `${day}-${month}-${year} الساعة ${hours}:${minutes} ${period}`;
+  return `${day}-${month}-${year} Ø§Ù„Ø³Ø§Ø¹Ø© ${hours}:${minutes} ${period}`;
 }
 
 const storage = multer.diskStorage({
@@ -53,7 +53,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage: storage,
-  limits: { fileSize: 25 * 1024 * 1024 }, // 25MB لأجهزة الأندرويد والكاميرات عالية الدقة
+  limits: { fileSize: 25 * 1024 * 1024 }, // 25MB Ù„Ø£Ø¬Ù‡Ø²Ø© Ø§Ù„Ø£Ù†Ø¯Ø±ÙˆÙŠØ¯ ÙˆØ§Ù„ÙƒØ§Ù…ÙŠØ±Ø§Øª Ø¹Ø§Ù„ÙŠØ© Ø§Ù„Ø¯Ù‚Ø©
   fileFilter: (req, file, cb) => {
     const allowed = /jpeg|jpg|png|webp|gif|svg|bmp/;
     const ext = allowed.test(path.extname(file.originalname).toLowerCase());
@@ -61,11 +61,11 @@ const upload = multer({
     if (ext || mime) {
       return cb(null, true);
     }
-    cb(new Error('الملف المرفوع يجب أن يكون صورة'));
+    cb(new Error('Ø§Ù„Ù…Ù„Ù Ø§Ù„Ù…Ø±ÙÙˆØ¹ ÙŠØ¬Ø¨ Ø£Ù† ÙŠÙƒÙˆÙ† ØµÙˆØ±Ø©'));
   }
 });
 
-// إعداد Multer لتخزين ملفات الـ PDF المؤقتة في الذاكرة للإرسال المباشر لتيليجرام
+// Ø¥Ø¹Ø¯Ø§Ø¯ Multer Ù„ØªØ®Ø²ÙŠÙ† Ù…Ù„ÙØ§Øª Ø§Ù„Ù€ PDF Ø§Ù„Ù…Ø¤Ù‚ØªØ© ÙÙŠ Ø§Ù„Ø°Ø§ÙƒØ±Ø© Ù„Ù„Ø¥Ø±Ø³Ø§Ù„ Ø§Ù„Ù…Ø¨Ø§Ø´Ø± Ù„ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù…
 const pdfUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 25 * 1024 * 1024 } // 25MB
@@ -77,14 +77,14 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// الملفات الثابتة
+// Ø§Ù„Ù…Ù„ÙØ§Øª Ø§Ù„Ø«Ø§Ø¨ØªØ©
 app.use(express.static(path.join(__dirname, 'public'), { index: false, maxAge: '2h', etag: true }));
 app.use('/uploads', express.static(UPLOADS_DIR, { maxAge: '7d', etag: true }));
 
-// ─── فحص جاهزية Supabase قبل كل عملية كتابة (Read-Only Degraded Mode) ───
+// â”€â”€â”€ ÙØ­Øµ Ø¬Ø§Ù‡Ø²ÙŠØ© Supabase Ù‚Ø¨Ù„ ÙƒÙ„ Ø¹Ù…Ù„ÙŠØ© ÙƒØªØ§Ø¨Ø© (Read-Only Degraded Mode) â”€â”€â”€
 app.use(systemMode.requireWritePermission);
 
-// ─── endpoints للصحة والجاهزية ───
+// â”€â”€â”€ endpoints Ù„Ù„ØµØ­Ø© ÙˆØ§Ù„Ø¬Ø§Ù‡Ø²ÙŠØ© â”€â”€â”€
 const { getSafeKeyMetadata } = require('./supabaseClient');
 
 app.get('/api/health', (req, res) => {
@@ -105,14 +105,14 @@ app.get('/api/ready', (req, res) => {
 });
 
 // -------------------------------------------------------------
-// APIs: المنتجات (Products)
+// APIs: Ø§Ù„Ù…Ù†ØªØ¬Ø§Øª (Products)
 // -------------------------------------------------------------
 
-// نقطة وصول عامة لمتجر الزبائن (Public Store API) - بيانات آمنة 100% بحجب كامل لأسعار التكلفة والموردين
+// Ù†Ù‚Ø·Ø© ÙˆØµÙˆÙ„ Ø¹Ø§Ù…Ø© Ù„Ù…ØªØ¬Ø± Ø§Ù„Ø²Ø¨Ø§Ø¦Ù† (Public Store API) - Ø¨ÙŠØ§Ù†Ø§Øª Ø¢Ù…Ù†Ø© 100% Ø¨Ø­Ø¬Ø¨ ÙƒØ§Ù…Ù„ Ù„Ø£Ø³Ø¹Ø§Ø± Ø§Ù„ØªÙƒÙ„ÙØ© ÙˆØ§Ù„Ù…ÙˆØ±Ø¯ÙŠÙ†
 
 // ================================================================
-// نقطة وصول متجر الزبائن العام (Public Store API - Almnar Style)
-// بيانات آمنة 100% بحجب كامل لأسعار التكلفة والموردين + دعم الأقسام والماركات والعروض
+// Ù†Ù‚Ø·Ø© ÙˆØµÙˆÙ„ Ù…ØªØ¬Ø± Ø§Ù„Ø²Ø¨Ø§Ø¦Ù† Ø§Ù„Ø¹Ø§Ù… (Public Store API - Almnar Style)
+// Ø¨ÙŠØ§Ù†Ø§Øª Ø¢Ù…Ù†Ø© 100% Ø¨Ø­Ø¬Ø¨ ÙƒØ§Ù…Ù„ Ù„Ø£Ø³Ø¹Ø§Ø± Ø§Ù„ØªÙƒÙ„ÙØ© ÙˆØ§Ù„Ù…ÙˆØ±Ø¯ÙŠÙ† + Ø¯Ø¹Ù… Ø§Ù„Ø£Ù‚Ø³Ø§Ù… ÙˆØ§Ù„Ù…Ø§Ø±ÙƒØ§Øª ÙˆØ§Ù„Ø¹Ø±ÙˆØ¶
 // ================================================================
 app.get('/api/public/store-data', (req, res) => {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
@@ -126,7 +126,7 @@ app.get('/api/public/store-data', (req, res) => {
     const customNames = storeConfig.customProductNames || {};
     const customCategories = storeConfig.customProductCategories || {};
 
-    // 1. جلب الأقسام والماركات الفعالة أولاً لتحديد الأقسام المخصصة للأصناف
+    // 1. Ø¬Ù„Ø¨ Ø§Ù„Ø£Ù‚Ø³Ø§Ù… ÙˆØ§Ù„Ù…Ø§Ø±ÙƒØ§Øª Ø§Ù„ÙØ¹Ø§Ù„Ø© Ø£ÙˆÙ„Ø§Ù‹ Ù„ØªØ­Ø¯ÙŠØ¯ Ø§Ù„Ø£Ù‚Ø³Ø§Ù… Ø§Ù„Ù…Ø®ØµØµØ© Ù„Ù„Ø£ØµÙ†Ø§Ù
     const activeCategories = (storeConfig.categories || [])
       .filter(c => c.isVisible !== false)
       .map(c => ({
@@ -148,7 +148,7 @@ app.get('/api/public/store-data', (req, res) => {
       .filter(o => o.isVisible !== false)
       .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
 
-    // 2. فلترة الأصناف: عرض المتوفر بالمستودع فقط (stock > 0) + ما حددته الإدارة يدوياً
+    // 2. ÙÙ„ØªØ±Ø© Ø§Ù„Ø£ØµÙ†Ø§Ù: Ø¹Ø±Ø¶ Ø§Ù„Ù…ØªÙˆÙØ± Ø¨Ø§Ù„Ù…Ø³ØªÙˆØ¯Ø¹ ÙÙ‚Ø· (stock > 0) + Ù…Ø§ Ø­Ø¯Ø¯ØªÙ‡ Ø§Ù„Ø¥Ø¯Ø§Ø±Ø© ÙŠØ¯ÙˆÙŠØ§Ù‹
     const publicProducts = products
       .filter(p => {
         if (!p || !p.name) return false;
@@ -166,7 +166,7 @@ app.get('/api/public/store-data', (req, res) => {
         const displayName = customNames[String(p.id)] || p.name;
         const sellPrice = Math.round(parseFloat(p.sellPrice) || 0);
 
-        // تحديد القسم الذي ينتمي له الصنف في متجر الزبائن (أولوية مطلقة للقسم المخصص لمنع التكرار)
+        // ØªØ­Ø¯ÙŠØ¯ Ø§Ù„Ù‚Ø³Ù… Ø§Ù„Ø°ÙŠ ÙŠÙ†ØªÙ…ÙŠ Ù„Ù‡ Ø§Ù„ØµÙ†Ù ÙÙŠ Ù…ØªØ¬Ø± Ø§Ù„Ø²Ø¨Ø§Ø¦Ù† (Ø£ÙˆÙ„ÙˆÙŠØ© Ù…Ø·Ù„Ù‚Ø© Ù„Ù„Ù‚Ø³Ù… Ø§Ù„Ù…Ø®ØµØµ Ù„Ù…Ù†Ø¹ Ø§Ù„ØªÙƒØ±Ø§Ø±)
         let prodStoreCategory = null;
         const pIdStr = String(p.id);
         if (customCategories[pIdStr]) {
@@ -181,14 +181,14 @@ app.get('/api/public/store-data', (req, res) => {
         }
         if (!prodStoreCategory) {
           const matched = activeCategories.find(c => c.originalName === p.category || c.name === p.category || c.id === p.category);
-          prodStoreCategory = matched ? matched.name : (p.category || 'عام');
+          prodStoreCategory = matched ? matched.name : (p.category || 'Ø¹Ø§Ù…');
         }
 
         return {
           id: p.id,
           name: displayName,
           originalName: p.name,
-          brand: p.brand || 'عام',
+          brand: p.brand || 'Ø¹Ø§Ù…',
           code: p.code || '',
           category: prodStoreCategory,
           sellPrice: sellPrice,
@@ -210,11 +210,11 @@ app.get('/api/public/store-data', (req, res) => {
       popupOffer: storeConfig.popupOffer || { enabled: false },
       storeSettings: storeConfig.storeSettings || {},
       company: {
-        name: settings.companyName || 'شركة رامز عطاطرة',
+        name: settings.companyName || 'Ø´Ø±ÙƒØ© Ø±Ø§Ù…Ø² Ø¹Ø·Ø§Ø·Ø±Ø©',
         phone: (storeConfig.storeSettings && storeConfig.storeSettings.phone) || settings.companyPhone || '',
         whatsapp: (storeConfig.storeSettings && storeConfig.storeSettings.whatsapp) || settings.companyPhone || '',
         address: (storeConfig.storeSettings && storeConfig.storeSettings.address) || settings.companyAddress || '',
-        currency: (storeConfig.storeSettings && storeConfig.storeSettings.currency) || settings.currency || 'شيكل',
+        currency: (storeConfig.storeSettings && storeConfig.storeSettings.currency) || settings.currency || 'Ø´ÙŠÙƒÙ„',
         logo: (storeConfig.storeSettings && storeConfig.storeSettings.companyLogo) || settings.companyLogo || ''
       }
     });
@@ -225,18 +225,18 @@ app.get('/api/public/store-data', (req, res) => {
 });
 
 // ================================================================
-// إرسال وتأكيد طلب شراء إلكتروني جديد من متجر الزبائن
-// مع إشعار فوري لتيليجرام وحفظ الطلب في النظام
+// Ø¥Ø±Ø³Ø§Ù„ ÙˆØªØ£ÙƒÙŠØ¯ Ø·Ù„Ø¨ Ø´Ø±Ø§Ø¡ Ø¥Ù„ÙƒØªØ±ÙˆÙ†ÙŠ Ø¬Ø¯ÙŠØ¯ Ù…Ù† Ù…ØªØ¬Ø± Ø§Ù„Ø²Ø¨Ø§Ø¦Ù†
+// Ù…Ø¹ Ø¥Ø´Ø¹Ø§Ø± ÙÙˆØ±ÙŠ Ù„ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù… ÙˆØ­ÙØ¸ Ø§Ù„Ø·Ù„Ø¨ ÙÙŠ Ø§Ù„Ù†Ø¸Ø§Ù…
 // ================================================================
 
 // ================================================================
-// نقطة استلام الطلبات الداخلية المباشرة بين سيرفر المتجر وسيرفر الأدمن
+// Ù†Ù‚Ø·Ø© Ø§Ø³ØªÙ„Ø§Ù… Ø§Ù„Ø·Ù„Ø¨Ø§Øª Ø§Ù„Ø¯Ø§Ø®Ù„ÙŠØ© Ø§Ù„Ù…Ø¨Ø§Ø´Ø±Ø© Ø¨ÙŠÙ† Ø³ÙŠØ±ÙØ± Ø§Ù„Ù…ØªØ¬Ø± ÙˆØ³ÙŠØ±ÙØ± Ø§Ù„Ø£Ø¯Ù…Ù†
 // ================================================================
 app.post('/api/internal/orders/receive', (req, res) => {
   try {
     const order = req.body && req.body.order;
     if (!order || !order.id) {
-      return res.status(400).json({ success: false, error: 'بيانات الطلب غير صالحة' });
+      return res.status(400).json({ success: false, error: 'Ø¨ÙŠØ§Ù†Ø§Øª Ø§Ù„Ø·Ù„Ø¨ ØºÙŠØ± ØµØ§Ù„Ø­Ø©' });
     }
     const orders = dataStore.getOrders();
     const existingIdx = orders.findIndex(o => String(o.id) === String(order.id));
@@ -247,8 +247,8 @@ app.post('/api/internal/orders/receive', (req, res) => {
     }
     const ORDERS_FILE = path.join(__dirname, 'data', 'orders.json');
     fs.writeFileSync(ORDERS_FILE, JSON.stringify(orders, null, 2), 'utf-8');
-    console.log(`📡 [Admin/Store Sync] تم استلام وحفظ الطلب #${order.id} بنجاح من السيرفر الشقيق`);
-    res.json({ success: true, message: 'تم استلام الطلب بنجاح' });
+    console.log(`ðŸ“¡ [Admin/Store Sync] ØªÙ… Ø§Ø³ØªÙ„Ø§Ù… ÙˆØ­ÙØ¸ Ø§Ù„Ø·Ù„Ø¨ #${order.id} Ø¨Ù†Ø¬Ø§Ø­ Ù…Ù† Ø§Ù„Ø³ÙŠØ±ÙØ± Ø§Ù„Ø´Ù‚ÙŠÙ‚`);
+    res.json({ success: true, message: 'ØªÙ… Ø§Ø³ØªÙ„Ø§Ù… Ø§Ù„Ø·Ù„Ø¨ Ø¨Ù†Ø¬Ø§Ø­' });
   } catch (err) {
     console.error('Error receiving internal order:', err);
     res.status(500).json({ success: false, error: err.message });
@@ -259,26 +259,26 @@ app.post('/api/public/orders', async (req, res) => {
   try {
     const { customer, items } = req.body;
     if (!customer || !customer.name || !customer.name.trim()) {
-      return res.status(400).json({ success: false, error: 'يرجى إدخال الاسم الكريم.' });
+      return res.status(400).json({ success: false, error: 'ÙŠØ±Ø¬Ù‰ Ø¥Ø¯Ø®Ø§Ù„ Ø§Ù„Ø§Ø³Ù… Ø§Ù„ÙƒØ±ÙŠÙ….' });
     }
     if (!customer.phone || !customer.phone.trim()) {
-      return res.status(400).json({ success: false, error: 'يرجى إدخال رقم الهاتف للتواصل.' });
+      return res.status(400).json({ success: false, error: 'ÙŠØ±Ø¬Ù‰ Ø¥Ø¯Ø®Ø§Ù„ Ø±Ù‚Ù… Ø§Ù„Ù‡Ø§ØªÙ Ù„Ù„ØªÙˆØ§ØµÙ„.' });
     }
     if (!customer.address || !customer.address.trim()) {
-      return res.status(400).json({ success: false, error: 'يرجى إدخال العنوان بالتفصيل لتسليم الطلب.' });
+      return res.status(400).json({ success: false, error: 'ÙŠØ±Ø¬Ù‰ Ø¥Ø¯Ø®Ø§Ù„ Ø§Ù„Ø¹Ù†ÙˆØ§Ù† Ø¨Ø§Ù„ØªÙØµÙŠÙ„ Ù„ØªØ³Ù„ÙŠÙ… Ø§Ù„Ø·Ù„Ø¨.' });
     }
     if (!Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ success: false, error: 'سلة المشتريات فارغة!' });
+      return res.status(400).json({ success: false, error: 'Ø³Ù„Ø© Ø§Ù„Ù…Ø´ØªØ±ÙŠØ§Øª ÙØ§Ø±ØºØ©!' });
     }
 
-    // حفظ الطلب في النظام
+    // Ø­ÙØ¸ Ø§Ù„Ø·Ù„Ø¨ ÙÙŠ Ø§Ù„Ù†Ø¸Ø§Ù…
     const newOrder = dataStore.createOrder({ customer, items });
 
-    // إرسال إشعار فوري لتيليجرام
+    // Ø¥Ø±Ø³Ø§Ù„ Ø¥Ø´Ø¹Ø§Ø± ÙÙˆØ±ÙŠ Ù„ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù…
     const settings = dataStore.getSettings() || {};
     const telegramBotToken = settings.telegramBotToken || process.env.TELEGRAM_BOT_TOKEN || '8796168868:AAGmJPZWGM_s0Z8FhDVNjFu1IuLPS92s0mk';
     const telegramChatId = settings.telegramChatId || process.env.TELEGRAM_CHAT_ID || '-5562183330';
-    let telegramResult = { ok: false, error: 'غير مهيأ' };
+    let telegramResult = { ok: false, error: 'ØºÙŠØ± Ù…Ù‡ÙŠØ£' };
     if (telegramBotToken && telegramChatId) {
       try {
         telegramResult = await telegramService.sendStoreOrderNotification(newOrder, { ...settings, telegramBotToken, telegramChatId });
@@ -294,7 +294,7 @@ app.post('/api/public/orders', async (req, res) => {
       orderId: newOrder.id,
       totalAmount: newOrder.totalAmount,
       createdAt: newOrder.createdAt,
-      message: 'تم إرسال طلبك بنجاح! رقم طلبك هو: #' + newOrder.id + '. سيتم التواصل معك هاتفياً لتأكيد موعد التوصيل.'
+      message: 'ØªÙ… Ø¥Ø±Ø³Ø§Ù„ Ø·Ù„Ø¨Ùƒ Ø¨Ù†Ø¬Ø§Ø­! Ø±Ù‚Ù… Ø·Ù„Ø¨Ùƒ Ù‡Ùˆ: #' + newOrder.id + '. Ø³ÙŠØªÙ… Ø§Ù„ØªÙˆØ§ØµÙ„ Ù…Ø¹Ùƒ Ù‡Ø§ØªÙÙŠØ§Ù‹ Ù„ØªØ£ÙƒÙŠØ¯ Ù…ÙˆØ¹Ø¯ Ø§Ù„ØªÙˆØµÙŠÙ„.'
     });
   } catch (err) {
     console.error('Error creating store order:', err);
@@ -303,10 +303,10 @@ app.post('/api/public/orders', async (req, res) => {
 });
 
 // ================================================================
-// لوحة تحكم إدارة المتجر الإلكتروني (Admin Store Management APIs)
+// Ù„ÙˆØ­Ø© ØªØ­ÙƒÙ… Ø¥Ø¯Ø§Ø±Ø© Ø§Ù„Ù…ØªØ¬Ø± Ø§Ù„Ø¥Ù„ÙƒØªØ±ÙˆÙ†ÙŠ (Admin Store Management APIs)
 // ================================================================
 
-// 1. جلب إعدادات وتخصيص المتجر الكاملة
+// 1. Ø¬Ù„Ø¨ Ø¥Ø¹Ø¯Ø§Ø¯Ø§Øª ÙˆØªØ®ØµÙŠØµ Ø§Ù„Ù…ØªØ¬Ø± Ø§Ù„ÙƒØ§Ù…Ù„Ø©
 app.get('/api/admin/store-config', (req, res) => {
   try {
     const config = dataStore.getStoreConfig();
@@ -326,34 +326,34 @@ app.get('/api/admin/store-config', (req, res) => {
   }
 });
 
-// 2. تحديث وتخصيص إعدادات المتجر الكاملة
+// 2. ØªØ­Ø¯ÙŠØ« ÙˆØªØ®ØµÙŠØµ Ø¥Ø¹Ø¯Ø§Ø¯Ø§Øª Ø§Ù„Ù…ØªØ¬Ø± Ø§Ù„ÙƒØ§Ù…Ù„Ø©
 app.post('/api/admin/store-config', (req, res) => {
   try {
     const updated = dataStore.saveStoreConfig(req.body);
-    res.json({ success: true, config: updated, message: 'تم حفظ إعدادات المتجر بنجاح.' });
+    res.json({ success: true, config: updated, message: 'ØªÙ… Ø­ÙØ¸ Ø¥Ø¹Ø¯Ø§Ø¯Ø§Øª Ø§Ù„Ù…ØªØ¬Ø± Ø¨Ù†Ø¬Ø§Ø­.' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// تحديث البيانات من Supabase يدوياً (لمزامنة التعديلات بين السيرفرات)
+// ØªØ­Ø¯ÙŠØ« Ø§Ù„Ø¨ÙŠØ§Ù†Ø§Øª Ù…Ù† Supabase ÙŠØ¯ÙˆÙŠØ§Ù‹ (Ù„Ù…Ø²Ø§Ù…Ù†Ø© Ø§Ù„ØªØ¹Ø¯ÙŠÙ„Ø§Øª Ø¨ÙŠÙ† Ø§Ù„Ø³ÙŠØ±ÙØ±Ø§Øª)
 app.get('/api/refresh-from-cloud', async (req, res) => {
   try {
     const result = await dataStore.refreshFromCloud();
-    res.json({ success: true, message: 'تم تحديث البيانات من Supabase بنجاح', result });
+    res.json({ success: true, message: 'ØªÙ… ØªØ­Ø¯ÙŠØ« Ø§Ù„Ø¨ÙŠØ§Ù†Ø§Øª Ù…Ù† Supabase Ø¨Ù†Ø¬Ø§Ø­', result });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// 3. جلب جميع الطلبات الإلكترونية
+// 3. Ø¬Ù„Ø¨ Ø¬Ù…ÙŠØ¹ Ø§Ù„Ø·Ù„Ø¨Ø§Øª Ø§Ù„Ø¥Ù„ÙƒØªØ±ÙˆÙ†ÙŠØ©
 app.get('/api/admin/orders', async (req, res) => {
   try {
     let orders = dataStore.getOrders();
-    // إذا كانت القائمة فارغة على سيرفر الأدمن، حاول السحب الفوري من Supabase
+    // Ø¥Ø°Ø§ ÙƒØ§Ù†Øª Ø§Ù„Ù‚Ø§Ø¦Ù…Ø© ÙØ§Ø±ØºØ© Ø¹Ù„Ù‰ Ø³ÙŠØ±ÙØ± Ø§Ù„Ø£Ø¯Ù…Ù†ØŒ Ø­Ø§ÙˆÙ„ Ø§Ù„Ø³Ø­Ø¨ Ø§Ù„ÙÙˆØ±ÙŠ Ù…Ù† Supabase
     if (orders.length === 0 && supabase) {
       try {
-        const { data: ordRow } = await supabase.from('settings').select('data').eq('id', 'orders').maybeSingle();
+        const { data: ordRow } = await Promise.race([supabase.from('settings').select('data').eq('id', 'orders').maybeSingle(), new Promise((_, r) => setTimeout(() => r(new Error('timeout')), 3500))]);
         if (ordRow && Array.isArray(ordRow.data) && ordRow.data.length > 0) {
           const ORDERS_FILE = path.join(__dirname, 'data', 'orders.json');
           fs.writeFileSync(ORDERS_FILE, JSON.stringify(ordRow.data, null, 2), 'utf-8');
@@ -367,16 +367,16 @@ app.get('/api/admin/orders', async (req, res) => {
   }
 });
 
-// 4. اعتماد طلب إلكتروني وخصم المخزون
+// 4. Ø§Ø¹ØªÙ…Ø§Ø¯ Ø·Ù„Ø¨ Ø¥Ù„ÙƒØªØ±ÙˆÙ†ÙŠ ÙˆØ®ØµÙ… Ø§Ù„Ù…Ø®Ø²ÙˆÙ†
 app.post('/api/admin/orders/:id/approve', (req, res) => {
   try {
     const orderId = req.params.id;
-    const approvedBy = req.body.approvedBy || 'الإدارة';
+    const approvedBy = req.body.approvedBy || 'Ø§Ù„Ø¥Ø¯Ø§Ø±Ø©';
     const result = dataStore.approveOrder(orderId, approvedBy);
     res.json({
       success: true,
       order: result.order,
-      message: 'تم اعتماد الطلب بنجاح وخصم كمياته من المخزون (' + result.updatedProductsCount + ' صنف).'
+      message: 'ØªÙ… Ø§Ø¹ØªÙ…Ø§Ø¯ Ø§Ù„Ø·Ù„Ø¨ Ø¨Ù†Ø¬Ø§Ø­ ÙˆØ®ØµÙ… ÙƒÙ…ÙŠØ§ØªÙ‡ Ù…Ù† Ø§Ù„Ù…Ø®Ø²ÙˆÙ† (' + result.updatedProductsCount + ' ØµÙ†Ù).'
     });
   } catch (err) {
     console.error('Error approving order:', err);
@@ -384,25 +384,25 @@ app.post('/api/admin/orders/:id/approve', (req, res) => {
   }
 });
 
-// 5. إلغاء طلب إلكتروني
+// 5. Ø¥Ù„ØºØ§Ø¡ Ø·Ù„Ø¨ Ø¥Ù„ÙƒØªØ±ÙˆÙ†ÙŠ
 app.post('/api/admin/orders/:id/cancel', (req, res) => {
   try {
     const orderId = req.params.id;
-    const reason = req.body.reason || 'تم الإلغاء بواسطة الإدارة';
+    const reason = req.body.reason || 'ØªÙ… Ø§Ù„Ø¥Ù„ØºØ§Ø¡ Ø¨ÙˆØ§Ø³Ø·Ø© Ø§Ù„Ø¥Ø¯Ø§Ø±Ø©';
     const result = dataStore.cancelOrder(orderId, reason);
-    res.json({ success: true, order: result.order, message: 'تم إلغاء الطلب.' });
+    res.json({ success: true, order: result.order, message: 'ØªÙ… Ø¥Ù„ØºØ§Ø¡ Ø§Ù„Ø·Ù„Ø¨.' });
   } catch (err) {
     res.status(400).json({ success: false, error: err.message });
   }
 });
 
-// 6. تعديل الاسم المخصص لصنف للظهور في المتجر
+// 6. ØªØ¹Ø¯ÙŠÙ„ Ø§Ù„Ø§Ø³Ù… Ø§Ù„Ù…Ø®ØµØµ Ù„ØµÙ†Ù Ù„Ù„Ø¸Ù‡ÙˆØ± ÙÙŠ Ø§Ù„Ù…ØªØ¬Ø±
 
-// تعديل القسم المخصص لصنف في متجر الزبائن مع منع التكرار
+// ØªØ¹Ø¯ÙŠÙ„ Ø§Ù„Ù‚Ø³Ù… Ø§Ù„Ù…Ø®ØµØµ Ù„ØµÙ†Ù ÙÙŠ Ù…ØªØ¬Ø± Ø§Ù„Ø²Ø¨Ø§Ø¦Ù† Ù…Ø¹ Ù…Ù†Ø¹ Ø§Ù„ØªÙƒØ±Ø§Ø±
 app.post('/api/admin/store/custom-category', (req, res) => {
   try {
     const { productId, category } = req.body;
-    if (!productId) return res.status(400).json({ success: false, error: 'معرف الصنف مطلوب' });
+    if (!productId) return res.status(400).json({ success: false, error: 'Ù…Ø¹Ø±Ù Ø§Ù„ØµÙ†Ù Ù…Ø·Ù„ÙˆØ¨' });
     const config = dataStore.updateCustomProductCategory(productId, category);
     res.json({ success: true, customProductCategories: config.customProductCategories });
   } catch (err) {
@@ -413,7 +413,7 @@ app.post('/api/admin/store/custom-category', (req, res) => {
 app.post('/api/admin/store/custom-name', (req, res) => {
   try {
     const { productId, customName } = req.body;
-    if (!productId) return res.status(400).json({ success: false, error: 'معرف الصنف مطلوب' });
+    if (!productId) return res.status(400).json({ success: false, error: 'Ù…Ø¹Ø±Ù Ø§Ù„ØµÙ†Ù Ù…Ø·Ù„ÙˆØ¨' });
     const config = dataStore.updateCustomProductName(productId, customName);
     res.json({ success: true, customProductNames: config.customProductNames });
   } catch (err) {
@@ -421,11 +421,11 @@ app.post('/api/admin/store/custom-name', (req, res) => {
   }
 });
 
-// 7. تفعيل/تعطيل إظهار صنف غير متوفر بالمخزون يدوياً
+// 7. ØªÙØ¹ÙŠÙ„/ØªØ¹Ø·ÙŠÙ„ Ø¥Ø¸Ù‡Ø§Ø± ØµÙ†Ù ØºÙŠØ± Ù…ØªÙˆÙØ± Ø¨Ø§Ù„Ù…Ø®Ø²ÙˆÙ† ÙŠØ¯ÙˆÙŠØ§Ù‹
 app.post('/api/admin/store/toggle-manual-show', (req, res) => {
   try {
     const { productId, forceShow } = req.body;
-    if (!productId) return res.status(400).json({ success: false, error: 'معرف الصنف مطلوب' });
+    if (!productId) return res.status(400).json({ success: false, error: 'Ù…Ø¹Ø±Ù Ø§Ù„ØµÙ†Ù Ù…Ø·Ù„ÙˆØ¨' });
     const config = dataStore.toggleManualOutOfStock(productId, Boolean(forceShow));
     res.json({ success: true, manuallyShownOutOfStock: config.manuallyShownOutOfStock });
   } catch (err) {
@@ -434,7 +434,7 @@ app.post('/api/admin/store/toggle-manual-show', (req, res) => {
 });
 
 
-// جلب جميع المنتجات
+// Ø¬Ù„Ø¨ Ø¬Ù…ÙŠØ¹ Ø§Ù„Ù…Ù†ØªØ¬Ø§Øª
 app.get('/api/products', (req, res) => {
   try {
     const products = dataStore.getProducts();
@@ -444,12 +444,12 @@ app.get('/api/products', (req, res) => {
   }
 });
 
-// إضافة أو تعديل منتج
+// Ø¥Ø¶Ø§ÙØ© Ø£Ùˆ ØªØ¹Ø¯ÙŠÙ„ Ù…Ù†ØªØ¬
 app.post('/api/products', async (req, res) => {
   try {
     const { id, code, barcode, name, brand, brandAr, mainCategory, category, costPrice, sellPrice, stock, image, images, description } = req.body;
     if (!name || name.trim() === '') {
-      return res.status(400).json({ success: false, error: 'اسم المنتج مطلوب' });
+      return res.status(400).json({ success: false, error: 'Ø§Ø³Ù… Ø§Ù„Ù…Ù†ØªØ¬ Ù…Ø·Ù„ÙˆØ¨' });
     }
 
     const saved = await dataStore.saveProduct({
@@ -457,10 +457,10 @@ app.post('/api/products', async (req, res) => {
       code,
       barcode: barcode ? String(barcode).trim() : undefined,
       name: name.trim(),
-      brand: (brand && brand.trim()) || 'أخرى',
-      brandAr: (brandAr && brandAr.trim()) || (brand && brand.trim()) || 'أخرى / عام',
-      mainCategory: mainCategory || 'أجهزة كهربائية كبيرة',
-      category: category || 'عام',
+      brand: (brand && brand.trim()) || 'Ø£Ø®Ø±Ù‰',
+      brandAr: (brandAr && brandAr.trim()) || (brand && brand.trim()) || 'Ø£Ø®Ø±Ù‰ / Ø¹Ø§Ù…',
+      mainCategory: mainCategory || 'Ø£Ø¬Ù‡Ø²Ø© ÙƒÙ‡Ø±Ø¨Ø§Ø¦ÙŠØ© ÙƒØ¨ÙŠØ±Ø©',
+      category: category || 'Ø¹Ø§Ù…',
       costPrice: parseFloat(costPrice) || 0,
       sellPrice: parseFloat(sellPrice) || 0,
       stock: parseInt(stock) || 0,
@@ -475,7 +475,7 @@ app.post('/api/products', async (req, res) => {
   }
 });
 
-// تعيين باركود لصنف مع فحص ومنع التكرار
+// ØªØ¹ÙŠÙŠÙ† Ø¨Ø§Ø±ÙƒÙˆØ¯ Ù„ØµÙ†Ù Ù…Ø¹ ÙØ­Øµ ÙˆÙ…Ù†Ø¹ Ø§Ù„ØªÙƒØ±Ø§Ø±
 app.post('/api/products/:id/barcode', async (req, res) => {
   try {
     const { id } = req.params;
@@ -483,11 +483,11 @@ app.post('/api/products/:id/barcode', async (req, res) => {
     const cleanBarcode = (barcode || '').trim();
 
     if (!cleanBarcode) {
-      return res.status(400).json({ success: false, error: 'رمز الباركود مطلوب' });
+      return res.status(400).json({ success: false, error: 'Ø±Ù…Ø² Ø§Ù„Ø¨Ø§Ø±ÙƒÙˆØ¯ Ù…Ø·Ù„ÙˆØ¨' });
     }
 
     const products = dataStore.getProducts();
-    // فحص هل الباركود مستخدم لصنف آخر؟
+    // ÙØ­Øµ Ù‡Ù„ Ø§Ù„Ø¨Ø§Ø±ÙƒÙˆØ¯ Ù…Ø³ØªØ®Ø¯Ù… Ù„ØµÙ†Ù Ø¢Ø®Ø±ØŸ
     const duplicate = products.find(p => 
       p.barcode && 
       p.barcode.trim().toLowerCase() === cleanBarcode.toLowerCase() && 
@@ -498,25 +498,25 @@ app.post('/api/products/:id/barcode', async (req, res) => {
       return res.status(409).json({
         success: false,
         error: 'duplicate',
-        message: 'تم تعريف هذا الباركود مسبقاً لصنف آخر',
+        message: 'ØªÙ… ØªØ¹Ø±ÙŠÙ Ù‡Ø°Ø§ Ø§Ù„Ø¨Ø§Ø±ÙƒÙˆØ¯ Ù…Ø³Ø¨Ù‚Ø§Ù‹ Ù„ØµÙ†Ù Ø¢Ø®Ø±',
         existingProduct: {
           id: duplicate.id,
-          code: duplicate.code || 'بدون كود',
-          name: duplicate.name || 'بدون اسم',
-          brand: duplicate.brand || 'عام',
-          category: duplicate.category || 'عام',
+          code: duplicate.code || 'Ø¨Ø¯ÙˆÙ† ÙƒÙˆØ¯',
+          name: duplicate.name || 'Ø¨Ø¯ÙˆÙ† Ø§Ø³Ù…',
+          brand: duplicate.brand || 'Ø¹Ø§Ù…',
+          category: duplicate.category || 'Ø¹Ø§Ù…',
           barcode: duplicate.barcode
         }
       });
     }
 
-    // الصنف المستهدف
+    // Ø§Ù„ØµÙ†Ù Ø§Ù„Ù…Ø³ØªÙ‡Ø¯Ù
     const target = products.find(p => p.id === id);
     if (!target) {
-      return res.status(404).json({ success: false, error: 'الصنف المستهدف غير موجود' });
+      return res.status(404).json({ success: false, error: 'Ø§Ù„ØµÙ†Ù Ø§Ù„Ù…Ø³ØªÙ‡Ø¯Ù ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯' });
     }
 
-    // تحديث الباركود
+    // ØªØ­Ø¯ÙŠØ« Ø§Ù„Ø¨Ø§Ø±ÙƒÙˆØ¯
     target.barcode = cleanBarcode;
     target.updatedAt = new Date().toISOString();
 
@@ -524,7 +524,7 @@ app.post('/api/products/:id/barcode', async (req, res) => {
     res.json({ 
       success: true, 
       product: saved,
-      message: `تم ربط الباركود (${cleanBarcode}) بالصنف بنجاح`
+      message: `ØªÙ… Ø±Ø¨Ø· Ø§Ù„Ø¨Ø§Ø±ÙƒÙˆØ¯ (${cleanBarcode}) Ø¨Ø§Ù„ØµÙ†Ù Ø¨Ù†Ø¬Ø§Ø­`
     });
   } catch (err) {
     console.error('Barcode assignment error:', err);
@@ -532,14 +532,14 @@ app.post('/api/products/:id/barcode', async (req, res) => {
   }
 });
 
-// البحث عن منتج بواسطة الباركود
+// Ø§Ù„Ø¨Ø­Ø« Ø¹Ù† Ù…Ù†ØªØ¬ Ø¨ÙˆØ§Ø³Ø·Ø© Ø§Ù„Ø¨Ø§Ø±ÙƒÙˆØ¯
 app.get('/api/barcodes/lookup', (req, res) => {
   try {
     const rawBarcode = req.query.barcode || req.query.code || '';
     const cleanBarcode = String(rawBarcode).trim();
 
     if (!cleanBarcode) {
-      return res.status(400).json({ success: false, error: 'رمز الباركود مطلوب' });
+      return res.status(400).json({ success: false, error: 'Ø±Ù…Ø² Ø§Ù„Ø¨Ø§Ø±ÙƒÙˆØ¯ Ù…Ø·Ù„ÙˆØ¨' });
     }
 
     const products = dataStore.getProducts();
@@ -553,11 +553,11 @@ app.get('/api/barcodes/lookup', (req, res) => {
         registered: true,
         product: {
           id: matched.id,
-          code: matched.code || 'بدون كود',
-          name: matched.name || 'بدون اسم',
-          brand: matched.brand || 'عام',
-          brandAr: matched.brandAr || 'عام',
-          category: matched.category || 'عام',
+          code: matched.code || 'Ø¨Ø¯ÙˆÙ† ÙƒÙˆØ¯',
+          name: matched.name || 'Ø¨Ø¯ÙˆÙ† Ø§Ø³Ù…',
+          brand: matched.brand || 'Ø¹Ø§Ù…',
+          brandAr: matched.brandAr || 'Ø¹Ø§Ù…',
+          category: matched.category || 'Ø¹Ø§Ù…',
           costPrice: matched.costPrice || 0,
           sellPrice: matched.sellPrice || 0,
           stock: matched.stock !== undefined ? matched.stock : 0,
@@ -571,7 +571,7 @@ app.get('/api/barcodes/lookup', (req, res) => {
       success: true,
       registered: false,
       barcode: cleanBarcode,
-      message: 'الباركود غير مسجل مسبقاً'
+      message: 'Ø§Ù„Ø¨Ø§Ø±ÙƒÙˆØ¯ ØºÙŠØ± Ù…Ø³Ø¬Ù„ Ù…Ø³Ø¨Ù‚Ø§Ù‹'
     });
   } catch (err) {
     console.error('Barcode lookup error:', err);
@@ -579,7 +579,7 @@ app.get('/api/barcodes/lookup', (req, res) => {
   }
 });
 
-// البحث السريع في المنتجات بالاسم أو رقم الصنف لربط الباركود
+// Ø§Ù„Ø¨Ø­Ø« Ø§Ù„Ø³Ø±ÙŠØ¹ ÙÙŠ Ø§Ù„Ù…Ù†ØªØ¬Ø§Øª Ø¨Ø§Ù„Ø§Ø³Ù… Ø£Ùˆ Ø±Ù‚Ù… Ø§Ù„ØµÙ†Ù Ù„Ø±Ø¨Ø· Ø§Ù„Ø¨Ø§Ø±ÙƒÙˆØ¯
 app.get('/api/products/search', (req, res) => {
   try {
     const q = (req.query.q || '').trim().toLowerCase();
@@ -605,8 +605,8 @@ app.get('/api/products/search', (req, res) => {
         id: p.id,
         code: p.code || 'PRD',
         name: p.name,
-        brand: p.brand || 'عام',
-        category: p.category || 'عام',
+        brand: p.brand || 'Ø¹Ø§Ù…',
+        category: p.category || 'Ø¹Ø§Ù…',
         sellPrice: p.sellPrice || 0,
         stock: p.stock !== undefined ? p.stock : 0,
         image: p.image || '',
@@ -619,7 +619,7 @@ app.get('/api/products/search', (req, res) => {
   }
 });
 
-// جلب باركودات منتج محدد
+// Ø¬Ù„Ø¨ Ø¨Ø§Ø±ÙƒÙˆØ¯Ø§Øª Ù…Ù†ØªØ¬ Ù…Ø­Ø¯Ø¯
 app.get('/api/products/:id/barcodes', (req, res) => {
   try {
     const { id } = req.params;
@@ -627,7 +627,7 @@ app.get('/api/products/:id/barcodes', (req, res) => {
     const product = products.find(p => p.id === id);
 
     if (!product) {
-      return res.status(404).json({ success: false, error: 'المنتج غير موجود' });
+      return res.status(404).json({ success: false, error: 'Ø§Ù„Ù…Ù†ØªØ¬ ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯' });
     }
 
     const barcodes = product.barcode ? [String(product.barcode).trim()] : [];
@@ -642,23 +642,23 @@ app.get('/api/products/:id/barcodes', (req, res) => {
   }
 });
 
-// إعادة تعيين أو نقل باركود من صنف إلى صنف آخر بصلاحية إدارية صريحة
+// Ø¥Ø¹Ø§Ø¯Ø© ØªØ¹ÙŠÙŠÙ† Ø£Ùˆ Ù†Ù‚Ù„ Ø¨Ø§Ø±ÙƒÙˆØ¯ Ù…Ù† ØµÙ†Ù Ø¥Ù„Ù‰ ØµÙ†Ù Ø¢Ø®Ø± Ø¨ØµÙ„Ø§Ø­ÙŠØ© Ø¥Ø¯Ø§Ø±ÙŠØ© ØµØ±ÙŠØ­Ø©
 app.post('/api/barcodes/reassign', async (req, res) => {
   try {
     const { barcode, targetProductId, note } = req.body;
     const cleanBarcode = String(barcode || '').trim();
 
     if (!cleanBarcode || !targetProductId) {
-      return res.status(400).json({ success: false, error: 'الباركود ومعرف الصنف المستهدف مطلوبان' });
+      return res.status(400).json({ success: false, error: 'Ø§Ù„Ø¨Ø§Ø±ÙƒÙˆØ¯ ÙˆÙ…Ø¹Ø±Ù Ø§Ù„ØµÙ†Ù Ø§Ù„Ù…Ø³ØªÙ‡Ø¯Ù Ù…Ø·Ù„ÙˆØ¨Ø§Ù†' });
     }
 
     const products = dataStore.getProducts();
     const targetProduct = products.find(p => p.id === targetProductId);
     if (!targetProduct) {
-      return res.status(404).json({ success: false, error: 'الصنف المستهدف غير موجود' });
+      return res.status(404).json({ success: false, error: 'Ø§Ù„ØµÙ†Ù Ø§Ù„Ù…Ø³ØªÙ‡Ø¯Ù ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯' });
     }
 
-    // البحث عن الصنف المرتبط حالياً بهذا الباركود إن وجد
+    // Ø§Ù„Ø¨Ø­Ø« Ø¹Ù† Ø§Ù„ØµÙ†Ù Ø§Ù„Ù…Ø±ØªØ¨Ø· Ø­Ø§Ù„ÙŠØ§Ù‹ Ø¨Ù‡Ø°Ø§ Ø§Ù„Ø¨Ø§Ø±ÙƒÙˆØ¯ Ø¥Ù† ÙˆØ¬Ø¯
     const currentOwner = products.find(p => 
       p.barcode && String(p.barcode).trim().toLowerCase() === cleanBarcode.toLowerCase()
     );
@@ -675,7 +675,7 @@ app.post('/api/barcodes/reassign', async (req, res) => {
       await dataStore.saveProduct(currentOwner);
     }
 
-    // ربط الباركود بالصنف المستهدف
+    // Ø±Ø¨Ø· Ø§Ù„Ø¨Ø§Ø±ÙƒÙˆØ¯ Ø¨Ø§Ù„ØµÙ†Ù Ø§Ù„Ù…Ø³ØªÙ‡Ø¯Ù
     targetProduct.barcode = cleanBarcode;
     targetProduct.updatedAt = new Date().toISOString();
     const saved = await dataStore.saveProduct(targetProduct);
@@ -684,7 +684,7 @@ app.post('/api/barcodes/reassign', async (req, res) => {
 
     res.json({
       success: true,
-      message: `تم نقل الباركود (${cleanBarcode}) إلى الصنف "${targetProduct.name}" بنجاح`,
+      message: `ØªÙ… Ù†Ù‚Ù„ Ø§Ù„Ø¨Ø§Ø±ÙƒÙˆØ¯ (${cleanBarcode}) Ø¥Ù„Ù‰ Ø§Ù„ØµÙ†Ù "${targetProduct.name}" Ø¨Ù†Ø¬Ø§Ø­`,
       product: saved,
       previousOwner: previousOwnerInfo
     });
@@ -694,7 +694,7 @@ app.post('/api/barcodes/reassign', async (req, res) => {
   }
 });
 
-// إزالة باركود من صنف
+// Ø¥Ø²Ø§Ù„Ø© Ø¨Ø§Ø±ÙƒÙˆØ¯ Ù…Ù† ØµÙ†Ù
 app.delete('/api/products/:id/barcode', async (req, res) => {
   try {
     const { id } = req.params;
@@ -702,7 +702,7 @@ app.delete('/api/products/:id/barcode', async (req, res) => {
     const target = products.find(p => p.id === id);
 
     if (!target) {
-      return res.status(404).json({ success: false, error: 'الصنف غير موجود' });
+      return res.status(404).json({ success: false, error: 'Ø§Ù„ØµÙ†Ù ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯' });
     }
 
     const oldBarcode = target.barcode;
@@ -712,7 +712,7 @@ app.delete('/api/products/:id/barcode', async (req, res) => {
 
     res.json({
       success: true,
-      message: `تم حذف الباركود (${oldBarcode}) من الصنف بنجاح`,
+      message: `ØªÙ… Ø­Ø°Ù Ø§Ù„Ø¨Ø§Ø±ÙƒÙˆØ¯ (${oldBarcode}) Ù…Ù† Ø§Ù„ØµÙ†Ù Ø¨Ù†Ø¬Ø§Ø­`,
       product: saved
     });
   } catch (err) {
@@ -720,7 +720,7 @@ app.delete('/api/products/:id/barcode', async (req, res) => {
   }
 });
 
-// حذف منتج
+// Ø­Ø°Ù Ù…Ù†ØªØ¬
 app.delete('/api/products/:id', async (req, res) => {
   try {
     const deleted = await dataStore.deleteProduct(req.params.id);
@@ -730,16 +730,16 @@ app.delete('/api/products/:id', async (req, res) => {
   }
 });
 
-// رفع صورة للمنتج (مع دعم التخزين السحابي الدائم في Supabase والأندرويد)
+// Ø±ÙØ¹ ØµÙˆØ±Ø© Ù„Ù„Ù…Ù†ØªØ¬ (Ù…Ø¹ Ø¯Ø¹Ù… Ø§Ù„ØªØ®Ø²ÙŠÙ† Ø§Ù„Ø³Ø­Ø§Ø¨ÙŠ Ø§Ù„Ø¯Ø§Ø¦Ù… ÙÙŠ Supabase ÙˆØ§Ù„Ø£Ù†Ø¯Ø±ÙˆÙŠØ¯)
 app.post('/api/upload', upload.single('image'), async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ success: false, error: 'لم يتم اختيار أي صورة' });
+      return res.status(400).json({ success: false, error: 'Ù„Ù… ÙŠØªÙ… Ø§Ø®ØªÙŠØ§Ø± Ø£ÙŠ ØµÙˆØ±Ø©' });
     }
     const localUrl = `/uploads/${req.file.filename}`;
     let finalUrl = localUrl;
 
-    // رفع دائم إلى Supabase Storage حتى لا تضيع الصور عند نوم أو إعادة نشر خادم Render
+    // Ø±ÙØ¹ Ø¯Ø§Ø¦Ù… Ø¥Ù„Ù‰ Supabase Storage Ø­ØªÙ‰ Ù„Ø§ ØªØ¶ÙŠØ¹ Ø§Ù„ØµÙˆØ± Ø¹Ù†Ø¯ Ù†ÙˆÙ… Ø£Ùˆ Ø¥Ø¹Ø§Ø¯Ø© Ù†Ø´Ø± Ø®Ø§Ø¯Ù… Render
     if (supabase) {
       try {
         const fileContent = fs.readFileSync(req.file.path);
@@ -758,7 +758,7 @@ app.post('/api/upload', upload.single('image'), async (req, res) => {
           }
         }
       } catch (sbErr) {
-        console.warn('⚠️ Supabase image upload fallback to local:', sbErr.message);
+        console.warn('âš ï¸ Supabase image upload fallback to local:', sbErr.message);
       }
     }
 
@@ -769,10 +769,10 @@ app.post('/api/upload', upload.single('image'), async (req, res) => {
 });
 
 // -------------------------------------------------------------
-// APIs: مزامنة برنامج الشامل لايت (Al-Shamel Lite Sync API)
+// APIs: Ù…Ø²Ø§Ù…Ù†Ø© Ø¨Ø±Ù†Ø§Ù…Ø¬ Ø§Ù„Ø´Ø§Ù…Ù„ Ù„Ø§ÙŠØª (Al-Shamel Lite Sync API)
 // -------------------------------------------------------------
 
-// وسيط التحقق من مفتاح الأمان (API Key Middleware)
+// ÙˆØ³ÙŠØ· Ø§Ù„ØªØ­Ù‚Ù‚ Ù…Ù† Ù…ÙØªØ§Ø­ Ø§Ù„Ø£Ù…Ø§Ù† (API Key Middleware)
 const SYNC_API_KEY = process.env.SYNC_API_KEY || 'shamel_sync_secret_key_2026';
 
 function requireSyncAuth(req, res, next) {
@@ -783,13 +783,13 @@ function requireSyncAuth(req, res, next) {
   if (!providedKey || providedKey !== SYNC_API_KEY) {
     return res.status(401).json({
       success: false,
-      error: 'غير مصرح: مفتاح المزامنة (API Key) غير صالح أو مفقود'
+      error: 'ØºÙŠØ± Ù…ØµØ±Ø­: Ù…ÙØªØ§Ø­ Ø§Ù„Ù…Ø²Ø§Ù…Ù†Ø© (API Key) ØºÙŠØ± ØµØ§Ù„Ø­ Ø£Ùˆ Ù…ÙÙ‚ÙˆØ¯'
     });
   }
   next();
 }
 
-// 1. فحص صحة الاتصال وحالة المزامنة
+// 1. ÙØ­Øµ ØµØ­Ø© Ø§Ù„Ø§ØªØµØ§Ù„ ÙˆØ­Ø§Ù„Ø© Ø§Ù„Ù…Ø²Ø§Ù…Ù†Ø©
 app.get('/api/sync/status', requireSyncAuth, (req, res) => {
   try {
     const meta = dataStore.getLastSyncMeta();
@@ -800,7 +800,7 @@ app.get('/api/sync/status', requireSyncAuth, (req, res) => {
     res.json({
       success: true,
       status: 'online',
-      message: 'خادم موقع أبو رامز متصل وجاهز للمزامنة',
+      message: 'Ø®Ø§Ø¯Ù… Ù…ÙˆÙ‚Ø¹ Ø£Ø¨Ùˆ Ø±Ø§Ù…Ø² Ù…ØªØµÙ„ ÙˆØ¬Ø§Ù‡Ø² Ù„Ù„Ù…Ø²Ø§Ù…Ù†Ø©',
       storeName: 'Aboramez Store',
       serverTime: new Date().toISOString(),
       catalog: {
@@ -815,7 +815,7 @@ app.get('/api/sync/status', requireSyncAuth, (req, res) => {
   }
 });
 
-// 2. إرسال دفعة أصناف للمزامنة (Upsert)
+// 2. Ø¥Ø±Ø³Ø§Ù„ Ø¯ÙØ¹Ø© Ø£ØµÙ†Ø§Ù Ù„Ù„Ù…Ø²Ø§Ù…Ù†Ø© (Upsert)
 app.post('/api/sync/batch', requireSyncAuth, async (req, res) => {
   try {
     const items = req.body.items || req.body.products;
@@ -825,21 +825,21 @@ app.post('/api/sync/batch', requireSyncAuth, async (req, res) => {
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({
         success: false,
-        error: 'يجب إرسال مصفوفة أصناف صالحة في الحقل items أو products'
+        error: 'ÙŠØ¬Ø¨ Ø¥Ø±Ø³Ø§Ù„ Ù…ØµÙÙˆÙØ© Ø£ØµÙ†Ø§Ù ØµØ§Ù„Ø­Ø© ÙÙŠ Ø§Ù„Ø­Ù‚Ù„ items Ø£Ùˆ products'
       });
     }
 
     if (items.length > 500) {
       return res.status(400).json({
         success: false,
-        error: 'الحد الأقصى للدفعة الواحدة هو 500 صنف لضمان سرعة واستقرار المزامنة'
+        error: 'Ø§Ù„Ø­Ø¯ Ø§Ù„Ø£Ù‚ØµÙ‰ Ù„Ù„Ø¯ÙØ¹Ø© Ø§Ù„ÙˆØ§Ø­Ø¯Ø© Ù‡Ùˆ 500 ØµÙ†Ù Ù„Ø¶Ù…Ø§Ù† Ø³Ø±Ø¹Ø© ÙˆØ§Ø³ØªÙ‚Ø±Ø§Ø± Ø§Ù„Ù…Ø²Ø§Ù…Ù†Ø©'
       });
     }
 
     const result = await dataStore.syncBatchProducts(items, {
       mode,
       dryRun: Boolean(dryRun),
-      editorName: 'برنامج مزامنة الشامل'
+      editorName: 'Ø¨Ø±Ù†Ø§Ù…Ø¬ Ù…Ø²Ø§Ù…Ù†Ø© Ø§Ù„Ø´Ø§Ù…Ù„'
     });
 
     res.json(result);
@@ -848,16 +848,16 @@ app.post('/api/sync/batch', requireSyncAuth, async (req, res) => {
   }
 });
 
-// إعادة ضبط واستبدال جميع الأصناف بالكامل بنظافة تامة من الشامل
+// Ø¥Ø¹Ø§Ø¯Ø© Ø¶Ø¨Ø· ÙˆØ§Ø³ØªØ¨Ø¯Ø§Ù„ Ø¬Ù…ÙŠØ¹ Ø§Ù„Ø£ØµÙ†Ø§Ù Ø¨Ø§Ù„ÙƒØ§Ù…Ù„ Ø¨Ù†Ø¸Ø§ÙØ© ØªØ§Ù…Ø© Ù…Ù† Ø§Ù„Ø´Ø§Ù…Ù„
 app.post('/api/sync/reset-products', requireSyncAuth, async (req, res) => {
   try {
     const { items, dryRun = false } = req.body;
     if (!Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ success: false, error: 'قائمة الأصناف فارغة' });
+      return res.status(400).json({ success: false, error: 'Ù‚Ø§Ø¦Ù…Ø© Ø§Ù„Ø£ØµÙ†Ø§Ù ÙØ§Ø±ØºØ©' });
     }
     const result = await dataStore.resetAllProducts(items, {
       dryRun: Boolean(dryRun),
-      editorName: 'إعادة بناء نظيفة من الشامل'
+      editorName: 'Ø¥Ø¹Ø§Ø¯Ø© Ø¨Ù†Ø§Ø¡ Ù†Ø¸ÙŠÙØ© Ù…Ù† Ø§Ù„Ø´Ø§Ù…Ù„'
     });
     res.json(result);
   } catch (err) {
@@ -865,7 +865,7 @@ app.post('/api/sync/reset-products', requireSyncAuth, async (req, res) => {
   }
 });
 
-// 3. الاستعلام عن حالة صنف معين في الموقع بالكود
+// 3. Ø§Ù„Ø§Ø³ØªØ¹Ù„Ø§Ù… Ø¹Ù† Ø­Ø§Ù„Ø© ØµÙ†Ù Ù…Ø¹ÙŠÙ† ÙÙŠ Ø§Ù„Ù…ÙˆÙ‚Ø¹ Ø¨Ø§Ù„ÙƒÙˆØ¯
 app.get('/api/sync/product/:code', requireSyncAuth, (req, res) => {
   try {
     const code = String(req.params.code).trim().toUpperCase();
@@ -873,7 +873,7 @@ app.get('/api/sync/product/:code', requireSyncAuth, (req, res) => {
     const product = products.find(p => p.code && String(p.code).trim().toUpperCase() === code);
 
     if (!product) {
-      return res.status(404).json({ success: false, error: 'الصنف غير موجود في الموقع' });
+      return res.status(404).json({ success: false, error: 'Ø§Ù„ØµÙ†Ù ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯ ÙÙŠ Ø§Ù„Ù…ÙˆÙ‚Ø¹' });
     }
 
     res.json({ success: true, product });
@@ -882,7 +882,7 @@ app.get('/api/sync/product/:code', requireSyncAuth, (req, res) => {
   }
 });
 
-// 4. فحص حالة مزامنة الزبائن والموردين
+// 4. ÙØ­Øµ Ø­Ø§Ù„Ø© Ù…Ø²Ø§Ù…Ù†Ø© Ø§Ù„Ø²Ø¨Ø§Ø¦Ù† ÙˆØ§Ù„Ù…ÙˆØ±Ø¯ÙŠÙ†
 app.get('/api/sync/contacts/status', requireSyncAuth, (req, res) => {
   try {
     const customers = dataStore.getCustomers();
@@ -910,7 +910,7 @@ app.get('/api/sync/contacts/status', requireSyncAuth, (req, res) => {
   }
 });
 
-// 5. مزامنة دفعة زبائن من الشامل
+// 5. Ù…Ø²Ø§Ù…Ù†Ø© Ø¯ÙØ¹Ø© Ø²Ø¨Ø§Ø¦Ù† Ù…Ù† Ø§Ù„Ø´Ø§Ù…Ù„
 app.post('/api/sync/customers', requireSyncAuth, async (req, res) => {
   try {
     const items = req.body.items || req.body.customers;
@@ -918,21 +918,21 @@ app.post('/api/sync/customers', requireSyncAuth, async (req, res) => {
     const syncMode = req.body.syncMode || 'upsert';
 
     if (!Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ success: false, error: 'يجب إرسال مصفوفة زبائن صالحة في الحقل items أو customers' });
+      return res.status(400).json({ success: false, error: 'ÙŠØ¬Ø¨ Ø¥Ø±Ø³Ø§Ù„ Ù…ØµÙÙˆÙØ© Ø²Ø¨Ø§Ø¦Ù† ØµØ§Ù„Ø­Ø© ÙÙŠ Ø§Ù„Ø­Ù‚Ù„ items Ø£Ùˆ customers' });
     }
     if (items.length > 1000) {
-      return res.status(400).json({ success: false, error: 'الحد الأقصى للدفعة هو 1000 زبون' });
+      return res.status(400).json({ success: false, error: 'Ø§Ù„Ø­Ø¯ Ø§Ù„Ø£Ù‚ØµÙ‰ Ù„Ù„Ø¯ÙØ¹Ø© Ù‡Ùˆ 1000 Ø²Ø¨ÙˆÙ†' });
     }
 
     const validModes = ['upsert', 'new_only', 'update_only'];
     if (!validModes.includes(syncMode)) {
-      return res.status(400).json({ success: false, error: 'قيمة syncMode غير صالحة' });
+      return res.status(400).json({ success: false, error: 'Ù‚ÙŠÙ…Ø© syncMode ØºÙŠØ± ØµØ§Ù„Ø­Ø©' });
     }
 
     const result = await dataStore.syncBatchCustomers(items, {
       dryRun: Boolean(dryRun),
       syncMode,
-      editorName: 'برنامج مزامنة الشامل'
+      editorName: 'Ø¨Ø±Ù†Ø§Ù…Ø¬ Ù…Ø²Ø§Ù…Ù†Ø© Ø§Ù„Ø´Ø§Ù…Ù„'
     });
 
     res.json(result);
@@ -941,7 +941,7 @@ app.post('/api/sync/customers', requireSyncAuth, async (req, res) => {
   }
 });
 
-// 6. مزامنة دفعة موردين من الشامل
+// 6. Ù…Ø²Ø§Ù…Ù†Ø© Ø¯ÙØ¹Ø© Ù…ÙˆØ±Ø¯ÙŠÙ† Ù…Ù† Ø§Ù„Ø´Ø§Ù…Ù„
 app.post('/api/sync/suppliers', requireSyncAuth, async (req, res) => {
   try {
     const items = req.body.items || req.body.suppliers;
@@ -949,21 +949,21 @@ app.post('/api/sync/suppliers', requireSyncAuth, async (req, res) => {
     const syncMode = req.body.syncMode || 'upsert';
 
     if (!Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ success: false, error: 'يجب إرسال مصفوفة موردين صالحة في الحقل items أو suppliers' });
+      return res.status(400).json({ success: false, error: 'ÙŠØ¬Ø¨ Ø¥Ø±Ø³Ø§Ù„ Ù…ØµÙÙˆÙØ© Ù…ÙˆØ±Ø¯ÙŠÙ† ØµØ§Ù„Ø­Ø© ÙÙŠ Ø§Ù„Ø­Ù‚Ù„ items Ø£Ùˆ suppliers' });
     }
     if (items.length > 500) {
-      return res.status(400).json({ success: false, error: 'الحد الأقصى للدفعة هو 500 مورد' });
+      return res.status(400).json({ success: false, error: 'Ø§Ù„Ø­Ø¯ Ø§Ù„Ø£Ù‚ØµÙ‰ Ù„Ù„Ø¯ÙØ¹Ø© Ù‡Ùˆ 500 Ù…ÙˆØ±Ø¯' });
     }
 
     const validModes = ['upsert', 'new_only', 'update_only'];
     if (!validModes.includes(syncMode)) {
-      return res.status(400).json({ success: false, error: 'قيمة syncMode غير صالحة' });
+      return res.status(400).json({ success: false, error: 'Ù‚ÙŠÙ…Ø© syncMode ØºÙŠØ± ØµØ§Ù„Ø­Ø©' });
     }
 
     const result = await dataStore.syncBatchSuppliers(items, {
       dryRun: Boolean(dryRun),
       syncMode,
-      editorName: 'برنامج مزامنة الشامل'
+      editorName: 'Ø¨Ø±Ù†Ø§Ù…Ø¬ Ù…Ø²Ø§Ù…Ù†Ø© Ø§Ù„Ø´Ø§Ù…Ù„'
     });
 
     res.json(result);
@@ -972,7 +972,7 @@ app.post('/api/sync/suppliers', requireSyncAuth, async (req, res) => {
   }
 });
 
-// 7. الاستعلام عن زبون بكوده من الشامل
+// 7. Ø§Ù„Ø§Ø³ØªØ¹Ù„Ø§Ù… Ø¹Ù† Ø²Ø¨ÙˆÙ† Ø¨ÙƒÙˆØ¯Ù‡ Ù…Ù† Ø§Ù„Ø´Ø§Ù…Ù„
 app.get('/api/sync/customer/:code', requireSyncAuth, (req, res) => {
   try {
     const code = String(req.params.code).trim().toUpperCase();
@@ -981,14 +981,14 @@ app.get('/api/sync/customer/:code', requireSyncAuth, (req, res) => {
       (c.shamelCode && String(c.shamelCode).toUpperCase() === code) ||
       (c.systemNumber && String(c.systemNumber).toUpperCase() === code)
     );
-    if (!customer) return res.status(404).json({ success: false, error: 'الزبون غير موجود' });
+    if (!customer) return res.status(404).json({ success: false, error: 'Ø§Ù„Ø²Ø¨ÙˆÙ† ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯' });
     res.json({ success: true, customer });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// 8. الاستعلام عن مورد بكوده من الشامل
+// 8. Ø§Ù„Ø§Ø³ØªØ¹Ù„Ø§Ù… Ø¹Ù† Ù…ÙˆØ±Ø¯ Ø¨ÙƒÙˆØ¯Ù‡ Ù…Ù† Ø§Ù„Ø´Ø§Ù…Ù„
 app.get('/api/sync/supplier/:code', requireSyncAuth, (req, res) => {
   try {
     const code = String(req.params.code).trim().toUpperCase();
@@ -996,14 +996,14 @@ app.get('/api/sync/supplier/:code', requireSyncAuth, (req, res) => {
     const supplier = suppliers.find(s =>
       s.shamelCode && String(s.shamelCode).toUpperCase() === code
     );
-    if (!supplier) return res.status(404).json({ success: false, error: 'المورد غير موجود' });
+    if (!supplier) return res.status(404).json({ success: false, error: 'Ø§Ù„Ù…ÙˆØ±Ø¯ ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯' });
     res.json({ success: true, supplier });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// 9. فحص حالة مزامنة الفواتير
+// 9. ÙØ­Øµ Ø­Ø§Ù„Ø© Ù…Ø²Ø§Ù…Ù†Ø© Ø§Ù„ÙÙˆØ§ØªÙŠØ±
 app.get('/api/sync/invoices/status', requireSyncAuth, (req, res) => {
   try {
     const invoices = dataStore.getInvoices();
@@ -1031,23 +1031,23 @@ app.get('/api/sync/invoices/status', requireSyncAuth, (req, res) => {
   }
 });
 
-// 10. مزامنة دفعة فواتير من الشامل لايت
+// 10. Ù…Ø²Ø§Ù…Ù†Ø© Ø¯ÙØ¹Ø© ÙÙˆØ§ØªÙŠØ± Ù…Ù† Ø§Ù„Ø´Ø§Ù…Ù„ Ù„Ø§ÙŠØª
 app.post('/api/sync/invoices', requireSyncAuth, async (req, res) => {
   try {
     const items = req.body.items || req.body.invoices;
     const dryRun = req.body.dryRun || false;
     const syncMode = req.body.syncMode || 'upsert';
     if (!Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ success: false, error: 'يجب إرسال مصفوفة فواتير صالحة في الحقل items أو invoices' });
+      return res.status(400).json({ success: false, error: 'ÙŠØ¬Ø¨ Ø¥Ø±Ø³Ø§Ù„ Ù…ØµÙÙˆÙØ© ÙÙˆØ§ØªÙŠØ± ØµØ§Ù„Ø­Ø© ÙÙŠ Ø§Ù„Ø­Ù‚Ù„ items Ø£Ùˆ invoices' });
     }
     if (items.length > 500) {
-      return res.status(400).json({ success: false, error: 'الحد الأقصى للدفعة هو 500 فاتورة لضمان سرعة واستقرار الخادم' });
+      return res.status(400).json({ success: false, error: 'Ø§Ù„Ø­Ø¯ Ø§Ù„Ø£Ù‚ØµÙ‰ Ù„Ù„Ø¯ÙØ¹Ø© Ù‡Ùˆ 500 ÙØ§ØªÙˆØ±Ø© Ù„Ø¶Ù…Ø§Ù† Ø³Ø±Ø¹Ø© ÙˆØ§Ø³ØªÙ‚Ø±Ø§Ø± Ø§Ù„Ø®Ø§Ø¯Ù…' });
     }
 
     const result = await dataStore.syncBatchInvoices(items, {
       dryRun: Boolean(dryRun),
       syncMode,
-      editorName: 'برنامج مزامنة الشامل'
+      editorName: 'Ø¨Ø±Ù†Ø§Ù…Ø¬ Ù…Ø²Ø§Ù…Ù†Ø© Ø§Ù„Ø´Ø§Ù…Ù„'
     });
 
     res.json(result);
@@ -1056,7 +1056,7 @@ app.post('/api/sync/invoices', requireSyncAuth, async (req, res) => {
   }
 });
 
-// 11. فحص حالة مزامنة سندات القبض والصرف
+// 11. ÙØ­Øµ Ø­Ø§Ù„Ø© Ù…Ø²Ø§Ù…Ù†Ø© Ø³Ù†Ø¯Ø§Øª Ø§Ù„Ù‚Ø¨Ø¶ ÙˆØ§Ù„ØµØ±Ù
 app.get('/api/sync/vouchers/status', requireSyncAuth, (req, res) => {
   try {
     const receipts = dataStore.getReceipts();
@@ -1080,23 +1080,23 @@ app.get('/api/sync/vouchers/status', requireSyncAuth, (req, res) => {
   }
 });
 
-// 12. مزامنة دفعة سندات قبض وصرف من الشامل لايت
+// 12. Ù…Ø²Ø§Ù…Ù†Ø© Ø¯ÙØ¹Ø© Ø³Ù†Ø¯Ø§Øª Ù‚Ø¨Ø¶ ÙˆØµØ±Ù Ù…Ù† Ø§Ù„Ø´Ø§Ù…Ù„ Ù„Ø§ÙŠØª
 app.post('/api/sync/vouchers', requireSyncAuth, async (req, res) => {
   try {
     const items = req.body.items || req.body.vouchers || req.body.receipts;
     const dryRun = req.body.dryRun || false;
     const syncMode = req.body.syncMode || 'upsert';
     if (!Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ success: false, error: 'يجب إرسال مصفوفة سندات صالحة في الحقل items أو vouchers أو receipts' });
+      return res.status(400).json({ success: false, error: 'ÙŠØ¬Ø¨ Ø¥Ø±Ø³Ø§Ù„ Ù…ØµÙÙˆÙØ© Ø³Ù†Ø¯Ø§Øª ØµØ§Ù„Ø­Ø© ÙÙŠ Ø§Ù„Ø­Ù‚Ù„ items Ø£Ùˆ vouchers Ø£Ùˆ receipts' });
     }
     if (items.length > 500) {
-      return res.status(400).json({ success: false, error: 'الحد الأقصى للدفعة هو 500 سند' });
+      return res.status(400).json({ success: false, error: 'Ø§Ù„Ø­Ø¯ Ø§Ù„Ø£Ù‚ØµÙ‰ Ù„Ù„Ø¯ÙØ¹Ø© Ù‡Ùˆ 500 Ø³Ù†Ø¯' });
     }
 
     const result = await dataStore.syncBatchVouchers(items, {
       dryRun: Boolean(dryRun),
       syncMode,
-      editorName: 'برنامج مزامنة الشامل'
+      editorName: 'Ø¨Ø±Ù†Ø§Ù…Ø¬ Ù…Ø²Ø§Ù…Ù†Ø© Ø§Ù„Ø´Ø§Ù…Ù„'
     });
 
     res.json(result);
@@ -1105,7 +1105,7 @@ app.post('/api/sync/vouchers', requireSyncAuth, async (req, res) => {
   }
 });
 
-// API مرادف لجلب السندات مع تصفية نوع السند
+// API Ù…Ø±Ø§Ø¯Ù Ù„Ø¬Ù„Ø¨ Ø§Ù„Ø³Ù†Ø¯Ø§Øª Ù…Ø¹ ØªØµÙÙŠØ© Ù†ÙˆØ¹ Ø§Ù„Ø³Ù†Ø¯
 app.get('/api/vouchers', (req, res) => {
   try {
     const { type } = req.query;
@@ -1122,10 +1122,10 @@ app.get('/api/vouchers', (req, res) => {
 });
 
 // -------------------------------------------------------------
-// APIs: الفواتير (Invoices)
+// APIs: Ø§Ù„ÙÙˆØ§ØªÙŠØ± (Invoices)
 // -------------------------------------------------------------
 
-// جلب جميع الفواتير
+// Ø¬Ù„Ø¨ Ø¬Ù…ÙŠØ¹ Ø§Ù„ÙÙˆØ§ØªÙŠØ±
 app.get('/api/invoices', (req, res) => {
   try {
     const invoices = dataStore.getInvoices();
@@ -1135,12 +1135,12 @@ app.get('/api/invoices', (req, res) => {
   }
 });
 
-// جلب تفاصيل فاتورة واحدة
+// Ø¬Ù„Ø¨ ØªÙØ§ØµÙŠÙ„ ÙØ§ØªÙˆØ±Ø© ÙˆØ§Ø­Ø¯Ø©
 app.get('/api/invoices/:id', (req, res) => {
   try {
     const invoice = dataStore.getInvoiceById(req.params.id);
     if (!invoice) {
-      return res.status(404).json({ success: false, error: 'الفاتورة غير موجودة' });
+      return res.status(404).json({ success: false, error: 'Ø§Ù„ÙØ§ØªÙˆØ±Ø© ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯Ø©' });
     }
     res.json({ success: true, invoice });
   } catch (err) {
@@ -1148,7 +1148,7 @@ app.get('/api/invoices/:id', (req, res) => {
   }
 });
 
-// إنشاء فاتورة جديدة (مبيعات أو مشتريات)
+// Ø¥Ù†Ø´Ø§Ø¡ ÙØ§ØªÙˆØ±Ø© Ø¬Ø¯ÙŠØ¯Ø© (Ù…Ø¨ÙŠØ¹Ø§Øª Ø£Ùˆ Ù…Ø´ØªØ±ÙŠØ§Øª)
 app.post('/api/invoices', async (req, res) => {
   try {
     const {
@@ -1164,25 +1164,25 @@ app.post('/api/invoices', async (req, res) => {
       items,
       paymentMethod,
       installmentDetails,
-      customTotalOverride  // سعر معدّل يدوياً (اختياري)
+      customTotalOverride  // Ø³Ø¹Ø± Ù…Ø¹Ø¯Ù‘Ù„ ÙŠØ¯ÙˆÙŠØ§Ù‹ (Ø§Ø®ØªÙŠØ§Ø±ÙŠ)
     } = req.body;
 
     const isQuotationMode = (isQuotation === true || invoiceType === 'quotation');
     const isPurchase = !isQuotationMode && invoiceType === 'purchase';
 
     if (!customerName || customerName.trim() === '') {
-      return res.status(400).json({ success: false, error: isPurchase ? 'اسم المورد مطلوب' : 'اسم الزبون مطلوب' });
+      return res.status(400).json({ success: false, error: isPurchase ? 'Ø§Ø³Ù… Ø§Ù„Ù…ÙˆØ±Ø¯ Ù…Ø·Ù„ÙˆØ¨' : 'Ø§Ø³Ù… Ø§Ù„Ø²Ø¨ÙˆÙ† Ù…Ø·Ù„ÙˆØ¨' });
     }
 
     if (!employeeName || employeeName.trim() === '') {
-      return res.status(400).json({ success: false, error: 'يرجى كتابة اسم الموظف' });
+      return res.status(400).json({ success: false, error: 'ÙŠØ±Ø¬Ù‰ ÙƒØªØ§Ø¨Ø© Ø§Ø³Ù… Ø§Ù„Ù…ÙˆØ¸Ù' });
     }
 
     if (!Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ success: false, error: 'يجب اختيار منتج واحد على الأقل في الفاتورة' });
+      return res.status(400).json({ success: false, error: 'ÙŠØ¬Ø¨ Ø§Ø®ØªÙŠØ§Ø± Ù…Ù†ØªØ¬ ÙˆØ§Ø­Ø¯ Ø¹Ù„Ù‰ Ø§Ù„Ø£Ù‚Ù„ ÙÙŠ Ø§Ù„ÙØ§ØªÙˆØ±Ø©' });
     }
 
-    // حساب التفاصيل المالية بدقة
+    // Ø­Ø³Ø§Ø¨ Ø§Ù„ØªÙØ§ØµÙŠÙ„ Ø§Ù„Ù…Ø§Ù„ÙŠØ© Ø¨Ø¯Ù‚Ø©
     let totalQuantity = 0;
     let totalCost = 0;
     let totalAmount = 0;
@@ -1220,7 +1220,7 @@ app.post('/api/invoices', async (req, res) => {
       };
     });
 
-    // تطبيق السعر المعدّل يدوياً (إن وجد) على إجمالي الفاتورة
+    // ØªØ·Ø¨ÙŠÙ‚ Ø§Ù„Ø³Ø¹Ø± Ø§Ù„Ù…Ø¹Ø¯Ù‘Ù„ ÙŠØ¯ÙˆÙŠØ§Ù‹ (Ø¥Ù† ÙˆØ¬Ø¯) Ø¹Ù„Ù‰ Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„ÙØ§ØªÙˆØ±Ø©
     const effectiveTotalAmount = (!isPurchase && customTotalOverride && parseFloat(customTotalOverride) > 0)
       ? parseFloat(customTotalOverride)
       : totalAmount;
@@ -1230,7 +1230,7 @@ app.post('/api/invoices', async (req, res) => {
       ? parseFloat(((totalProfit / effectiveTotalAmount) * 100).toFixed(1))
       : 0;
 
-    // معالجة الأقساط (لفواتير المبيعات الفعلية فقط)
+    // Ù…Ø¹Ø§Ù„Ø¬Ø© Ø§Ù„Ø£Ù‚Ø³Ø§Ø· (Ù„ÙÙˆØ§ØªÙŠØ± Ø§Ù„Ù…Ø¨ÙŠØ¹Ø§Øª Ø§Ù„ÙØ¹Ù„ÙŠØ© ÙÙ‚Ø·)
     let validatedInstallments = null;
     if (!isPurchase && !isQuotationMode && paymentMethod === 'installments') {
       const downPayment = parseFloat(installmentDetails?.downPayment) || 0;
@@ -1238,20 +1238,20 @@ app.post('/api/invoices', async (req, res) => {
       validatedInstallments = {
         downPayment,
         remainingAmount,
-        duration: installmentDetails?.duration || 'غير محدد',
+        duration: installmentDetails?.duration || 'ØºÙŠØ± Ù…Ø­Ø¯Ø¯',
         scheduleNotes: installmentDetails?.scheduleNotes || ''
       };
     }
 
-    // ─── فحص تكرار الطلب (Idempotency) ───
+    // â”€â”€â”€ ÙØ­Øµ ØªÙƒØ±Ø§Ø± Ø§Ù„Ø·Ù„Ø¨ (Idempotency) â”€â”€â”€
     const invoiceFingerprint = generateInvoiceFingerprint(req.body);
     const idemCheck = checkIdempotency(invoiceFingerprint);
     if (idemCheck.isDuplicate) {
       if (idemCheck.status === 'completed') return res.json(idemCheck.response);
-      return res.status(429).json({ success: false, error: 'طلب مماثل قيد المعالجة حالياً، يرجى الانتظار لحظة ثم المحاولة مرة واحدة فقط' });
+      return res.status(429).json({ success: false, error: 'Ø·Ù„Ø¨ Ù…Ù…Ø§Ø«Ù„ Ù‚ÙŠØ¯ Ø§Ù„Ù…Ø¹Ø§Ù„Ø¬Ø© Ø­Ø§Ù„ÙŠØ§Ù‹ØŒ ÙŠØ±Ø¬Ù‰ Ø§Ù„Ø§Ù†ØªØ¸Ø§Ø± Ù„Ø­Ø¸Ø© Ø«Ù… Ø§Ù„Ù…Ø­Ø§ÙˆÙ„Ø© Ù…Ø±Ø© ÙˆØ§Ø­Ø¯Ø© ÙÙ‚Ø·' });
     }
 
-    // حفظ الفاتورة
+    // Ø­ÙØ¸ Ø§Ù„ÙØ§ØªÙˆØ±Ø©
     const newInvoice = await dataStore.createInvoice({
       invoiceType: isQuotationMode ? 'quotation' : (isPurchase ? 'purchase' : 'sales'),
       isQuotation: isQuotationMode,
@@ -1276,10 +1276,10 @@ app.post('/api/invoices', async (req, res) => {
       installmentDetails: validatedInstallments
     });
 
-    // تحديث المخزون:
-    // إذا كانت فاتورة مشتريات -> زيادة المخزون
-    // إذا كانت فاتورة مبيعات فعلية -> خصم المخزون
-    // إذا كانت عرض سعر (فاتورة تقديرية/وهمية) -> لا يتم تعديل المخزون مطلقاً!
+    // ØªØ­Ø¯ÙŠØ« Ø§Ù„Ù…Ø®Ø²ÙˆÙ†:
+    // Ø¥Ø°Ø§ ÙƒØ§Ù†Øª ÙØ§ØªÙˆØ±Ø© Ù…Ø´ØªØ±ÙŠØ§Øª -> Ø²ÙŠØ§Ø¯Ø© Ø§Ù„Ù…Ø®Ø²ÙˆÙ†
+    // Ø¥Ø°Ø§ ÙƒØ§Ù†Øª ÙØ§ØªÙˆØ±Ø© Ù…Ø¨ÙŠØ¹Ø§Øª ÙØ¹Ù„ÙŠØ© -> Ø®ØµÙ… Ø§Ù„Ù…Ø®Ø²ÙˆÙ†
+    // Ø¥Ø°Ø§ ÙƒØ§Ù†Øª Ø¹Ø±Ø¶ Ø³Ø¹Ø± (ÙØ§ØªÙˆØ±Ø© ØªÙ‚Ø¯ÙŠØ±ÙŠØ©/ÙˆÙ‡Ù…ÙŠØ©) -> Ù„Ø§ ÙŠØªÙ… ØªØ¹Ø¯ÙŠÙ„ Ø§Ù„Ù…Ø®Ø²ÙˆÙ† Ù…Ø·Ù„Ù‚Ø§Ù‹!
     let updatedStockProducts = [];
     if (isQuotationMode) {
       updatedStockProducts = [];
@@ -1289,9 +1289,9 @@ app.post('/api/invoices', async (req, res) => {
       updatedStockProducts = await dataStore.deductStockForInvoice(validatedItems, employeeName);
     }
 
-    // إرسال إشعار تيليجرام فوراً (لفواتير المبيعات والتوريد الفعلية فقط)
+    // Ø¥Ø±Ø³Ø§Ù„ Ø¥Ø´Ø¹Ø§Ø± ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù… ÙÙˆØ±Ø§Ù‹ (Ù„ÙÙˆØ§ØªÙŠØ± Ø§Ù„Ù…Ø¨ÙŠØ¹Ø§Øª ÙˆØ§Ù„ØªÙˆØ±ÙŠØ¯ Ø§Ù„ÙØ¹Ù„ÙŠØ© ÙÙ‚Ø·)
     const settings = dataStore.getSettings();
-    let telegramResult = { ok: false, error: 'غير مهيأ' };
+    let telegramResult = { ok: false, error: 'ØºÙŠØ± Ù…Ù‡ÙŠØ£' };
 
     if (!isQuotationMode && settings.telegramBotToken && settings.telegramChatId) {
       try {
@@ -1315,7 +1315,7 @@ app.post('/api/invoices', async (req, res) => {
       newInvoice.telegramStatus = {
         sent: false,
         sentAt: null,
-        error: 'لم يتم ضبط إعدادات تيليجرام (Bot Token و Chat ID)'
+        error: 'Ù„Ù… ÙŠØªÙ… Ø¶Ø¨Ø· Ø¥Ø¹Ø¯Ø§Ø¯Ø§Øª ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù… (Bot Token Ùˆ Chat ID)'
       };
     }
 
@@ -1333,12 +1333,12 @@ app.post('/api/invoices', async (req, res) => {
   }
 });
 
-// إعادة إرسال الفاتورة لتيليجرام يدوياً إذا رغب المستخدم
+// Ø¥Ø¹Ø§Ø¯Ø© Ø¥Ø±Ø³Ø§Ù„ Ø§Ù„ÙØ§ØªÙˆØ±Ø© Ù„ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù… ÙŠØ¯ÙˆÙŠØ§Ù‹ Ø¥Ø°Ø§ Ø±ØºØ¨ Ø§Ù„Ù…Ø³ØªØ®Ø¯Ù…
 app.post('/api/invoices/:id/resend-telegram', async (req, res) => {
   try {
     const invoice = dataStore.getInvoiceById(req.params.id);
     if (!invoice) {
-      return res.status(404).json({ success: false, error: 'الفاتورة غير موجودة' });
+      return res.status(404).json({ success: false, error: 'Ø§Ù„ÙØ§ØªÙˆØ±Ø© ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯Ø©' });
     }
 
     const settings = dataStore.getSettings();
@@ -1353,14 +1353,14 @@ app.post('/api/invoices/:id/resend-telegram', async (req, res) => {
   }
 });
 
-// تحويل فاتورة العرض إلى فاتورة مبيعات فعلية
+// ØªØ­ÙˆÙŠÙ„ ÙØ§ØªÙˆØ±Ø© Ø§Ù„Ø¹Ø±Ø¶ Ø¥Ù„Ù‰ ÙØ§ØªÙˆØ±Ø© Ù…Ø¨ÙŠØ¹Ø§Øª ÙØ¹Ù„ÙŠØ©
 app.post('/api/invoices/:id/convert-to-sales', async (req, res) => {
   try {
     const { employeeName } = req.body;
-    const result = await dataStore.convertQuotationToSalesInvoice(req.params.id, employeeName || 'مسؤول المبيعات');
+    const result = await dataStore.convertQuotationToSalesInvoice(req.params.id, employeeName || 'Ù…Ø³Ø¤ÙˆÙ„ Ø§Ù„Ù…Ø¨ÙŠØ¹Ø§Øª');
     const { invoice, warranty } = result;
 
-    // إرسال تيليجرام بعد تحويل العرض لفاتورة فعلية
+    // Ø¥Ø±Ø³Ø§Ù„ ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù… Ø¨Ø¹Ø¯ ØªØ­ÙˆÙŠÙ„ Ø§Ù„Ø¹Ø±Ø¶ Ù„ÙØ§ØªÙˆØ±Ø© ÙØ¹Ù„ÙŠØ©
     const settings = dataStore.getSettings();
     if (settings.telegramBotToken && settings.telegramChatId) {
       try {
@@ -1378,10 +1378,10 @@ app.post('/api/invoices/:id/convert-to-sales', async (req, res) => {
 });
 
 // -------------------------------------------------------------
-// APIs: الكفالات والضمان (Warranties)
+// APIs: Ø§Ù„ÙƒÙØ§Ù„Ø§Øª ÙˆØ§Ù„Ø¶Ù…Ø§Ù† (Warranties)
 // -------------------------------------------------------------
 
-// جلب جميع الكفالات
+// Ø¬Ù„Ø¨ Ø¬Ù…ÙŠØ¹ Ø§Ù„ÙƒÙØ§Ù„Ø§Øª
 app.get('/api/warranties', (req, res) => {
   try {
     dataStore.checkWarrantyStatuses();
@@ -1392,23 +1392,23 @@ app.get('/api/warranties', (req, res) => {
   }
 });
 
-// جلب كفالة واحدة
+// Ø¬Ù„Ø¨ ÙƒÙØ§Ù„Ø© ÙˆØ§Ø­Ø¯Ø©
 app.get('/api/warranties/:id', (req, res) => {
   try {
     const warranty = dataStore.getWarrantyById(req.params.id);
-    if (!warranty) return res.status(404).json({ success: false, error: 'الكفالة غير موجودة' });
+    if (!warranty) return res.status(404).json({ success: false, error: 'Ø§Ù„ÙƒÙØ§Ù„Ø© ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯Ø©' });
     res.json({ success: true, warranty });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// إنشاء كفالة يدوياً (بدون فاتورة)
+// Ø¥Ù†Ø´Ø§Ø¡ ÙƒÙØ§Ù„Ø© ÙŠØ¯ÙˆÙŠØ§Ù‹ (Ø¨Ø¯ÙˆÙ† ÙØ§ØªÙˆØ±Ø©)
 app.post('/api/warranties/manual', (req, res) => {
   try {
     const { customerName } = req.body;
     if (!customerName || !customerName.trim()) {
-      return res.status(400).json({ success: false, error: 'اسم الزبون مطلوب' });
+      return res.status(400).json({ success: false, error: 'Ø§Ø³Ù… Ø§Ù„Ø²Ø¨ÙˆÙ† Ù…Ø·Ù„ÙˆØ¨' });
     }
     const warranty = dataStore.createManualWarranty(req.body);
     res.json({ success: true, warranty });
@@ -1418,11 +1418,11 @@ app.post('/api/warranties/manual', (req, res) => {
   }
 });
 
-// إنشاء كفالة يدوياً لفاتورة موجودة
+// Ø¥Ù†Ø´Ø§Ø¡ ÙƒÙØ§Ù„Ø© ÙŠØ¯ÙˆÙŠØ§Ù‹ Ù„ÙØ§ØªÙˆØ±Ø© Ù…ÙˆØ¬ÙˆØ¯Ø©
 app.post('/api/warranties/from-invoice/:invoiceId', (req, res) => {
   try {
     const invoice = dataStore.getInvoiceById(req.params.invoiceId);
-    if (!invoice) return res.status(404).json({ success: false, error: 'الفاتورة غير موجودة' });
+    if (!invoice) return res.status(404).json({ success: false, error: 'Ø§Ù„ÙØ§ØªÙˆØ±Ø© ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯Ø©' });
     const { durationMonths, customerAddress } = req.body;
     const warranty = dataStore.createWarrantyFromInvoice(invoice, {
       durationMonths: durationMonths || 12,
@@ -1434,18 +1434,18 @@ app.post('/api/warranties/from-invoice/:invoiceId', (req, res) => {
   }
 });
 
-// تحديث بيانات كفالة (مدة الكفالة، السيريال، العنوان)
+// ØªØ­Ø¯ÙŠØ« Ø¨ÙŠØ§Ù†Ø§Øª ÙƒÙØ§Ù„Ø© (Ù…Ø¯Ø© Ø§Ù„ÙƒÙØ§Ù„Ø©ØŒ Ø§Ù„Ø³ÙŠØ±ÙŠØ§Ù„ØŒ Ø§Ù„Ø¹Ù†ÙˆØ§Ù†)
 app.patch('/api/warranties/:id', (req, res) => {
   try {
     const updated = dataStore.updateWarranty(req.params.id, req.body);
-    if (!updated) return res.status(404).json({ success: false, error: 'الكفالة غير موجودة' });
+    if (!updated) return res.status(404).json({ success: false, error: 'Ø§Ù„ÙƒÙØ§Ù„Ø© ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯Ø©' });
     res.json({ success: true, warranty: updated });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// حذف كفالة
+// Ø­Ø°Ù ÙƒÙØ§Ù„Ø©
 app.delete('/api/warranties/:id', async (req, res) => {
   try {
     const deleted = await dataStore.deleteWarranty(req.params.id);
@@ -1456,11 +1456,11 @@ app.delete('/api/warranties/:id', async (req, res) => {
 });
 
 // -------------------------------------------------------------
-// APIs: الإعدادات وتيليجرام (Settings & Telegram)
+// APIs: Ø§Ù„Ø¥Ø¹Ø¯Ø§Ø¯Ø§Øª ÙˆØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù… (Settings & Telegram)
 // -------------------------------------------------------------
 
 
-// جلب الإعدادات
+// Ø¬Ù„Ø¨ Ø§Ù„Ø¥Ø¹Ø¯Ø§Ø¯Ø§Øª
 app.get('/api/settings', (req, res) => {
   try {
     const settings = dataStore.getSettings();
@@ -1470,7 +1470,7 @@ app.get('/api/settings', (req, res) => {
   }
 });
 
-// حفظ الإعدادات
+// Ø­ÙØ¸ Ø§Ù„Ø¥Ø¹Ø¯Ø§Ø¯Ø§Øª
 app.post('/api/settings', async (req, res) => {
   try {
     const updated = await dataStore.saveSettings(req.body);
@@ -1480,14 +1480,14 @@ app.post('/api/settings', async (req, res) => {
   }
 });
 
-// فحص الاتصال مع تيليجرام
+// ÙØ­Øµ Ø§Ù„Ø§ØªØµØ§Ù„ Ù…Ø¹ ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù…
 app.post('/api/telegram/test', async (req, res) => {
   try {
     const { telegramBotToken, telegramChatId, companyName } = req.body;
     const result = await telegramService.testConnection(
       telegramBotToken,
       telegramChatId,
-      companyName || 'نظام الفواتير'
+      companyName || 'Ù†Ø¸Ø§Ù… Ø§Ù„ÙÙˆØ§ØªÙŠØ±'
     );
     res.json({ success: true, result });
   } catch (err) {
@@ -1495,7 +1495,7 @@ app.post('/api/telegram/test', async (req, res) => {
   }
 });
 
-// إحصائيات لوحة التحكم مع دعم فلاتر المدة الزمنية وحساب رأس المال الكلي للمخزون
+// Ø¥Ø­ØµØ§Ø¦ÙŠØ§Øª Ù„ÙˆØ­Ø© Ø§Ù„ØªØ­ÙƒÙ… Ù…Ø¹ Ø¯Ø¹Ù… ÙÙ„Ø§ØªØ± Ø§Ù„Ù…Ø¯Ø© Ø§Ù„Ø²Ù…Ù†ÙŠØ© ÙˆØ­Ø³Ø§Ø¨ Ø±Ø£Ø³ Ø§Ù„Ù…Ø§Ù„ Ø§Ù„ÙƒÙ„ÙŠ Ù„Ù„Ù…Ø®Ø²ÙˆÙ†
 app.get('/api/dashboard', (req, res) => {
   try {
     const invoices = dataStore.getInvoices();
@@ -1505,7 +1505,7 @@ app.get('/api/dashboard', (req, res) => {
     const startDate = req.query.startDate;
     const endDate = req.query.endDate;
 
-    // حساب رأس المال الكلي للمخزون الفعلي بالقطع والتكلفة والبيع
+    // Ø­Ø³Ø§Ø¨ Ø±Ø£Ø³ Ø§Ù„Ù…Ø§Ù„ Ø§Ù„ÙƒÙ„ÙŠ Ù„Ù„Ù…Ø®Ø²ÙˆÙ† Ø§Ù„ÙØ¹Ù„ÙŠ Ø¨Ø§Ù„Ù‚Ø·Ø¹ ÙˆØ§Ù„ØªÙƒÙ„ÙØ© ÙˆØ§Ù„Ø¨ÙŠØ¹
     let totalInventoryCapital = 0;
     let totalStockUnits = 0;
     let totalInventoryRetail = 0;
@@ -1522,7 +1522,7 @@ app.get('/api/dashboard', (req, res) => {
 
     const expectedInventoryProfit = Math.max(0, totalInventoryRetail - totalInventoryCapital);
 
-    // فلترة الفواتير بحسب المدة الزمنية المطلوبة
+    // ÙÙ„ØªØ±Ø© Ø§Ù„ÙÙˆØ§ØªÙŠØ± Ø¨Ø­Ø³Ø¨ Ø§Ù„Ù…Ø¯Ø© Ø§Ù„Ø²Ù…Ù†ÙŠØ© Ø§Ù„Ù…Ø·Ù„ÙˆØ¨Ø©
     let filteredInvoices = invoices;
     const now = new Date();
 
@@ -1601,12 +1601,12 @@ app.get('/api/dashboard', (req, res) => {
         installmentsTotal,
         installmentsDownPayments,
         installmentsRemaining,
-        // إحصائيات رأس مال المخزون الحالي
+        // Ø¥Ø­ØµØ§Ø¦ÙŠØ§Øª Ø±Ø£Ø³ Ù…Ø§Ù„ Ø§Ù„Ù…Ø®Ø²ÙˆÙ† Ø§Ù„Ø­Ø§Ù„ÙŠ
         totalInventoryCapital,
         totalStockUnits,
         totalInventoryRetail,
         expectedInventoryProfit,
-        // معلومات الفلترة
+        // Ù…Ø¹Ù„ÙˆÙ…Ø§Øª Ø§Ù„ÙÙ„ØªØ±Ø©
         period,
         startDate: startDate || null,
         endDate: endDate || null
@@ -1617,16 +1617,16 @@ app.get('/api/dashboard', (req, res) => {
   }
 });
 
-// تحديث كميات الجرد دفعةً واحدة
+// ØªØ­Ø¯ÙŠØ« ÙƒÙ…ÙŠØ§Øª Ø§Ù„Ø¬Ø±Ø¯ Ø¯ÙØ¹Ø©Ù‹ ÙˆØ§Ø­Ø¯Ø©
 app.post('/api/inventory/update', async (req, res) => {
   try {
     const { updates, editorName } = req.body;
     if (!Array.isArray(updates) || updates.length === 0) {
-      return res.status(400).json({ success: false, error: 'لا توجد بيانات للتحديث' });
+      return res.status(400).json({ success: false, error: 'Ù„Ø§ ØªÙˆØ¬Ø¯ Ø¨ÙŠØ§Ù†Ø§Øª Ù„Ù„ØªØ­Ø¯ÙŠØ«' });
     }
     const result = dataStore.updateInventoryBulk(updates, editorName);
 
-    // إشعار تيليجرام بإجراء الجرد مع تفاصيل التعديلات التي حصلت بتنسيق HTML واضح
+    // Ø¥Ø´Ø¹Ø§Ø± ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù… Ø¨Ø¥Ø¬Ø±Ø§Ø¡ Ø§Ù„Ø¬Ø±Ø¯ Ù…Ø¹ ØªÙØ§ØµÙŠÙ„ Ø§Ù„ØªØ¹Ø¯ÙŠÙ„Ø§Øª Ø§Ù„ØªÙŠ Ø­ØµÙ„Øª Ø¨ØªÙ†Ø³ÙŠÙ‚ HTML ÙˆØ§Ø¶Ø­
     const settings = dataStore.getSettings();
     if (settings.telegramBotToken && settings.telegramChatId && result.changedCount > 0) {
       try {
@@ -1643,73 +1643,73 @@ app.post('/api/inventory/update', async (req, res) => {
   }
 });
 
-// إرسال تقرير نتائج الجرد إلى تيليجرام
+// Ø¥Ø±Ø³Ø§Ù„ ØªÙ‚Ø±ÙŠØ± Ù†ØªØ§Ø¦Ø¬ Ø§Ù„Ø¬Ø±Ø¯ Ø¥Ù„Ù‰ ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù…
 app.post('/api/inventory/send-report-telegram', async (req, res) => {
   try {
     const { title, searchQuery, category, brand, summary, items } = req.body;
     const settings = dataStore.getSettings();
 
     if (!settings.telegramBotToken || !settings.telegramChatId) {
-      return res.status(400).json({ success: false, error: 'لم يتم ضبط إعدادات تيليجرام بعد' });
+      return res.status(400).json({ success: false, error: 'Ù„Ù… ÙŠØªÙ… Ø¶Ø¨Ø· Ø¥Ø¹Ø¯Ø§Ø¯Ø§Øª ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù… Ø¨Ø¹Ø¯' });
     }
 
-    const cur = settings.currency || 'شيكل';
-    const reportTitle = title || 'تقرير جرد المخزون';
+    const cur = settings.currency || 'Ø´ÙŠÙƒÙ„';
+    const reportTitle = title || 'ØªÙ‚Ø±ÙŠØ± Ø¬Ø±Ø¯ Ø§Ù„Ù…Ø®Ø²ÙˆÙ†';
 
-    let filterDesc = 'كامل المخزون';
-    if (searchQuery) filterDesc = `نتائج البحث عن: "${searchQuery}"`;
-    else if (category && category !== 'all') filterDesc = `قسم: ${category}`;
-    else if (brand && brand !== 'all') filterDesc = `ماركة: ${brand}`;
+    let filterDesc = 'ÙƒØ§Ù…Ù„ Ø§Ù„Ù…Ø®Ø²ÙˆÙ†';
+    if (searchQuery) filterDesc = `Ù†ØªØ§Ø¦Ø¬ Ø§Ù„Ø¨Ø­Ø« Ø¹Ù†: "${searchQuery}"`;
+    else if (category && category !== 'all') filterDesc = `Ù‚Ø³Ù…: ${category}`;
+    else if (brand && brand !== 'all') filterDesc = `Ù…Ø§Ø±ÙƒØ©: ${brand}`;
 
     let itemsText = '';
     (items || []).slice(0, 30).forEach((item, idx) => {
       const stock = parseInt(item.stock) || 0;
       const cost = parseFloat(item.costPrice) || 0;
       const totalCost = stock * cost;
-      const zeroTag = stock === 0 ? ' [⚠️ نافد]' : '';
+      const zeroTag = stock === 0 ? ' [âš ï¸ Ù†Ø§ÙØ¯]' : '';
 
-      itemsText += `▫️ *${idx + 1}. ${item.name}* ${item.code ? `(#${item.code})` : ''}${zeroTag}\n` +
-        `   الكمية: *${stock}* | التكلفة: ${cost.toLocaleString('en-US')} ${cur} (إجمالي: *${totalCost.toLocaleString('en-US')}*)\n`;
+      itemsText += `â–«ï¸ *${idx + 1}. ${item.name}* ${item.code ? `(#${item.code})` : ''}${zeroTag}\n` +
+        `   Ø§Ù„ÙƒÙ…ÙŠØ©: *${stock}* | Ø§Ù„ØªÙƒÙ„ÙØ©: ${cost.toLocaleString('en-US')} ${cur} (Ø¥Ø¬Ù…Ø§Ù„ÙŠ: *${totalCost.toLocaleString('en-US')}*)\n`;
     });
 
     if ((items || []).length > 30) {
-      itemsText += `\n... وباقي ${items.length - 30} صنفاً آخر ضمن نتائج التقرير.`;
+      itemsText += `\n... ÙˆØ¨Ø§Ù‚ÙŠ ${items.length - 30} ØµÙ†ÙØ§Ù‹ Ø¢Ø®Ø± Ø¶Ù…Ù† Ù†ØªØ§Ø¦Ø¬ Ø§Ù„ØªÙ‚Ø±ÙŠØ±.`;
     }
 
     const msg =
-      `📊 *${reportTitle} - ${settings.companyName || 'رامز عطاطرة'}*\n` +
-      `━━━━━━━━━━━━━━━━━━━━\n` +
-      `🔍 نطاق التقرير: *${filterDesc}*\n` +
-      `📦 عدد الأصناف: *${summary?.count || (items || []).length} صنف*\n` +
-      `🔢 إجمالي القطع: *${(summary?.totalUnits || 0).toLocaleString('en-US')} قطعة*\n` +
-      `💰 إجمالي رأس المال: *${(summary?.totalCapital || 0).toLocaleString('en-US')} ${cur}*\n` +
-      `⚠️ أصناف نافدة (0): *${summary?.zeroCount || 0} صنف*\n` +
-      `🕐 وقت التقرير: ${formatServerDateTime(new Date())}\n` +
-      `━━━━━━━━━━━━━━━━━━━━\n` +
-      `📋 *جدول الأصناف والتكلفة:*\n` +
+      `ðŸ“Š *${reportTitle} - ${settings.companyName || 'Ø±Ø§Ù…Ø² Ø¹Ø·Ø§Ø·Ø±Ø©'}*\n` +
+      `â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\n` +
+      `ðŸ” Ù†Ø·Ø§Ù‚ Ø§Ù„ØªÙ‚Ø±ÙŠØ±: *${filterDesc}*\n` +
+      `ðŸ“¦ Ø¹Ø¯Ø¯ Ø§Ù„Ø£ØµÙ†Ø§Ù: *${summary?.count || (items || []).length} ØµÙ†Ù*\n` +
+      `ðŸ”¢ Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ù‚Ø·Ø¹: *${(summary?.totalUnits || 0).toLocaleString('en-US')} Ù‚Ø·Ø¹Ø©*\n` +
+      `ðŸ’° Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø±Ø£Ø³ Ø§Ù„Ù…Ø§Ù„: *${(summary?.totalCapital || 0).toLocaleString('en-US')} ${cur}*\n` +
+      `âš ï¸ Ø£ØµÙ†Ø§Ù Ù†Ø§ÙØ¯Ø© (0): *${summary?.zeroCount || 0} ØµÙ†Ù*\n` +
+      `ðŸ• ÙˆÙ‚Øª Ø§Ù„ØªÙ‚Ø±ÙŠØ±: ${formatServerDateTime(new Date())}\n` +
+      `â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\n` +
+      `ðŸ“‹ *Ø¬Ø¯ÙˆÙ„ Ø§Ù„Ø£ØµÙ†Ø§Ù ÙˆØ§Ù„ØªÙƒÙ„ÙØ©:*\n` +
       itemsText;
 
     const telegramService = require('./telegramService');
     const result = await telegramService.sendRawMessage(settings.telegramBotToken, settings.telegramChatId, msg);
 
     if (result.ok) {
-      res.json({ success: true, message: 'تم إرسال التقرير لتيليجرام بنجاح' });
+      res.json({ success: true, message: 'ØªÙ… Ø¥Ø±Ø³Ø§Ù„ Ø§Ù„ØªÙ‚Ø±ÙŠØ± Ù„ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù… Ø¨Ù†Ø¬Ø§Ø­' });
     } else {
-      res.status(500).json({ success: false, error: result.error || 'تعذر إرسال التقرير لتيليجرام' });
+      res.status(500).json({ success: false, error: result.error || 'ØªØ¹Ø°Ø± Ø¥Ø±Ø³Ø§Ù„ Ø§Ù„ØªÙ‚Ø±ÙŠØ± Ù„ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù…' });
     }
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// إرسال استمارة كشف الجرد الفعلي للموظفين (يدوي) إلى تيليجرام كملف Excel احترافي
+// Ø¥Ø±Ø³Ø§Ù„ Ø§Ø³ØªÙ…Ø§Ø±Ø© ÙƒØ´Ù Ø§Ù„Ø¬Ø±Ø¯ Ø§Ù„ÙØ¹Ù„ÙŠ Ù„Ù„Ù…ÙˆØ¸ÙÙŠÙ† (ÙŠØ¯ÙˆÙŠ) Ø¥Ù„Ù‰ ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù… ÙƒÙ…Ù„Ù Excel Ø§Ø­ØªØ±Ø§ÙÙŠ
 app.post('/api/inventory/send-stocktake-excel-telegram', async (req, res) => {
   try {
     const { items, scopeLabel, sizeLabel } = req.body;
     const settings = dataStore.getSettings();
 
     if (!settings.telegramBotToken || !settings.telegramChatId) {
-      return res.status(400).json({ success: false, error: 'لم يتم ضبط إعدادات تيليجرام (Bot Token أو Chat ID) بعد' });
+      return res.status(400).json({ success: false, error: 'Ù„Ù… ÙŠØªÙ… Ø¶Ø¨Ø· Ø¥Ø¹Ø¯Ø§Ø¯Ø§Øª ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù… (Bot Token Ø£Ùˆ Chat ID) Ø¨Ø¹Ø¯' });
     }
 
     const XLSX = require('xlsx');
@@ -1718,13 +1718,13 @@ app.post('/api/inventory/send-stocktake-excel-telegram', async (req, res) => {
     const productList = Array.isArray(items) && items.length > 0 ? items : dataStore.getProducts();
     const headers = [
       '#',
-      'رقم الصنف (الكود)',
-      'اسم الصنف والمواصفات',
-      'الماركة',
-      'القسم الرئيسي',
-      'الكمية الحالية بالنظام',
-      'الكمية الفعلية (الجديدة) ✍️',
-      'ملاحظات / فروقات'
+      'Ø±Ù‚Ù… Ø§Ù„ØµÙ†Ù (Ø§Ù„ÙƒÙˆØ¯)',
+      'Ø§Ø³Ù… Ø§Ù„ØµÙ†Ù ÙˆØ§Ù„Ù…ÙˆØ§ØµÙØ§Øª',
+      'Ø§Ù„Ù…Ø§Ø±ÙƒØ©',
+      'Ø§Ù„Ù‚Ø³Ù… Ø§Ù„Ø±Ø¦ÙŠØ³ÙŠ',
+      'Ø§Ù„ÙƒÙ…ÙŠØ© Ø§Ù„Ø­Ø§Ù„ÙŠØ© Ø¨Ø§Ù„Ù†Ø¸Ø§Ù…',
+      'Ø§Ù„ÙƒÙ…ÙŠØ© Ø§Ù„ÙØ¹Ù„ÙŠØ© (Ø§Ù„Ø¬Ø¯ÙŠØ¯Ø©) âœï¸',
+      'Ù…Ù„Ø§Ø­Ø¸Ø§Øª / ÙØ±ÙˆÙ‚Ø§Øª'
     ];
 
     const rows = [headers];
@@ -1738,7 +1738,7 @@ app.post('/api/inventory/send-stocktake-excel-telegram', async (req, res) => {
         p.code || '',
         p.name || '',
         p.brand || '',
-        p.mainCategory || p.category || 'أخرى',
+        p.mainCategory || p.category || 'Ø£Ø®Ø±Ù‰',
         stock,
         '',
         ''
@@ -1757,23 +1757,23 @@ app.post('/api/inventory/send-stocktake-excel-telegram', async (req, res) => {
       { wch: 25 },
       { wch: 25 }
     ];
-    XLSX.utils.book_append_sheet(wb, ws, 'كشف الجرد الفعلي للموظفين');
+    XLSX.utils.book_append_sheet(wb, ws, 'ÙƒØ´Ù Ø§Ù„Ø¬Ø±Ø¯ Ø§Ù„ÙØ¹Ù„ÙŠ Ù„Ù„Ù…ÙˆØ¸ÙÙŠÙ†');
     const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 
     const now = new Date();
     const dateFormatted = now.getDate() + '-' + (now.getMonth() + 1) + '-' + now.getFullYear();
-    const fileName = 'كشف_جرد_الموظفين_يدوي_' + dateFormatted + '.xlsx';
+    const fileName = 'ÙƒØ´Ù_Ø¬Ø±Ø¯_Ø§Ù„Ù…ÙˆØ¸ÙÙŠÙ†_ÙŠØ¯ÙˆÙŠ_' + dateFormatted + '.xlsx';
 
     const caption = 
-      '📋 <b>استمارة كشف جرد المخزون الفعلي للموظفين (ملف Excel جاهز للتعبئة)</b>\n' +
-      '🏢 <b>' + (settings.companyName || 'معرض رامز عطاطرة') + '</b>\n' +
-      '━━━━━━━━━━━━━━━━━━\n' +
-      '📦 <b>النطاق:</b> ' + (scopeLabel || 'كامل المخزون') + '\n' +
-      '🔢 <b>عدد الأصناف:</b> <b>' + productList.length.toLocaleString('en-US') + ' صنف</b>\n' +
-      '📊 <b>إجمالي القطع بالنظام:</b> <b>' + totalStock.toLocaleString('en-US') + ' قطعة</b>\n' +
-      '📐 <b>حجم الكشف:</b> ' + (sizeLabel || 'قياسي') + '\n' +
-      '🕐 <b>الوقت والتاريخ:</b> ' + formatServerDateTime(now) + '\n' +
-      '<i>📎 مرفق ملف كشف الجرد بصيغة Excel يحتوي على كافة الأعمدة والخانات المخصصة للتعبئة اليدوية.</i>';
+      'ðŸ“‹ <b>Ø§Ø³ØªÙ…Ø§Ø±Ø© ÙƒØ´Ù Ø¬Ø±Ø¯ Ø§Ù„Ù…Ø®Ø²ÙˆÙ† Ø§Ù„ÙØ¹Ù„ÙŠ Ù„Ù„Ù…ÙˆØ¸ÙÙŠÙ† (Ù…Ù„Ù Excel Ø¬Ø§Ù‡Ø² Ù„Ù„ØªØ¹Ø¨Ø¦Ø©)</b>\n' +
+      'ðŸ¢ <b>' + (settings.companyName || 'Ù…Ø¹Ø±Ø¶ Ø±Ø§Ù…Ø² Ø¹Ø·Ø§Ø·Ø±Ø©') + '</b>\n' +
+      'â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\n' +
+      'ðŸ“¦ <b>Ø§Ù„Ù†Ø·Ø§Ù‚:</b> ' + (scopeLabel || 'ÙƒØ§Ù…Ù„ Ø§Ù„Ù…Ø®Ø²ÙˆÙ†') + '\n' +
+      'ðŸ”¢ <b>Ø¹Ø¯Ø¯ Ø§Ù„Ø£ØµÙ†Ø§Ù:</b> <b>' + productList.length.toLocaleString('en-US') + ' ØµÙ†Ù</b>\n' +
+      'ðŸ“Š <b>Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ù‚Ø·Ø¹ Ø¨Ø§Ù„Ù†Ø¸Ø§Ù…:</b> <b>' + totalStock.toLocaleString('en-US') + ' Ù‚Ø·Ø¹Ø©</b>\n' +
+      'ðŸ“ <b>Ø­Ø¬Ù… Ø§Ù„ÙƒØ´Ù:</b> ' + (sizeLabel || 'Ù‚ÙŠØ§Ø³ÙŠ') + '\n' +
+      'ðŸ• <b>Ø§Ù„ÙˆÙ‚Øª ÙˆØ§Ù„ØªØ§Ø±ÙŠØ®:</b> ' + formatServerDateTime(now) + '\n' +
+      '<i>ðŸ“Ž Ù…Ø±ÙÙ‚ Ù…Ù„Ù ÙƒØ´Ù Ø§Ù„Ø¬Ø±Ø¯ Ø¨ØµÙŠØºØ© Excel ÙŠØ­ØªÙˆÙŠ Ø¹Ù„Ù‰ ÙƒØ§ÙØ© Ø§Ù„Ø£Ø¹Ù…Ø¯Ø© ÙˆØ§Ù„Ø®Ø§Ù†Ø§Øª Ø§Ù„Ù…Ø®ØµØµØ© Ù„Ù„ØªØ¹Ø¨Ø¦Ø© Ø§Ù„ÙŠØ¯ÙˆÙŠØ©.</i>';
 
     const result = await telegramService.sendDocument(
       settings.telegramBotToken,
@@ -1785,9 +1785,9 @@ app.post('/api/inventory/send-stocktake-excel-telegram', async (req, res) => {
     );
 
     if (result.ok) {
-      res.json({ success: true, message: 'تم إرسال كشف الجرد Excel بنجاح إلى تيليجرام' });
+      res.json({ success: true, message: 'ØªÙ… Ø¥Ø±Ø³Ø§Ù„ ÙƒØ´Ù Ø§Ù„Ø¬Ø±Ø¯ Excel Ø¨Ù†Ø¬Ø§Ø­ Ø¥Ù„Ù‰ ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù…' });
     } else {
-      res.status(500).json({ success: false, error: result.error || 'تعذر إرسال الملف لتيليجرام' });
+      res.status(500).json({ success: false, error: result.error || 'ØªØ¹Ø°Ø± Ø¥Ø±Ø³Ø§Ù„ Ø§Ù„Ù…Ù„Ù Ù„ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù…' });
     }
   } catch (err) {
     console.error('Error in send-stocktake-excel-telegram:', err);
@@ -1795,37 +1795,37 @@ app.post('/api/inventory/send-stocktake-excel-telegram', async (req, res) => {
   }
 });
 
-// إرسال ملف PDF الفعلي لتقرير الجرد إلى تيليجرام
+// Ø¥Ø±Ø³Ø§Ù„ Ù…Ù„Ù PDF Ø§Ù„ÙØ¹Ù„ÙŠ Ù„ØªÙ‚Ø±ÙŠØ± Ø§Ù„Ø¬Ø±Ø¯ Ø¥Ù„Ù‰ ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù…
 app.post('/api/inventory/send-pdf-telegram', pdfUpload.single('pdfFile'), async (req, res) => {
   try {
     const settings = dataStore.getSettings();
 
     if (!settings.telegramBotToken || !settings.telegramChatId) {
-      return res.status(400).json({ success: false, error: 'لم يتم ضبط إعدادات تيليجرام بعد' });
+      return res.status(400).json({ success: false, error: 'Ù„Ù… ÙŠØªÙ… Ø¶Ø¨Ø· Ø¥Ø¹Ø¯Ø§Ø¯Ø§Øª ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù… Ø¨Ø¹Ø¯' });
     }
 
     if (!req.file || !req.file.buffer) {
-      return res.status(400).json({ success: false, error: 'لم يتم استلام ملف الـ PDF' });
+      return res.status(400).json({ success: false, error: 'Ù„Ù… ÙŠØªÙ… Ø§Ø³ØªÙ„Ø§Ù… Ù…Ù„Ù Ø§Ù„Ù€ PDF' });
     }
 
     const { scope, totalUnits, totalCapital, zeroCount, itemCount, title } = req.body;
-    const cur = settings.currency || 'شيكل';
-    const reportTitle = title || 'تقرير جرد المخزون ورأس المال';
+    const cur = settings.currency || 'Ø´ÙŠÙƒÙ„';
+    const reportTitle = title || 'ØªÙ‚Ø±ÙŠØ± Ø¬Ø±Ø¯ Ø§Ù„Ù…Ø®Ø²ÙˆÙ† ÙˆØ±Ø£Ø³ Ø§Ù„Ù…Ø§Ù„';
 
     const caption = 
-`📄 <b>${reportTitle} (ملف PDF رسمي مرفق)</b>
-🏢 <b>${settings.companyName || 'رامز عطاطرة'}</b>
-━━━━━━━━━━━━━━━━━━
-🔍 <b>نطاق الجرد:</b> ${scope || 'نتائج البحث الحالية'}
-📦 <b>عدد الأصناف:</b> <b>${itemCount || 0} صنف</b>
-🔢 <b>إجمالي القطع:</b> <b>${Number(totalUnits || 0).toLocaleString('en-US')} قطعة</b>
-💰 <b>إجمالي رأس المال:</b> <b>${Number(totalCapital || 0).toLocaleString('en-US')} ${cur}</b>
-⚠️ <b>أصناف نافدة (0):</b> <b>${zeroCount || 0} صنف</b>
-🕐 <b>وقت إصدار التقرير:</b> ${formatServerDateTime(new Date())}
-━━━━━━━━━━━━━━━━━━
-<i>📎 تجدون أعلاه ملف الـ PDF الكامل لجرد المخزون، جاهز للمعاينة والتحميل والطباعة.</i>`;
+`ðŸ“„ <b>${reportTitle} (Ù…Ù„Ù PDF Ø±Ø³Ù…ÙŠ Ù…Ø±ÙÙ‚)</b>
+ðŸ¢ <b>${settings.companyName || 'Ø±Ø§Ù…Ø² Ø¹Ø·Ø§Ø·Ø±Ø©'}</b>
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+ðŸ” <b>Ù†Ø·Ø§Ù‚ Ø§Ù„Ø¬Ø±Ø¯:</b> ${scope || 'Ù†ØªØ§Ø¦Ø¬ Ø§Ù„Ø¨Ø­Ø« Ø§Ù„Ø­Ø§Ù„ÙŠØ©'}
+ðŸ“¦ <b>Ø¹Ø¯Ø¯ Ø§Ù„Ø£ØµÙ†Ø§Ù:</b> <b>${itemCount || 0} ØµÙ†Ù</b>
+ðŸ”¢ <b>Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ù‚Ø·Ø¹:</b> <b>${Number(totalUnits || 0).toLocaleString('en-US')} Ù‚Ø·Ø¹Ø©</b>
+ðŸ’° <b>Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø±Ø£Ø³ Ø§Ù„Ù…Ø§Ù„:</b> <b>${Number(totalCapital || 0).toLocaleString('en-US')} ${cur}</b>
+âš ï¸ <b>Ø£ØµÙ†Ø§Ù Ù†Ø§ÙØ¯Ø© (0):</b> <b>${zeroCount || 0} ØµÙ†Ù</b>
+ðŸ• <b>ÙˆÙ‚Øª Ø¥ØµØ¯Ø§Ø± Ø§Ù„ØªÙ‚Ø±ÙŠØ±:</b> ${formatServerDateTime(new Date())}
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+<i>ðŸ“Ž ØªØ¬Ø¯ÙˆÙ† Ø£Ø¹Ù„Ø§Ù‡ Ù…Ù„Ù Ø§Ù„Ù€ PDF Ø§Ù„ÙƒØ§Ù…Ù„ Ù„Ø¬Ø±Ø¯ Ø§Ù„Ù…Ø®Ø²ÙˆÙ†ØŒ Ø¬Ø§Ù‡Ø² Ù„Ù„Ù…Ø¹Ø§ÙŠÙ†Ø© ÙˆØ§Ù„ØªØ­Ù…ÙŠÙ„ ÙˆØ§Ù„Ø·Ø¨Ø§Ø¹Ø©.</i>`;
 
-    const fileName = req.file.originalname || `تقرير_جرد_${Date.now()}.pdf`;
+    const fileName = req.file.originalname || `ØªÙ‚Ø±ÙŠØ±_Ø¬Ø±Ø¯_${Date.now()}.pdf`;
     const result = await telegramService.sendDocument(
       settings.telegramBotToken,
       settings.telegramChatId,
@@ -1836,9 +1836,9 @@ app.post('/api/inventory/send-pdf-telegram', pdfUpload.single('pdfFile'), async 
     );
 
     if (result.ok) {
-      res.json({ success: true, message: 'تم إرسال ملف الـ PDF إلى تيليجرام بنجاح' });
+      res.json({ success: true, message: 'ØªÙ… Ø¥Ø±Ø³Ø§Ù„ Ù…Ù„Ù Ø§Ù„Ù€ PDF Ø¥Ù„Ù‰ ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù… Ø¨Ù†Ø¬Ø§Ø­' });
     } else {
-      res.status(500).json({ success: false, error: result.error || 'تعذر إرسال ملف الـ PDF لتيليجرام' });
+      res.status(500).json({ success: false, error: result.error || 'ØªØ¹Ø°Ø± Ø¥Ø±Ø³Ø§Ù„ Ù…Ù„Ù Ø§Ù„Ù€ PDF Ù„ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù…' });
     }
   } catch (err) {
     console.error('Error sending PDF to telegram:', err);
@@ -1846,17 +1846,17 @@ app.post('/api/inventory/send-pdf-telegram', pdfUpload.single('pdfFile'), async 
   }
 });
 
-// إرسال أي ملف PDF رسمي (فاتورة، سند قبض، محضر جرد، تقرير مالي، تقرير مخزون) مباشرة لتيليجرام
+// Ø¥Ø±Ø³Ø§Ù„ Ø£ÙŠ Ù…Ù„Ù PDF Ø±Ø³Ù…ÙŠ (ÙØ§ØªÙˆØ±Ø©ØŒ Ø³Ù†Ø¯ Ù‚Ø¨Ø¶ØŒ Ù…Ø­Ø¶Ø± Ø¬Ø±Ø¯ØŒ ØªÙ‚Ø±ÙŠØ± Ù…Ø§Ù„ÙŠØŒ ØªÙ‚Ø±ÙŠØ± Ù…Ø®Ø²ÙˆÙ†) Ù…Ø¨Ø§Ø´Ø±Ø© Ù„ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù…
 app.post('/api/telegram/send-pdf-document', pdfUpload.single('pdfFile'), async (req, res) => {
   try {
     const settings = dataStore.getSettings();
 
     if (!settings.telegramBotToken || !settings.telegramChatId) {
-      return res.status(400).json({ success: false, error: 'لم يتم ضبط إعدادات تيليجرام (Bot Token أو Chat ID) بعد' });
+      return res.status(400).json({ success: false, error: 'Ù„Ù… ÙŠØªÙ… Ø¶Ø¨Ø· Ø¥Ø¹Ø¯Ø§Ø¯Ø§Øª ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù… (Bot Token Ø£Ùˆ Chat ID) Ø¨Ø¹Ø¯' });
     }
 
     if (!req.file || !req.file.buffer) {
-      return res.status(400).json({ success: false, error: 'لم يتم استلام ملف الـ PDF' });
+      return res.status(400).json({ success: false, error: 'Ù„Ù… ÙŠØªÙ… Ø§Ø³ØªÙ„Ø§Ù… Ù…Ù„Ù Ø§Ù„Ù€ PDF' });
     }
 
     const { fileName, caption } = req.body;
@@ -1869,14 +1869,14 @@ app.post('/api/telegram/send-pdf-document', pdfUpload.single('pdfFile'), async (
       settings.telegramChatId,
       req.file.buffer,
       resolvedFileName,
-      caption || '📎 ملف PDF رسمي مرفق من النظام',
+      caption || 'ðŸ“Ž Ù…Ù„Ù PDF Ø±Ø³Ù…ÙŠ Ù…Ø±ÙÙ‚ Ù…Ù† Ø§Ù„Ù†Ø¸Ø§Ù…',
       'HTML'
     );
 
     if (result.ok) {
-      res.json({ success: true, message: 'تم إرسال ملف الـ PDF الرسمي إلى تيليجرام بنجاح' });
+      res.json({ success: true, message: 'ØªÙ… Ø¥Ø±Ø³Ø§Ù„ Ù…Ù„Ù Ø§Ù„Ù€ PDF Ø§Ù„Ø±Ø³Ù…ÙŠ Ø¥Ù„Ù‰ ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù… Ø¨Ù†Ø¬Ø§Ø­' });
     } else {
-      res.status(500).json({ success: false, error: result.error || 'تعذر إرسال الملف لتيليجرام' });
+      res.status(500).json({ success: false, error: result.error || 'ØªØ¹Ø°Ø± Ø¥Ø±Ø³Ø§Ù„ Ø§Ù„Ù…Ù„Ù Ù„ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù…' });
     }
   } catch (err) {
     console.error('Error sending document to telegram:', err);
@@ -1885,10 +1885,10 @@ app.post('/api/telegram/send-pdf-document', pdfUpload.single('pdfFile'), async (
 });
 
 // -------------------------------------------------------------
-// APIs: سندات القبض (Receipts)
+// APIs: Ø³Ù†Ø¯Ø§Øª Ø§Ù„Ù‚Ø¨Ø¶ (Receipts)
 // -------------------------------------------------------------
 
-// جلب جميع السندات
+// Ø¬Ù„Ø¨ Ø¬Ù…ÙŠØ¹ Ø§Ù„Ø³Ù†Ø¯Ø§Øª
 app.get('/api/receipts', (req, res) => {
   try {
     const receipts = dataStore.getReceipts();
@@ -1898,7 +1898,7 @@ app.get('/api/receipts', (req, res) => {
   }
 });
 
-// إنشاء سند قبض جديد
+// Ø¥Ù†Ø´Ø§Ø¡ Ø³Ù†Ø¯ Ù‚Ø¨Ø¶ Ø¬Ø¯ÙŠØ¯
 app.post('/api/receipts', async (req, res) => {
   try {
     const {
@@ -1918,21 +1918,21 @@ app.post('/api/receipts', async (req, res) => {
     } = req.body;
 
     if (!employeeName || !employeeName.trim()) {
-      return res.status(400).json({ success: false, error: 'اسم الموظف مطلوب' });
+      return res.status(400).json({ success: false, error: 'Ø§Ø³Ù… Ø§Ù„Ù…ÙˆØ¸Ù Ù…Ø·Ù„ÙˆØ¨' });
     }
     if (!customerName || !customerName.trim()) {
-      return res.status(400).json({ success: false, error: 'اسم الزبون مطلوب' });
+      return res.status(400).json({ success: false, error: 'Ø§Ø³Ù… Ø§Ù„Ø²Ø¨ÙˆÙ† Ù…Ø·Ù„ÙˆØ¨' });
     }
     if (!amount || parseFloat(amount) <= 0) {
-      return res.status(400).json({ success: false, error: 'المبلغ يجب أن يكون أكبر من صفر' });
+      return res.status(400).json({ success: false, error: 'Ø§Ù„Ù…Ø¨Ù„Øº ÙŠØ¬Ø¨ Ø£Ù† ÙŠÙƒÙˆÙ† Ø£ÙƒØ¨Ø± Ù…Ù† ØµÙØ±' });
     }
 
-    // ─── فحص تكرار الطلب (Idempotency) ───
+    // â”€â”€â”€ ÙØ­Øµ ØªÙƒØ±Ø§Ø± Ø§Ù„Ø·Ù„Ø¨ (Idempotency) â”€â”€â”€
     const receiptFingerprint = generateReceiptFingerprint(req.body);
     const receiptIdem = checkIdempotency(receiptFingerprint);
     if (receiptIdem.isDuplicate) {
       if (receiptIdem.status === 'completed') return res.json(receiptIdem.response);
-      return res.status(429).json({ success: false, error: 'طلب مماثل قيد المعالجة حالياً، يرجى الانتظار لحظة ثم المحاولة مرة واحدة فقط' });
+      return res.status(429).json({ success: false, error: 'Ø·Ù„Ø¨ Ù…Ù…Ø§Ø«Ù„ Ù‚ÙŠØ¯ Ø§Ù„Ù…Ø¹Ø§Ù„Ø¬Ø© Ø­Ø§Ù„ÙŠØ§Ù‹ØŒ ÙŠØ±Ø¬Ù‰ Ø§Ù„Ø§Ù†ØªØ¸Ø§Ø± Ù„Ø­Ø¸Ø© Ø«Ù… Ø§Ù„Ù…Ø­Ø§ÙˆÙ„Ø© Ù…Ø±Ø© ÙˆØ§Ø­Ø¯Ø© ÙÙ‚Ø·' });
     }
         const receipt = await dataStore.createReceipt({
       employeeName,
@@ -1950,7 +1950,7 @@ app.post('/api/receipts', async (req, res) => {
       paymentMethod
     });
 
-    // إشعار تيليجرام للسند بتنسيق واضح
+    // Ø¥Ø´Ø¹Ø§Ø± ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù… Ù„Ù„Ø³Ù†Ø¯ Ø¨ØªÙ†Ø³ÙŠÙ‚ ÙˆØ§Ø¶Ø­
     const settings = dataStore.getSettings();
     if (settings.telegramBotToken && settings.telegramChatId) {
       try {
@@ -1969,10 +1969,10 @@ app.post('/api/receipts', async (req, res) => {
 });
 
 // -------------------------------------------------------------
-// APIs: دليل ديون وأرصدة الزبائن (Customers & Debts)
+// APIs: Ø¯Ù„ÙŠÙ„ Ø¯ÙŠÙˆÙ† ÙˆØ£Ø±ØµØ¯Ø© Ø§Ù„Ø²Ø¨Ø§Ø¦Ù† (Customers & Debts)
 // -------------------------------------------------------------
 
-// جلب جميع الزبائن والأرصدة (مع إمكانية تضمين الموردين كحسابات)
+// Ø¬Ù„Ø¨ Ø¬Ù…ÙŠØ¹ Ø§Ù„Ø²Ø¨Ø§Ø¦Ù† ÙˆØ§Ù„Ø£Ø±ØµØ¯Ø© (Ù…Ø¹ Ø¥Ù…ÙƒØ§Ù†ÙŠØ© ØªØ¶Ù…ÙŠÙ† Ø§Ù„Ù…ÙˆØ±Ø¯ÙŠÙ† ÙƒØ­Ø³Ø§Ø¨Ø§Øª)
 app.get('/api/customers', (req, res) => {
   try {
     const customers = dataStore.getCustomers().map(c => ({
@@ -1992,7 +1992,7 @@ app.get('/api/customers', (req, res) => {
           name: s.name,
           phone: s.phone || s.mobile || '',
           balance: s.shamelBalance !== undefined ? s.shamelBalance : rawBal,
-          notes: s.notes || (rawBal !== 0 ? `مستحق دائن للمورد: ${rawBal.toLocaleString('en-US')} شيكل` : ''),
+          notes: s.notes || (rawBal !== 0 ? `Ù…Ø³ØªØ­Ù‚ Ø¯Ø§Ø¦Ù† Ù„Ù„Ù…ÙˆØ±Ø¯: ${rawBal.toLocaleString('en-US')} Ø´ÙŠÙƒÙ„` : ''),
           accountType: 'supplier',
           isSupplier: true,
           isStopped: Boolean(s.isStopped),
@@ -2017,10 +2017,10 @@ app.get('/api/customers', (req, res) => {
   }
 });
 
-// جلب جميع الموردين والأرصدة
+// Ø¬Ù„Ø¨ Ø¬Ù…ÙŠØ¹ Ø§Ù„Ù…ÙˆØ±Ø¯ÙŠÙ† ÙˆØ§Ù„Ø£Ø±ØµØ¯Ø©
 app.get('/api/suppliers', (req, res) => {
   try {
-    // نُرجع الموردين مع shamelBalance كرصيد العرض النهائي من الشامل
+    // Ù†ÙØ±Ø¬Ø¹ Ø§Ù„Ù…ÙˆØ±Ø¯ÙŠÙ† Ù…Ø¹ shamelBalance ÙƒØ±ØµÙŠØ¯ Ø§Ù„Ø¹Ø±Ø¶ Ø§Ù„Ù†Ù‡Ø§Ø¦ÙŠ Ù…Ù† Ø§Ù„Ø´Ø§Ù…Ù„
     const suppliers = dataStore.getSuppliers().map(function(s) {
       var displayBal = s.shamelBalance !== undefined ? s.shamelBalance : (parseFloat(s.balance) || 0);
       return Object.assign({}, s, { balance: displayBal });
@@ -2031,12 +2031,12 @@ app.get('/api/suppliers', (req, res) => {
   }
 });
 
-// إضافة أو تعديل زبون
+// Ø¥Ø¶Ø§ÙØ© Ø£Ùˆ ØªØ¹Ø¯ÙŠÙ„ Ø²Ø¨ÙˆÙ†
 app.post('/api/customers', async (req, res) => {
   try {
     const { id, systemNumber, name, phone, balance, notes } = req.body;
     if (!name || !name.trim()) {
-      return res.status(400).json({ success: false, error: 'اسم الزبون مطلوب' });
+      return res.status(400).json({ success: false, error: 'Ø§Ø³Ù… Ø§Ù„Ø²Ø¨ÙˆÙ† Ù…Ø·Ù„ÙˆØ¨' });
     }
     const saved = await dataStore.saveCustomer({ id, systemNumber, name, phone, balance, notes });
     res.json({ success: true, customer: saved });
@@ -2045,12 +2045,12 @@ app.post('/api/customers', async (req, res) => {
   }
 });
 
-// استيراد جماعي من CSV
+// Ø§Ø³ØªÙŠØ±Ø§Ø¯ Ø¬Ù…Ø§Ø¹ÙŠ Ù…Ù† CSV
 app.post('/api/customers/bulk', (req, res) => {
   try {
     const { customers } = req.body;
     if (!Array.isArray(customers) || customers.length === 0) {
-      return res.status(400).json({ success: false, error: 'قائمة الزبائن فارغة' });
+      return res.status(400).json({ success: false, error: 'Ù‚Ø§Ø¦Ù…Ø© Ø§Ù„Ø²Ø¨Ø§Ø¦Ù† ÙØ§Ø±ØºØ©' });
     }
     const result = dataStore.importCustomersBulk(customers);
     res.json({ success: true, ...result });
@@ -2059,16 +2059,16 @@ app.post('/api/customers/bulk', (req, res) => {
   }
 });
 
-// استيراد ملف Excel أو CSV للزبائن
+// Ø§Ø³ØªÙŠØ±Ø§Ø¯ Ù…Ù„Ù Excel Ø£Ùˆ CSV Ù„Ù„Ø²Ø¨Ø§Ø¦Ù†
 app.post('/api/customers/upload-excel', pdfUpload.single('file'), (req, res) => {
   try {
     if (!req.file || !req.file.buffer) {
-      return res.status(400).json({ success: false, error: 'لم يتم استلام أي ملف' });
+      return res.status(400).json({ success: false, error: 'Ù„Ù… ÙŠØªÙ… Ø§Ø³ØªÙ„Ø§Ù… Ø£ÙŠ Ù…Ù„Ù' });
     }
 
     const parsed = excelParser.parseCustomerExcel(req.file.buffer);
     if (!parsed || !parsed.customers || parsed.customers.length === 0) {
-      return res.status(400).json({ success: false, error: 'لم يتم العثور على أي زبائن صالحين داخل الملف' });
+      return res.status(400).json({ success: false, error: 'Ù„Ù… ÙŠØªÙ… Ø§Ù„Ø¹Ø«ÙˆØ± Ø¹Ù„Ù‰ Ø£ÙŠ Ø²Ø¨Ø§Ø¦Ù† ØµØ§Ù„Ø­ÙŠÙ† Ø¯Ø§Ø®Ù„ Ø§Ù„Ù…Ù„Ù' });
     }
 
     if (req.query.preview === 'true' || req.body.preview === 'true') {
@@ -2078,7 +2078,7 @@ app.post('/api/customers/upload-excel', pdfUpload.single('file'), (req, res) => 
         parsedCount: parsed.count,
         summary: parsed.summary,
         sample: parsed.customers.slice(0, 10),
-        message: `تم تحليل الملف بنجاح! تم العثور على ${parsed.count} زبون.`
+        message: `ØªÙ… ØªØ­Ù„ÙŠÙ„ Ø§Ù„Ù…Ù„Ù Ø¨Ù†Ø¬Ø§Ø­! ØªÙ… Ø§Ù„Ø¹Ø«ÙˆØ± Ø¹Ù„Ù‰ ${parsed.count} Ø²Ø¨ÙˆÙ†.`
       });
     }
 
@@ -2091,20 +2091,20 @@ app.post('/api/customers/upload-excel', pdfUpload.single('file'), (req, res) => 
       total: result.total,
       parsedCount: parsed.count,
       summary: parsed.summary,
-      message: `تم بنجاح استيراد وتحديث ${parsed.count} زبون مع أرصدتهم بالنظام!`
+      message: `ØªÙ… Ø¨Ù†Ø¬Ø§Ø­ Ø§Ø³ØªÙŠØ±Ø§Ø¯ ÙˆØªØ­Ø¯ÙŠØ« ${parsed.count} Ø²Ø¨ÙˆÙ† Ù…Ø¹ Ø£Ø±ØµØ¯ØªÙ‡Ù… Ø¨Ø§Ù„Ù†Ø¸Ø§Ù…!`
     });
   } catch (err) {
     console.error('Excel upload error:', err);
-    res.status(400).json({ success: false, error: 'خطأ في معالجة ملف الإكسل: ' + err.message });
+    res.status(400).json({ success: false, error: 'Ø®Ø·Ø£ ÙÙŠ Ù…Ø¹Ø§Ù„Ø¬Ø© Ù…Ù„Ù Ø§Ù„Ø¥ÙƒØ³Ù„: ' + err.message });
   }
 });
 
-// تحميل نموذج Excel فارغ استرشادي لتعبئة الزبائن
+// ØªØ­Ù…ÙŠÙ„ Ù†Ù…ÙˆØ°Ø¬ Excel ÙØ§Ø±Øº Ø§Ø³ØªØ±Ø´Ø§Ø¯ÙŠ Ù„ØªØ¹Ø¨Ø¦Ø© Ø§Ù„Ø²Ø¨Ø§Ø¦Ù†
 app.get('/api/customers/download-template', (req, res) => {
   try {
     const buffer = excelParser.generateCustomerTemplate();
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    const safeName = encodeURIComponent('نموذج_استيراد_الزبائن.xlsx');
+    const safeName = encodeURIComponent('Ù†Ù…ÙˆØ°Ø¬_Ø§Ø³ØªÙŠØ±Ø§Ø¯_Ø§Ù„Ø²Ø¨Ø§Ø¦Ù†.xlsx');
     res.setHeader('Content-Disposition', `attachment; filename="customers_template.xlsx"; filename*=UTF-8''${safeName}`);
     res.send(buffer);
   } catch (err) {
@@ -2113,7 +2113,7 @@ app.get('/api/customers/download-template', (req, res) => {
   }
 });
 
-// جلب كشف حساب زبون تفصيلي
+// Ø¬Ù„Ø¨ ÙƒØ´Ù Ø­Ø³Ø§Ø¨ Ø²Ø¨ÙˆÙ† ØªÙØµÙŠÙ„ÙŠ
 app.get('/api/customers/:id/statement', (req, res) => {
   try {
     const fromDate = req.query.from || null;
@@ -2122,7 +2122,7 @@ app.get('/api/customers/:id/statement', (req, res) => {
     const filterType = req.query.type || 'all'; // 'all','invoices','vouchers','receipts','payments'
     const statement = dataStore.getCustomerStatement(req.params.id, { fromDate, toDate, sortOrder, filterType });
     if (!statement) {
-      return res.status(404).json({ success: false, error: 'الزبون غير موجود' });
+      return res.status(404).json({ success: false, error: 'Ø§Ù„Ø²Ø¨ÙˆÙ† ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯' });
     }
     res.json({ success: true, statement });
   } catch (err) {
@@ -2130,37 +2130,37 @@ app.get('/api/customers/:id/statement', (req, res) => {
   }
 });
 
-// إرسال كشف حساب الزبون الرسمي مع ملف PDF لتيليجرام
+// Ø¥Ø±Ø³Ø§Ù„ ÙƒØ´Ù Ø­Ø³Ø§Ø¨ Ø§Ù„Ø²Ø¨ÙˆÙ† Ø§Ù„Ø±Ø³Ù…ÙŠ Ù…Ø¹ Ù…Ù„Ù PDF Ù„ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù…
 app.post('/api/customers/:id/send-statement-telegram', pdfUpload.single('pdfFile'), async (req, res) => {
   try {
     const settings = dataStore.getSettings();
     if (!settings.telegramBotToken || !settings.telegramChatId) {
-      return res.status(400).json({ success: false, error: 'لم يتم ضبط إعدادات تيليجرام بعد' });
+      return res.status(400).json({ success: false, error: 'Ù„Ù… ÙŠØªÙ… Ø¶Ø¨Ø· Ø¥Ø¹Ø¯Ø§Ø¯Ø§Øª ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù… Ø¨Ø¹Ø¯' });
     }
 
     const statement = dataStore.getCustomerStatement(req.params.id);
     if (!statement) {
-      return res.status(404).json({ success: false, error: 'الزبون غير موجود' });
+      return res.status(404).json({ success: false, error: 'Ø§Ù„Ø²Ø¨ÙˆÙ† ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯' });
     }
 
-    // 1. إرسال الرسالة النصية
+    // 1. Ø¥Ø±Ø³Ø§Ù„ Ø§Ù„Ø±Ø³Ø§Ù„Ø© Ø§Ù„Ù†ØµÙŠØ©
     await telegramService.sendCustomerStatementNotification(statement.customer, statement.summary, settings);
 
-    // 2. إرفاق ملف PDF
+    // 2. Ø¥Ø±ÙØ§Ù‚ Ù…Ù„Ù PDF
     if (req.file && req.file.buffer) {
-      const fileName = req.file.originalname || `كشف_حساب_${statement.customer.name.replace(/\s+/g, '_')}.pdf`;
-      const cur = settings.currency || 'شيكل';
+      const fileName = req.file.originalname || `ÙƒØ´Ù_Ø­Ø³Ø§Ø¨_${statement.customer.name.replace(/\s+/g, '_')}.pdf`;
+      const cur = settings.currency || 'Ø´ÙŠÙƒÙ„';
       const bal = parseFloat(statement.customer.balance) || 0;
-      const balText = bal > 0 ? `دين عليه: ${bal.toLocaleString('en-US')} ${cur}` : (bal < 0 ? `رصيد له: ${Math.abs(bal).toLocaleString('en-US')} ${cur}` : `رصيد خالص`);
+      const balText = bal > 0 ? `Ø¯ÙŠÙ† Ø¹Ù„ÙŠÙ‡: ${bal.toLocaleString('en-US')} ${cur}` : (bal < 0 ? `Ø±ØµÙŠØ¯ Ù„Ù‡: ${Math.abs(bal).toLocaleString('en-US')} ${cur}` : `Ø±ØµÙŠØ¯ Ø®Ø§Ù„Øµ`);
 
       const caption = 
-`📄 <b>كشف حساب تفصيلي معتمد (ملف PDF رسمي)</b>
-🏢 <b>${settings.companyName || 'رامز عطاطرة'}</b>
-━━━━━━━━━━━━━━━━━━
-👤 <b>الزبون:</b> ${statement.customer.name} (حساب #${statement.customer.systemNumber || '--'})
-💰 <b>الرصيد:</b> <b>${balText}</b>
-📅 <b>التاريخ:</b> ${formatServerDateTime(new Date())}
-<i>📎 مرفق أعلاه ملف كشف الحساب الرسمي المعتمد جاهز للطباعة والتدقيق.</i>`;
+`ðŸ“„ <b>ÙƒØ´Ù Ø­Ø³Ø§Ø¨ ØªÙØµÙŠÙ„ÙŠ Ù…Ø¹ØªÙ…Ø¯ (Ù…Ù„Ù PDF Ø±Ø³Ù…ÙŠ)</b>
+ðŸ¢ <b>${settings.companyName || 'Ø±Ø§Ù…Ø² Ø¹Ø·Ø§Ø·Ø±Ø©'}</b>
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+ðŸ‘¤ <b>Ø§Ù„Ø²Ø¨ÙˆÙ†:</b> ${statement.customer.name} (Ø­Ø³Ø§Ø¨ #${statement.customer.systemNumber || '--'})
+ðŸ’° <b>Ø§Ù„Ø±ØµÙŠØ¯:</b> <b>${balText}</b>
+ðŸ“… <b>Ø§Ù„ØªØ§Ø±ÙŠØ®:</b> ${formatServerDateTime(new Date())}
+<i>ðŸ“Ž Ù…Ø±ÙÙ‚ Ø£Ø¹Ù„Ø§Ù‡ Ù…Ù„Ù ÙƒØ´Ù Ø§Ù„Ø­Ø³Ø§Ø¨ Ø§Ù„Ø±Ø³Ù…ÙŠ Ø§Ù„Ù…Ø¹ØªÙ…Ø¯ Ø¬Ø§Ù‡Ø² Ù„Ù„Ø·Ø¨Ø§Ø¹Ø© ÙˆØ§Ù„ØªØ¯Ù‚ÙŠÙ‚.</i>`;
 
       await telegramService.sendDocument(
         settings.telegramBotToken,
@@ -2172,19 +2172,19 @@ app.post('/api/customers/:id/send-statement-telegram', pdfUpload.single('pdfFile
       );
     }
 
-    res.json({ success: true, message: `تم إرسال كشف حساب "${statement.customer.name}" مع ملف الـ PDF لتيليجرام بنجاح!` });
+    res.json({ success: true, message: `ØªÙ… Ø¥Ø±Ø³Ø§Ù„ ÙƒØ´Ù Ø­Ø³Ø§Ø¨ "${statement.customer.name}" Ù…Ø¹ Ù…Ù„Ù Ø§Ù„Ù€ PDF Ù„ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù… Ø¨Ù†Ø¬Ø§Ø­!` });
   } catch (err) {
     console.error('Send statement error:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// إرسال كشف شامل لديون وأرصدة كافة الزبائن مع ملف PDF لتيليجرام
+// Ø¥Ø±Ø³Ø§Ù„ ÙƒØ´Ù Ø´Ø§Ù…Ù„ Ù„Ø¯ÙŠÙˆÙ† ÙˆØ£Ø±ØµØ¯Ø© ÙƒØ§ÙØ© Ø§Ù„Ø²Ø¨Ø§Ø¦Ù† Ù…Ø¹ Ù…Ù„Ù PDF Ù„ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù…
 app.post('/api/customers/send-debts-report-telegram', pdfUpload.single('pdfFile'), async (req, res) => {
   try {
     const settings = dataStore.getSettings();
     if (!settings.telegramBotToken || !settings.telegramChatId) {
-      return res.status(400).json({ success: false, error: 'لم يتم ضبط إعدادات تيليجرام بعد' });
+      return res.status(400).json({ success: false, error: 'Ù„Ù… ÙŠØªÙ… Ø¶Ø¨Ø· Ø¥Ø¹Ø¯Ø§Ø¯Ø§Øª ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù… Ø¨Ø¹Ø¯' });
     }
 
     const { totalDebit, totalCredit, netBalance, countDebtors, countCreditors, countSettled, totalCount } = req.body;
@@ -2199,22 +2199,22 @@ app.post('/api/customers/send-debts-report-telegram', pdfUpload.single('pdfFile'
       totalCount: parseInt(totalCount) || 0
     };
 
-    // 1. إرسال الرسالة النصية
+    // 1. Ø¥Ø±Ø³Ø§Ù„ Ø§Ù„Ø±Ø³Ø§Ù„Ø© Ø§Ù„Ù†ØµÙŠØ©
     await telegramService.sendCustomerDebtsReportNotification(reportData, settings);
 
-    // 2. إرفاق ملف PDF
+    // 2. Ø¥Ø±ÙØ§Ù‚ Ù…Ù„Ù PDF
     if (req.file && req.file.buffer) {
-      const cur = settings.currency || 'شيكل';
-      const fileName = req.file.originalname || `كشف_ديون_الزبائن_${Date.now()}.pdf`;
+      const cur = settings.currency || 'Ø´ÙŠÙƒÙ„';
+      const fileName = req.file.originalname || `ÙƒØ´Ù_Ø¯ÙŠÙˆÙ†_Ø§Ù„Ø²Ø¨Ø§Ø¦Ù†_${Date.now()}.pdf`;
       const caption = 
-`📄 <b>تقرير ديون وأرصدة الزبائن (ملف PDF رسمي كامل)</b>
-🏢 <b>${settings.companyName || 'رامز عطاطرة'}</b>
-━━━━━━━━━━━━━━━━━━
-👥 <b>عدد الزبائن:</b> <b>${reportData.totalCount} زبون</b>
-🔴 <b>الديون التي عليهم:</b> <b>${reportData.totalDebit.toLocaleString('en-US')} ${cur}</b>
-🔵 <b>الديون التي لهم:</b> <b>${reportData.totalCredit.toLocaleString('en-US')} ${cur}</b>
-📅 <b>الوقت:</b> ${formatServerDateTime(new Date())}
-<i>📎 مرفق أعلاه الجدول الكامل لكافة الزبائن وأرصدتهم.</i>`;
+`ðŸ“„ <b>ØªÙ‚Ø±ÙŠØ± Ø¯ÙŠÙˆÙ† ÙˆØ£Ø±ØµØ¯Ø© Ø§Ù„Ø²Ø¨Ø§Ø¦Ù† (Ù…Ù„Ù PDF Ø±Ø³Ù…ÙŠ ÙƒØ§Ù…Ù„)</b>
+ðŸ¢ <b>${settings.companyName || 'Ø±Ø§Ù…Ø² Ø¹Ø·Ø§Ø·Ø±Ø©'}</b>
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+ðŸ‘¥ <b>Ø¹Ø¯Ø¯ Ø§Ù„Ø²Ø¨Ø§Ø¦Ù†:</b> <b>${reportData.totalCount} Ø²Ø¨ÙˆÙ†</b>
+ðŸ”´ <b>Ø§Ù„Ø¯ÙŠÙˆÙ† Ø§Ù„ØªÙŠ Ø¹Ù„ÙŠÙ‡Ù…:</b> <b>${reportData.totalDebit.toLocaleString('en-US')} ${cur}</b>
+ðŸ”µ <b>Ø§Ù„Ø¯ÙŠÙˆÙ† Ø§Ù„ØªÙŠ Ù„Ù‡Ù…:</b> <b>${reportData.totalCredit.toLocaleString('en-US')} ${cur}</b>
+ðŸ“… <b>Ø§Ù„ÙˆÙ‚Øª:</b> ${formatServerDateTime(new Date())}
+<i>ðŸ“Ž Ù…Ø±ÙÙ‚ Ø£Ø¹Ù„Ø§Ù‡ Ø§Ù„Ø¬Ø¯ÙˆÙ„ Ø§Ù„ÙƒØ§Ù…Ù„ Ù„ÙƒØ§ÙØ© Ø§Ù„Ø²Ø¨Ø§Ø¦Ù† ÙˆØ£Ø±ØµØ¯ØªÙ‡Ù….</i>`;
 
       await telegramService.sendDocument(
         settings.telegramBotToken,
@@ -2226,25 +2226,25 @@ app.post('/api/customers/send-debts-report-telegram', pdfUpload.single('pdfFile'
       );
     }
 
-    res.json({ success: true, message: 'تم إرسال كشف ديون الزبائن وملف الـ PDF إلى تيليجرام بنجاح!' });
+    res.json({ success: true, message: 'ØªÙ… Ø¥Ø±Ø³Ø§Ù„ ÙƒØ´Ù Ø¯ÙŠÙˆÙ† Ø§Ù„Ø²Ø¨Ø§Ø¦Ù† ÙˆÙ…Ù„Ù Ø§Ù„Ù€ PDF Ø¥Ù„Ù‰ ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù… Ø¨Ù†Ø¬Ø§Ø­!' });
   } catch (err) {
     console.error('Send debts report error:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// إرسال التقرير المالي والأرباح كملف PDF لتيليجرام
+// Ø¥Ø±Ø³Ø§Ù„ Ø§Ù„ØªÙ‚Ø±ÙŠØ± Ø§Ù„Ù…Ø§Ù„ÙŠ ÙˆØ§Ù„Ø£Ø±Ø¨Ø§Ø­ ÙƒÙ…Ù„Ù PDF Ù„ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù…
 app.post('/api/financial-report/send-pdf-telegram', pdfUpload.single('pdfFile'), async (req, res) => {
   try {
     const settings = dataStore.getSettings();
     if (!settings.telegramBotToken || !settings.telegramChatId) {
-      return res.status(400).json({ success: false, error: 'لم يتم ضبط إعدادات تيليجرام بعد' });
+      return res.status(400).json({ success: false, error: 'Ù„Ù… ÙŠØªÙ… Ø¶Ø¨Ø· Ø¥Ø¹Ø¯Ø§Ø¯Ø§Øª ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù… Ø¨Ø¹Ø¯' });
     }
 
     const { periodTitle, totalSales, totalCost, totalProfit, profitMargin, invoiceCount } = req.body;
 
     const reportData = {
-      periodTitle: periodTitle || 'كامل الفترة',
+      periodTitle: periodTitle || 'ÙƒØ§Ù…Ù„ Ø§Ù„ÙØªØ±Ø©',
       totalSales: parseFloat(totalSales) || 0,
       totalCost: parseFloat(totalCost) || 0,
       totalProfit: parseFloat(totalProfit) || 0,
@@ -2252,22 +2252,22 @@ app.post('/api/financial-report/send-pdf-telegram', pdfUpload.single('pdfFile'),
       invoiceCount: parseInt(invoiceCount) || 0
     };
 
-    // 1. إرسال الرسالة النصية التلخيصية
+    // 1. Ø¥Ø±Ø³Ø§Ù„ Ø§Ù„Ø±Ø³Ø§Ù„Ø© Ø§Ù„Ù†ØµÙŠØ© Ø§Ù„ØªÙ„Ø®ÙŠØµÙŠØ©
     await telegramService.sendFinancialReportNotification(reportData, settings);
 
-    // 2. إرفاق ملف PDF
+    // 2. Ø¥Ø±ÙØ§Ù‚ Ù…Ù„Ù PDF
     if (req.file && req.file.buffer) {
-      const fileName = req.file.originalname || `تقرير_مالي_${Date.now()}.pdf`;
-      const cur = settings.currency || 'شيكل';
+      const fileName = req.file.originalname || `ØªÙ‚Ø±ÙŠØ±_Ù…Ø§Ù„ÙŠ_${Date.now()}.pdf`;
+      const cur = settings.currency || 'Ø´ÙŠÙƒÙ„';
       const caption = 
-`📄 <b>التقرير المالي والأرباح التنفيذي (ملف PDF رسمي)</b>
-🏢 <b>${settings.companyName || 'رامز عطاطرة'}</b>
-━━━━━━━━━━━━━━━━━━
-⏱️ <b>الفترة:</b> <b>${reportData.periodTitle}</b>
-💵 <b>إجمالي المبيعات:</b> <b>${reportData.totalSales.toLocaleString('en-US')} ${cur}</b>
-📈 <b>صافي الربح:</b> 🟢 <b>+${reportData.totalProfit.toLocaleString('en-US')} ${cur}</b> (${reportData.profitMargin}%)
-📅 <b>تاريخ الإصدار:</b> ${formatServerDateTime(new Date())}
-<i>📎 مرفق التقرير المالي الرسمي الشامل بصيغة PDF.</i>`;
+`ðŸ“„ <b>Ø§Ù„ØªÙ‚Ø±ÙŠØ± Ø§Ù„Ù…Ø§Ù„ÙŠ ÙˆØ§Ù„Ø£Ø±Ø¨Ø§Ø­ Ø§Ù„ØªÙ†ÙÙŠØ°ÙŠ (Ù…Ù„Ù PDF Ø±Ø³Ù…ÙŠ)</b>
+ðŸ¢ <b>${settings.companyName || 'Ø±Ø§Ù…Ø² Ø¹Ø·Ø§Ø·Ø±Ø©'}</b>
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+â±ï¸ <b>Ø§Ù„ÙØªØ±Ø©:</b> <b>${reportData.periodTitle}</b>
+ðŸ’µ <b>Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ù…Ø¨ÙŠØ¹Ø§Øª:</b> <b>${reportData.totalSales.toLocaleString('en-US')} ${cur}</b>
+ðŸ“ˆ <b>ØµØ§ÙÙŠ Ø§Ù„Ø±Ø¨Ø­:</b> ðŸŸ¢ <b>+${reportData.totalProfit.toLocaleString('en-US')} ${cur}</b> (${reportData.profitMargin}%)
+ðŸ“… <b>ØªØ§Ø±ÙŠØ® Ø§Ù„Ø¥ØµØ¯Ø§Ø±:</b> ${formatServerDateTime(new Date())}
+<i>ðŸ“Ž Ù…Ø±ÙÙ‚ Ø§Ù„ØªÙ‚Ø±ÙŠØ± Ø§Ù„Ù…Ø§Ù„ÙŠ Ø§Ù„Ø±Ø³Ù…ÙŠ Ø§Ù„Ø´Ø§Ù…Ù„ Ø¨ØµÙŠØºØ© PDF.</i>`;
 
       await telegramService.sendDocument(
         settings.telegramBotToken,
@@ -2279,65 +2279,65 @@ app.post('/api/financial-report/send-pdf-telegram', pdfUpload.single('pdfFile'),
       );
     }
 
-    res.json({ success: true, message: 'تم إرسال التقرير المالي وملف الـ PDF إلى تيليجرام بنجاح!' });
+    res.json({ success: true, message: 'ØªÙ… Ø¥Ø±Ø³Ø§Ù„ Ø§Ù„ØªÙ‚Ø±ÙŠØ± Ø§Ù„Ù…Ø§Ù„ÙŠ ÙˆÙ…Ù„Ù Ø§Ù„Ù€ PDF Ø¥Ù„Ù‰ ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù… Ø¨Ù†Ø¬Ø§Ø­!' });
   } catch (err) {
     console.error('Financial report send error:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// إرسال سند قبض مع ملف PDF لتيليجرام
+// Ø¥Ø±Ø³Ø§Ù„ Ø³Ù†Ø¯ Ù‚Ø¨Ø¶ Ù…Ø¹ Ù…Ù„Ù PDF Ù„ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù…
 app.post('/api/receipts/:id/send-pdf-telegram', pdfUpload.single('pdfFile'), async (req, res) => {
   try {
     const settings = dataStore.getSettings();
     if (!settings.telegramBotToken || !settings.telegramChatId) {
-      return res.status(400).json({ success: false, error: 'لم يتم ضبط إعدادات تيليجرام بعد' });
+      return res.status(400).json({ success: false, error: 'Ù„Ù… ÙŠØªÙ… Ø¶Ø¨Ø· Ø¥Ø¹Ø¯Ø§Ø¯Ø§Øª ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù… Ø¨Ø¹Ø¯' });
     }
 
     const receipts = dataStore.getReceipts();
     const receipt = receipts.find(r => r.id === req.params.id || String(r.receiptNumber) === String(req.params.id));
     if (!receipt) {
-      return res.status(404).json({ success: false, error: 'سند القبض غير موجود' });
+      return res.status(404).json({ success: false, error: 'Ø³Ù†Ø¯ Ø§Ù„Ù‚Ø¨Ø¶ ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯' });
     }
 
-    // 1. إرسال الرسالة النصية للسند
+    // 1. Ø¥Ø±Ø³Ø§Ù„ Ø§Ù„Ø±Ø³Ø§Ù„Ø© Ø§Ù„Ù†ØµÙŠØ© Ù„Ù„Ø³Ù†Ø¯
     await telegramService.sendReceiptNotification(receipt, settings);
 
-    // 2. إرفاق ملف PDF
+    // 2. Ø¥Ø±ÙØ§Ù‚ Ù…Ù„Ù PDF
     if (req.file && req.file.buffer) {
-      const cur = settings.currency || 'شيكل';
+      const cur = settings.currency || 'Ø´ÙŠÙƒÙ„';
       const isSupp = Boolean(receipt.isSupplier || receipt.accountType === 'supplier');
       const remBal = parseFloat(receipt.remainingBalance) || 0;
       let remText = '';
       if (isSupp) {
-        if (remBal > 0) remText = `⏳ <b>المتبقي له بذمتنا:</b> <b>${Number(remBal).toLocaleString('en-US')} ${cur}</b>`;
-        else if (remBal < 0) remText = `⏳ <b>المتبقي عليه لنا:</b> <b>${Number(Math.abs(remBal)).toLocaleString('en-US')} ${cur}</b>`;
-        else remText = `⏳ <b>الرصيد المتبقي:</b> <b>0 ${cur} (تم تسديد كامل الحساب)</b>`;
+        if (remBal > 0) remText = `â³ <b>Ø§Ù„Ù…ØªØ¨Ù‚ÙŠ Ù„Ù‡ Ø¨Ø°Ù…ØªÙ†Ø§:</b> <b>${Number(remBal).toLocaleString('en-US')} ${cur}</b>`;
+        else if (remBal < 0) remText = `â³ <b>Ø§Ù„Ù…ØªØ¨Ù‚ÙŠ Ø¹Ù„ÙŠÙ‡ Ù„Ù†Ø§:</b> <b>${Number(Math.abs(remBal)).toLocaleString('en-US')} ${cur}</b>`;
+        else remText = `â³ <b>Ø§Ù„Ø±ØµÙŠØ¯ Ø§Ù„Ù…ØªØ¨Ù‚ÙŠ:</b> <b>0 ${cur} (ØªÙ… ØªØ³Ø¯ÙŠØ¯ ÙƒØ§Ù…Ù„ Ø§Ù„Ø­Ø³Ø§Ø¨)</b>`;
       } else {
-        if (remBal > 0) remText = `⏳ <b>المبلغ المتبقي عليه:</b> <b>${Number(remBal).toLocaleString('en-US')} ${cur}</b>`;
-        else if (remBal < 0) remText = `⏳ <b>رصيد دائن للزبون:</b> <b>${Number(Math.abs(remBal)).toLocaleString('en-US')} ${cur}</b>`;
-        else remText = `⏳ <b>المبلغ المتبقي:</b> <b>0 ${cur} (تم السداد بالكامل)</b>`;
+        if (remBal > 0) remText = `â³ <b>Ø§Ù„Ù…Ø¨Ù„Øº Ø§Ù„Ù…ØªØ¨Ù‚ÙŠ Ø¹Ù„ÙŠÙ‡:</b> <b>${Number(remBal).toLocaleString('en-US')} ${cur}</b>`;
+        else if (remBal < 0) remText = `â³ <b>Ø±ØµÙŠØ¯ Ø¯Ø§Ø¦Ù† Ù„Ù„Ø²Ø¨ÙˆÙ†:</b> <b>${Number(Math.abs(remBal)).toLocaleString('en-US')} ${cur}</b>`;
+        else remText = `â³ <b>Ø§Ù„Ù…Ø¨Ù„Øº Ø§Ù„Ù…ØªØ¨Ù‚ÙŠ:</b> <b>0 ${cur} (ØªÙ… Ø§Ù„Ø³Ø¯Ø§Ø¯ Ø¨Ø§Ù„ÙƒØ§Ù…Ù„)</b>`;
       }
 
-      const fileName = req.file.originalname || (isSupp ? `سند_صرف_${receipt.receiptNumber}.pdf` : `سند_قبض_${receipt.receiptNumber}.pdf`);
+      const fileName = req.file.originalname || (isSupp ? `Ø³Ù†Ø¯_ØµØ±Ù_${receipt.receiptNumber}.pdf` : `Ø³Ù†Ø¯_Ù‚Ø¨Ø¶_${receipt.receiptNumber}.pdf`);
       const caption = isSupp ?
-`📄 <b>سند صرف لمورد معتمد #${receipt.receiptNumber} (ملف PDF رسمي)</b>
-🏢 <b>${settings.companyName || 'رامز عطاطرة'}</b>
-━━━━━━━━━━━━━━━━━━
-🏢 <b>المورد:</b> ${receipt.customerName}
-💵 <b>المبلغ المصروف:</b> 🔴 <b>${Number(receipt.amount || 0).toLocaleString('en-US')} ${cur}</b>
+`ðŸ“„ <b>Ø³Ù†Ø¯ ØµØ±Ù Ù„Ù…ÙˆØ±Ø¯ Ù…Ø¹ØªÙ…Ø¯ #${receipt.receiptNumber} (Ù…Ù„Ù PDF Ø±Ø³Ù…ÙŠ)</b>
+ðŸ¢ <b>${settings.companyName || 'Ø±Ø§Ù…Ø² Ø¹Ø·Ø§Ø·Ø±Ø©'}</b>
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+ðŸ¢ <b>Ø§Ù„Ù…ÙˆØ±Ø¯:</b> ${receipt.customerName}
+ðŸ’µ <b>Ø§Ù„Ù…Ø¨Ù„Øº Ø§Ù„Ù…ØµØ±ÙˆÙ:</b> ðŸ”´ <b>${Number(receipt.amount || 0).toLocaleString('en-US')} ${cur}</b>
 ${remText}
-📅 <b>التاريخ:</b> ${formatServerDateTime(receipt.createdAt)}
-<i>📎 مرفق أعلاه ملف سند الصرف الرسمي المعتمد بصيغة PDF.</i>`
+ðŸ“… <b>Ø§Ù„ØªØ§Ø±ÙŠØ®:</b> ${formatServerDateTime(receipt.createdAt)}
+<i>ðŸ“Ž Ù…Ø±ÙÙ‚ Ø£Ø¹Ù„Ø§Ù‡ Ù…Ù„Ù Ø³Ù†Ø¯ Ø§Ù„ØµØ±Ù Ø§Ù„Ø±Ø³Ù…ÙŠ Ø§Ù„Ù…Ø¹ØªÙ…Ø¯ Ø¨ØµÙŠØºØ© PDF.</i>`
 :
-`📄 <b>سند قبض مالي معتمد #${receipt.receiptNumber} (ملف PDF رسمي)</b>
-🏢 <b>${settings.companyName || 'رامز عطاطرة'}</b>
-━━━━━━━━━━━━━━━━━━
-👤 <b>الزبون:</b> ${receipt.customerName}
-💰 <b>المبلغ المقبوض:</b> 🟢 <b>${Number(receipt.amount || 0).toLocaleString('en-US')} ${cur}</b>
+`ðŸ“„ <b>Ø³Ù†Ø¯ Ù‚Ø¨Ø¶ Ù…Ø§Ù„ÙŠ Ù…Ø¹ØªÙ…Ø¯ #${receipt.receiptNumber} (Ù…Ù„Ù PDF Ø±Ø³Ù…ÙŠ)</b>
+ðŸ¢ <b>${settings.companyName || 'Ø±Ø§Ù…Ø² Ø¹Ø·Ø§Ø·Ø±Ø©'}</b>
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+ðŸ‘¤ <b>Ø§Ù„Ø²Ø¨ÙˆÙ†:</b> ${receipt.customerName}
+ðŸ’° <b>Ø§Ù„Ù…Ø¨Ù„Øº Ø§Ù„Ù…Ù‚Ø¨ÙˆØ¶:</b> ðŸŸ¢ <b>${Number(receipt.amount || 0).toLocaleString('en-US')} ${cur}</b>
 ${remText}
-📅 <b>التاريخ:</b> ${formatServerDateTime(receipt.createdAt)}
-<i>📎 مرفق أعلاه ملف سند القبض الرسمي المعتمد بصيغة PDF.</i>`;
+ðŸ“… <b>Ø§Ù„ØªØ§Ø±ÙŠØ®:</b> ${formatServerDateTime(receipt.createdAt)}
+<i>ðŸ“Ž Ù…Ø±ÙÙ‚ Ø£Ø¹Ù„Ø§Ù‡ Ù…Ù„Ù Ø³Ù†Ø¯ Ø§Ù„Ù‚Ø¨Ø¶ Ø§Ù„Ø±Ø³Ù…ÙŠ Ø§Ù„Ù…Ø¹ØªÙ…Ø¯ Ø¨ØµÙŠØºØ© PDF.</i>`;
 
       await telegramService.sendDocument(
         settings.telegramBotToken,
@@ -2349,14 +2349,14 @@ ${remText}
       );
     }
 
-    res.json({ success: true, message: `تم إرسال سند القبض #${receipt.receiptNumber} وملف الـ PDF لتيليجرام بنجاح!` });
+    res.json({ success: true, message: `ØªÙ… Ø¥Ø±Ø³Ø§Ù„ Ø³Ù†Ø¯ Ø§Ù„Ù‚Ø¨Ø¶ #${receipt.receiptNumber} ÙˆÙ…Ù„Ù Ø§Ù„Ù€ PDF Ù„ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù… Ø¨Ù†Ø¬Ø§Ø­!` });
   } catch (err) {
     console.error('Receipt send error:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// حذف زبون
+// Ø­Ø°Ù Ø²Ø¨ÙˆÙ†
 app.delete('/api/customers/:id', async (req, res) => {
   try {
     const deleted = await dataStore.deleteCustomer(req.params.id);
@@ -2366,12 +2366,12 @@ app.delete('/api/customers/:id', async (req, res) => {
   }
 });
 
-// إرسال تذكير استحقاق دفعة مالية لزبون عبر تيليجرام مع مرفق PDF اختياري
+// Ø¥Ø±Ø³Ø§Ù„ ØªØ°ÙƒÙŠØ± Ø§Ø³ØªØ­Ù‚Ø§Ù‚ Ø¯ÙØ¹Ø© Ù…Ø§Ù„ÙŠØ© Ù„Ø²Ø¨ÙˆÙ† Ø¹Ø¨Ø± ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù… Ù…Ø¹ Ù…Ø±ÙÙ‚ PDF Ø§Ø®ØªÙŠØ§Ø±ÙŠ
 app.post('/api/customers/:id/send-reminder-telegram', pdfUpload.single('pdfFile'), async (req, res) => {
   try {
     const settings = dataStore.getSettings();
     if (!settings.telegramBotToken || !settings.telegramChatId) {
-      return res.status(400).json({ success: false, error: 'لم يتم ضبط إعدادات تيليجرام (Bot Token أو Chat ID) بعد' });
+      return res.status(400).json({ success: false, error: 'Ù„Ù… ÙŠØªÙ… Ø¶Ø¨Ø· Ø¥Ø¹Ø¯Ø§Ø¯Ø§Øª ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù… (Bot Token Ø£Ùˆ Chat ID) Ø¨Ø¹Ø¯' });
     }
 
     const customers = dataStore.getCustomers();
@@ -2379,15 +2379,15 @@ app.post('/api/customers/:id/send-reminder-telegram', pdfUpload.single('pdfFile'
     const customer = customers.find(c => String(c.id).trim() === strId || String(c.systemNumber || '').trim() === strId);
 
     if (!customer) {
-      return res.status(404).json({ success: false, error: 'الزبون غير موجود في النظام' });
+      return res.status(404).json({ success: false, error: 'Ø§Ù„Ø²Ø¨ÙˆÙ† ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯ ÙÙŠ Ø§Ù„Ù†Ø¸Ø§Ù…' });
     }
 
     const debt = parseFloat(customer.balance) || 0;
     if (debt <= 0) {
-      return res.status(400).json({ success: false, error: 'الزبون ليس عليه أي ديون مستحقة (رصيده مسدد بالكامل)' });
+      return res.status(400).json({ success: false, error: 'Ø§Ù„Ø²Ø¨ÙˆÙ† Ù„ÙŠØ³ Ø¹Ù„ÙŠÙ‡ Ø£ÙŠ Ø¯ÙŠÙˆÙ† Ù…Ø³ØªØ­Ù‚Ø© (Ø±ØµÙŠØ¯Ù‡ Ù…Ø³Ø¯Ø¯ Ø¨Ø§Ù„ÙƒØ§Ù…Ù„)' });
     }
 
-    // جلب آخر سند قبض مسجل للزبون
+    // Ø¬Ù„Ø¨ Ø¢Ø®Ø± Ø³Ù†Ø¯ Ù‚Ø¨Ø¶ Ù…Ø³Ø¬Ù„ Ù„Ù„Ø²Ø¨ÙˆÙ†
     const receipts = dataStore.getReceipts();
     const custReceipts = receipts.filter(r => 
       (customer.id && r.customerId === customer.id) ||
@@ -2405,7 +2405,7 @@ app.post('/api/customers/:id/send-reminder-telegram', pdfUpload.single('pdfFile'
       daysSinceLastReceipt = Math.floor((Date.now() - new Date(customer.createdAt || Date.now()).getTime()) / (1000 * 60 * 60 * 24));
     }
 
-    // 1. إرسال الرسالة النصية التوضيحية
+    // 1. Ø¥Ø±Ø³Ø§Ù„ Ø§Ù„Ø±Ø³Ø§Ù„Ø© Ø§Ù„Ù†ØµÙŠØ© Ø§Ù„ØªÙˆØ¶ÙŠØ­ÙŠØ©
     const textResult = await telegramService.sendCustomerReminderNotification({
       customer,
       debt,
@@ -2414,15 +2414,15 @@ app.post('/api/customers/:id/send-reminder-telegram', pdfUpload.single('pdfFile'
       settings
     });
 
-    // 2. إذا تم إرسال ملف PDF لكشف الحساب، يتم إرفاقه
+    // 2. Ø¥Ø°Ø§ ØªÙ… Ø¥Ø±Ø³Ø§Ù„ Ù…Ù„Ù PDF Ù„ÙƒØ´Ù Ø§Ù„Ø­Ø³Ø§Ø¨ØŒ ÙŠØªÙ… Ø¥Ø±ÙØ§Ù‚Ù‡
     if (req.file && req.file.buffer) {
-      const fileName = req.file.originalname || `كشف_حساب_${customer.name.replace(/\s+/g, '_')}.pdf`;
-      const cur = settings.currency || 'شيكل';
+      const fileName = req.file.originalname || `ÙƒØ´Ù_Ø­Ø³Ø§Ø¨_${customer.name.replace(/\s+/g, '_')}.pdf`;
+      const cur = settings.currency || 'Ø´ÙŠÙƒÙ„';
       const caption = 
-`📄 <b>كشف حساب وإشعار استحقاق دفعة (ملف PDF رسمي)</b>
-👤 <b>الزبون:</b> ${customer.name} (حساب #${customer.systemNumber || '--'})
-💰 <b>الدين المستحق:</b> ${debt.toLocaleString('en-US')} ${cur}
-⏳ <b>آخر دفعة:</b> ${lastReceipt ? `منذ ${daysSinceLastReceipt} يوماً` : 'لا يوجد سداد سابق'}`;
+`ðŸ“„ <b>ÙƒØ´Ù Ø­Ø³Ø§Ø¨ ÙˆØ¥Ø´Ø¹Ø§Ø± Ø§Ø³ØªØ­Ù‚Ø§Ù‚ Ø¯ÙØ¹Ø© (Ù…Ù„Ù PDF Ø±Ø³Ù…ÙŠ)</b>
+ðŸ‘¤ <b>Ø§Ù„Ø²Ø¨ÙˆÙ†:</b> ${customer.name} (Ø­Ø³Ø§Ø¨ #${customer.systemNumber || '--'})
+ðŸ’° <b>Ø§Ù„Ø¯ÙŠÙ† Ø§Ù„Ù…Ø³ØªØ­Ù‚:</b> ${debt.toLocaleString('en-US')} ${cur}
+â³ <b>Ø¢Ø®Ø± Ø¯ÙØ¹Ø©:</b> ${lastReceipt ? `Ù…Ù†Ø° ${daysSinceLastReceipt} ÙŠÙˆÙ…Ø§Ù‹` : 'Ù„Ø§ ÙŠÙˆØ¬Ø¯ Ø³Ø¯Ø§Ø¯ Ø³Ø§Ø¨Ù‚'}`;
 
       await telegramService.sendDocument(
         settings.telegramBotToken,
@@ -2436,7 +2436,7 @@ app.post('/api/customers/:id/send-reminder-telegram', pdfUpload.single('pdfFile'
 
     res.json({
       success: true,
-      message: `تم إرسال تذكير استحقاق الدفعة للزبون "${customer.name}" عبر تيليجرام بنجاح!`
+      message: `ØªÙ… Ø¥Ø±Ø³Ø§Ù„ ØªØ°ÙƒÙŠØ± Ø§Ø³ØªØ­Ù‚Ø§Ù‚ Ø§Ù„Ø¯ÙØ¹Ø© Ù„Ù„Ø²Ø¨ÙˆÙ† "${customer.name}" Ø¹Ø¨Ø± ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù… Ø¨Ù†Ø¬Ø§Ø­!`
     });
   } catch (err) {
     console.error('Error sending customer reminder:', err);
@@ -2445,7 +2445,7 @@ app.post('/api/customers/:id/send-reminder-telegram', pdfUpload.single('pdfFile'
 });
 
 
-// حذف سند قبض
+// Ø­Ø°Ù Ø³Ù†Ø¯ Ù‚Ø¨Ø¶
 app.delete('/api/receipts/:id', async (req, res) => {
   try {
     const deleted = await dataStore.deleteReceipt(req.params.id);
@@ -2456,47 +2456,47 @@ app.delete('/api/receipts/:id', async (req, res) => {
 });
 
 // -------------------------------------------------------------
-// APIs: إعادة تعيين بيانات المبيعات والإحصائيات
+// APIs: Ø¥Ø¹Ø§Ø¯Ø© ØªØ¹ÙŠÙŠÙ† Ø¨ÙŠØ§Ù†Ø§Øª Ø§Ù„Ù…Ø¨ÙŠØ¹Ø§Øª ÙˆØ§Ù„Ø¥Ø­ØµØ§Ø¦ÙŠØ§Øª
 // -------------------------------------------------------------
 
-// إعادة تعيين جميع الفواتير وسندات القبض (مع الاحتفاظ بالمنتجات والإعدادات)
+// Ø¥Ø¹Ø§Ø¯Ø© ØªØ¹ÙŠÙŠÙ† Ø¬Ù…ÙŠØ¹ Ø§Ù„ÙÙˆØ§ØªÙŠØ± ÙˆØ³Ù†Ø¯Ø§Øª Ø§Ù„Ù‚Ø¨Ø¶ (Ù…Ø¹ Ø§Ù„Ø§Ø­ØªÙØ§Ø¸ Ø¨Ø§Ù„Ù…Ù†ØªØ¬Ø§Øª ÙˆØ§Ù„Ø¥Ø¹Ø¯Ø§Ø¯Ø§Øª)
 app.post('/api/reset-sales', (req, res) => {
   try {
     const { confirmPhrase } = req.body;
 
-    // كلمة تأكيد إضافية للحماية
-    if (confirmPhrase !== 'تأكيد الحذف') {
-      return res.status(400).json({ success: false, error: 'عبارة التأكيد غير صحيحة' });
+    // ÙƒÙ„Ù…Ø© ØªØ£ÙƒÙŠØ¯ Ø¥Ø¶Ø§ÙÙŠØ© Ù„Ù„Ø­Ù…Ø§ÙŠØ©
+    if (confirmPhrase !== 'ØªØ£ÙƒÙŠØ¯ Ø§Ù„Ø­Ø°Ù') {
+      return res.status(400).json({ success: false, error: 'Ø¹Ø¨Ø§Ø±Ø© Ø§Ù„ØªØ£ÙƒÙŠØ¯ ØºÙŠØ± ØµØ­ÙŠØ­Ø©' });
     }
 
     const INVOICES_FILE = path.join(__dirname, 'data', 'invoices.json');
     const RECEIPTS_FILE = path.join(__dirname, 'data', 'receipts.json');
 
-    // مسح جميع الفواتير
+    // Ù…Ø³Ø­ Ø¬Ù…ÙŠØ¹ Ø§Ù„ÙÙˆØ§ØªÙŠØ±
     fs.writeFileSync(INVOICES_FILE, JSON.stringify([], null, 2), 'utf-8');
-    // مسح جميع سندات القبض
+    // Ù…Ø³Ø­ Ø¬Ù…ÙŠØ¹ Ø³Ù†Ø¯Ø§Øª Ø§Ù„Ù‚Ø¨Ø¶
     fs.writeFileSync(RECEIPTS_FILE, JSON.stringify([], null, 2), 'utf-8');
 
-    // مسح من Supabase أيضاً في السحابة
+    // Ù…Ø³Ø­ Ù…Ù† Supabase Ø£ÙŠØ¶Ø§Ù‹ ÙÙŠ Ø§Ù„Ø³Ø­Ø§Ø¨Ø©
     const { supabase } = require('./supabaseClient');
     if (supabase) {
       supabase.from('invoices').delete().neq('id', '___non_existent___').then(() => {});
       supabase.from('receipts').delete().neq('id', '___non_existent___').then(() => {});
     }
 
-    console.log(`⚠️ تم إعادة تعيين جميع بيانات المبيعات والإحصائيات في: ${formatServerDateTime(new Date())}`);
+    console.log(`âš ï¸ ØªÙ… Ø¥Ø¹Ø§Ø¯Ø© ØªØ¹ÙŠÙŠÙ† Ø¬Ù…ÙŠØ¹ Ø¨ÙŠØ§Ù†Ø§Øª Ø§Ù„Ù…Ø¨ÙŠØ¹Ø§Øª ÙˆØ§Ù„Ø¥Ø­ØµØ§Ø¦ÙŠØ§Øª ÙÙŠ: ${formatServerDateTime(new Date())}`);
 
-    res.json({ success: true, message: 'تم إعادة تعيين جميع بيانات المبيعات وسندات القبض بنجاح. المنتجات والإعدادات محفوظة.' });
+    res.json({ success: true, message: 'ØªÙ… Ø¥Ø¹Ø§Ø¯Ø© ØªØ¹ÙŠÙŠÙ† Ø¬Ù…ÙŠØ¹ Ø¨ÙŠØ§Ù†Ø§Øª Ø§Ù„Ù…Ø¨ÙŠØ¹Ø§Øª ÙˆØ³Ù†Ø¯Ø§Øª Ø§Ù„Ù‚Ø¨Ø¶ Ø¨Ù†Ø¬Ø§Ø­. Ø§Ù„Ù…Ù†ØªØ¬Ø§Øª ÙˆØ§Ù„Ø¥Ø¹Ø¯Ø§Ø¯Ø§Øª Ù…Ø­ÙÙˆØ¸Ø©.' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
 // -------------------------------------------------------------
-// APIs: النسخ الاحتياطي وحماية البيانات (Backup & Restore)
+// APIs: Ø§Ù„Ù†Ø³Ø® Ø§Ù„Ø§Ø­ØªÙŠØ§Ø·ÙŠ ÙˆØ­Ù…Ø§ÙŠØ© Ø§Ù„Ø¨ÙŠØ§Ù†Ø§Øª (Backup & Restore)
 // -------------------------------------------------------------
 
-// جلب قائمة ملفات النسخ الاحتياطي
+// Ø¬Ù„Ø¨ Ù‚Ø§Ø¦Ù…Ø© Ù…Ù„ÙØ§Øª Ø§Ù„Ù†Ø³Ø® Ø§Ù„Ø§Ø­ØªÙŠØ§Ø·ÙŠ
 app.get('/api/backups', (req, res) => {
   try {
     const list = dataStore.getBackupList();
@@ -2506,24 +2506,24 @@ app.get('/api/backups', (req, res) => {
   }
 });
 
-// إنشاء نسخة احتياطية جديدة
+// Ø¥Ù†Ø´Ø§Ø¡ Ù†Ø³Ø®Ø© Ø§Ø­ØªÙŠØ§Ø·ÙŠØ© Ø¬Ø¯ÙŠØ¯Ø©
 app.post('/api/backups/create', (req, res) => {
   try {
     const label = req.body?.label || req.query?.label || 'manual';
     const result = dataStore.createBackup(label);
-    res.json({ success: true, backup: result, message: 'تم إنشاء النسخة الاحتياطية بنجاح!' });
+    res.json({ success: true, backup: result, message: 'ØªÙ… Ø¥Ù†Ø´Ø§Ø¡ Ø§Ù„Ù†Ø³Ø®Ø© Ø§Ù„Ø§Ø­ØªÙŠØ§Ø·ÙŠØ© Ø¨Ù†Ø¬Ø§Ø­!' });
   } catch (err) {
     console.error('Backup create error:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// تحميل ملف النسخة الاحتياطية
+// ØªØ­Ù…ÙŠÙ„ Ù…Ù„Ù Ø§Ù„Ù†Ø³Ø®Ø© Ø§Ù„Ø§Ø­ØªÙŠØ§Ø·ÙŠØ©
 app.get('/api/backups/download/:filename', (req, res) => {
   try {
     const filePath = dataStore.getBackupFilePath(req.params.filename);
     if (!filePath) {
-      return res.status(404).json({ success: false, error: 'ملف النسخة الاحتياطية غير موجود' });
+      return res.status(404).json({ success: false, error: 'Ù…Ù„Ù Ø§Ù„Ù†Ø³Ø®Ø© Ø§Ù„Ø§Ø­ØªÙŠØ§Ø·ÙŠØ© ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯' });
     }
     res.download(filePath, req.params.filename);
   } catch (err) {
@@ -2531,28 +2531,28 @@ app.get('/api/backups/download/:filename', (req, res) => {
   }
 });
 
-// إرسال النسخة الاحتياطية فوراً لتيليجرام
+// Ø¥Ø±Ø³Ø§Ù„ Ø§Ù„Ù†Ø³Ø®Ø© Ø§Ù„Ø§Ø­ØªÙŠØ§Ø·ÙŠØ© ÙÙˆØ±Ø§Ù‹ Ù„ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù…
 app.post('/api/backups/send-telegram', async (req, res) => {
   try {
     const settings = dataStore.getSettings();
     if (!settings.telegramBotToken || !settings.telegramChatId) {
-      return res.status(400).json({ success: false, error: 'لم يتم ضبط إعدادات تيليجرام بعد' });
+      return res.status(400).json({ success: false, error: 'Ù„Ù… ÙŠØªÙ… Ø¶Ø¨Ø· Ø¥Ø¹Ø¯Ø§Ø¯Ø§Øª ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù… Ø¨Ø¹Ø¯' });
     }
 
     const backup = dataStore.createBackup('telegram_cloud');
     const buffer = fs.readFileSync(backup.filePath);
 
     const caption = 
-`📦 <b>نسخة احتياطية شاملة للنظام (Cloud Backup)</b>
-🏢 <b>${settings.companyName || 'شركة أبو رامز'}</b>
-━━━━━━━━━━━━━━━━━━
-📅 <b>الوقت:</b> ${formatServerDateTime(new Date())}
-📦 <b>الأصناف:</b> <b>${backup.counts.products} صنف</b>
-🧾 <b>الفواتير:</b> <b>${backup.counts.invoices} فاتورة</b>
-👥 <b>الزبائن:</b> <b>${backup.counts.customers} زبون</b>
-💰 <b>سندات القبض:</b> <b>${backup.counts.receipts} سند</b>
-━━━━━━━━━━━━━━━━━━
-<i>🔒 احتفظ بهذا الملف بأمان، يتيح لك استرجاع كامل بيانات المتجر في أي وقت بنقرة زر.</i>`;
+`ðŸ“¦ <b>Ù†Ø³Ø®Ø© Ø§Ø­ØªÙŠØ§Ø·ÙŠØ© Ø´Ø§Ù…Ù„Ø© Ù„Ù„Ù†Ø¸Ø§Ù… (Cloud Backup)</b>
+ðŸ¢ <b>${settings.companyName || 'Ø´Ø±ÙƒØ© Ø£Ø¨Ùˆ Ø±Ø§Ù…Ø²'}</b>
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+ðŸ“… <b>Ø§Ù„ÙˆÙ‚Øª:</b> ${formatServerDateTime(new Date())}
+ðŸ“¦ <b>Ø§Ù„Ø£ØµÙ†Ø§Ù:</b> <b>${backup.counts.products} ØµÙ†Ù</b>
+ðŸ§¾ <b>Ø§Ù„ÙÙˆØ§ØªÙŠØ±:</b> <b>${backup.counts.invoices} ÙØ§ØªÙˆØ±Ø©</b>
+ðŸ‘¥ <b>Ø§Ù„Ø²Ø¨Ø§Ø¦Ù†:</b> <b>${backup.counts.customers} Ø²Ø¨ÙˆÙ†</b>
+ðŸ’° <b>Ø³Ù†Ø¯Ø§Øª Ø§Ù„Ù‚Ø¨Ø¶:</b> <b>${backup.counts.receipts} Ø³Ù†Ø¯</b>
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+<i>ðŸ”’ Ø§Ø­ØªÙØ¸ Ø¨Ù‡Ø°Ø§ Ø§Ù„Ù…Ù„Ù Ø¨Ø£Ù…Ø§Ù†ØŒ ÙŠØªÙŠØ­ Ù„Ùƒ Ø§Ø³ØªØ±Ø¬Ø§Ø¹ ÙƒØ§Ù…Ù„ Ø¨ÙŠØ§Ù†Ø§Øª Ø§Ù„Ù…ØªØ¬Ø± ÙÙŠ Ø£ÙŠ ÙˆÙ‚Øª Ø¨Ù†Ù‚Ø±Ø© Ø²Ø±.</i>`;
 
     const result = await telegramService.sendDocument(
       settings.telegramBotToken,
@@ -2564,9 +2564,9 @@ app.post('/api/backups/send-telegram', async (req, res) => {
     );
 
     if (result.ok) {
-      res.json({ success: true, message: 'تم إرسال النسخة الاحتياطية لتيليجرام بنجاح!' });
+      res.json({ success: true, message: 'ØªÙ… Ø¥Ø±Ø³Ø§Ù„ Ø§Ù„Ù†Ø³Ø®Ø© Ø§Ù„Ø§Ø­ØªÙŠØ§Ø·ÙŠØ© Ù„ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù… Ø¨Ù†Ø¬Ø§Ø­!' });
     } else {
-      res.status(500).json({ success: false, error: result.error || 'تعذر الإرسال لتيليجرام' });
+      res.status(500).json({ success: false, error: result.error || 'ØªØ¹Ø°Ø± Ø§Ù„Ø¥Ø±Ø³Ø§Ù„ Ù„ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù…' });
     }
   } catch (err) {
     console.error('Send backup to telegram error:', err);
@@ -2574,7 +2574,7 @@ app.post('/api/backups/send-telegram', async (req, res) => {
   }
 });
 
-// استعادة نسخة احتياطية
+// Ø§Ø³ØªØ¹Ø§Ø¯Ø© Ù†Ø³Ø®Ø© Ø§Ø­ØªÙŠØ§Ø·ÙŠØ©
 app.post('/api/backups/restore', pdfUpload.single('backupFile'), (req, res) => {
   try {
     let payload = null;
@@ -2587,35 +2587,35 @@ app.post('/api/backups/restore', pdfUpload.single('backupFile'), (req, res) => {
     } else if (req.body && req.body.filename) {
       const filePath = dataStore.getBackupFilePath(req.body.filename);
       if (!filePath) {
-        return res.status(404).json({ success: false, error: 'الملف غير موجود' });
+        return res.status(404).json({ success: false, error: 'Ø§Ù„Ù…Ù„Ù ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯' });
       }
       payload = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
     }
 
     if (!payload || !payload.data) {
-      return res.status(400).json({ success: false, error: 'ملف النسخة الاحتياطية غير صالح أو تالف' });
+      return res.status(400).json({ success: false, error: 'Ù…Ù„Ù Ø§Ù„Ù†Ø³Ø®Ø© Ø§Ù„Ø§Ø­ØªÙŠØ§Ø·ÙŠØ© ØºÙŠØ± ØµØ§Ù„Ø­ Ø£Ùˆ ØªØ§Ù„Ù' });
     }
 
     const restoreResult = dataStore.restoreBackup(payload);
-    console.log(`✅ تم استعادة نسخة احتياطية بنجاح في: ${formatServerDateTime(new Date())}`);
+    console.log(`âœ… ØªÙ… Ø§Ø³ØªØ¹Ø§Ø¯Ø© Ù†Ø³Ø®Ø© Ø§Ø­ØªÙŠØ§Ø·ÙŠØ© Ø¨Ù†Ø¬Ø§Ø­ ÙÙŠ: ${formatServerDateTime(new Date())}`);
 
     res.json({
       success: true,
-      message: 'تم استعادة النسخة الاحتياطية بنجاح!',
+      message: 'ØªÙ… Ø§Ø³ØªØ¹Ø§Ø¯Ø© Ø§Ù„Ù†Ø³Ø®Ø© Ø§Ù„Ø§Ø­ØªÙŠØ§Ø·ÙŠØ© Ø¨Ù†Ø¬Ø§Ø­!',
       counts: restoreResult.counts
     });
   } catch (err) {
     console.error('Restore backup error:', err);
-    res.status(400).json({ success: false, error: 'فشل استعادة النسخة: ' + err.message });
+    res.status(400).json({ success: false, error: 'ÙØ´Ù„ Ø§Ø³ØªØ¹Ø§Ø¯Ø© Ø§Ù„Ù†Ø³Ø®Ø©: ' + err.message });
   }
 });
 
 // -------------------------------------------------------------
-// APIs: إدارة وتصنيف الماركات الذكي (Smart Brand Classification)
+// APIs: Ø¥Ø¯Ø§Ø±Ø© ÙˆØªØµÙ†ÙŠÙ Ø§Ù„Ù…Ø§Ø±ÙƒØ§Øª Ø§Ù„Ø°ÙƒÙŠ (Smart Brand Classification)
 // -------------------------------------------------------------
 const brandClassifier = require('./brandClassifier');
 
-// جلب التدقيق الكامل لجميع الأصناف والماركات
+// Ø¬Ù„Ø¨ Ø§Ù„ØªØ¯Ù‚ÙŠÙ‚ Ø§Ù„ÙƒØ§Ù…Ù„ Ù„Ø¬Ù…ÙŠØ¹ Ø§Ù„Ø£ØµÙ†Ø§Ù ÙˆØ§Ù„Ù…Ø§Ø±ÙƒØ§Øª
 app.get('/api/brands-classification/audit', (req, res) => {
   try {
     const products = dataStore.getProducts();
@@ -2628,7 +2628,7 @@ app.get('/api/brands-classification/audit', (req, res) => {
   }
 });
 
-// فحص تعارض الماركة عند إضافة أو تعديل منتج (Real-time conflict detection)
+// ÙØ­Øµ ØªØ¹Ø§Ø±Ø¶ Ø§Ù„Ù…Ø§Ø±ÙƒØ© Ø¹Ù†Ø¯ Ø¥Ø¶Ø§ÙØ© Ø£Ùˆ ØªØ¹Ø¯ÙŠÙ„ Ù…Ù†ØªØ¬ (Real-time conflict detection)
 app.post('/api/brands-classification/check-conflict', (req, res) => {
   try {
     const { name, model, brand } = req.body;
@@ -2649,7 +2649,7 @@ app.post('/api/brands-classification/check-conflict', (req, res) => {
   }
 });
 
-// تطبيق التغييرات المعتمدة على الماركات
+// ØªØ·Ø¨ÙŠÙ‚ Ø§Ù„ØªØºÙŠÙŠØ±Ø§Øª Ø§Ù„Ù…Ø¹ØªÙ…Ø¯Ø© Ø¹Ù„Ù‰ Ø§Ù„Ù…Ø§Ø±ÙƒØ§Øª
 app.post('/api/brands-classification/apply', async (req, res) => {
   try {
     const { items, allHighConfidence, editorName } = req.body;
@@ -2664,27 +2664,27 @@ app.post('/api/brands-classification/apply', async (req, res) => {
     } else if (Array.isArray(items)) {
       itemsToUpdate = items;
     } else {
-      return res.status(400).json({ success: false, error: 'لم يتم تحديد أي أصناف للتحديث' });
+      return res.status(400).json({ success: false, error: 'Ù„Ù… ÙŠØªÙ… ØªØ­Ø¯ÙŠØ¯ Ø£ÙŠ Ø£ØµÙ†Ø§Ù Ù„Ù„ØªØ­Ø¯ÙŠØ«' });
     }
 
     if (itemsToUpdate.length === 0) {
-      return res.json({ success: true, updatedCount: 0, message: 'لا توجد أصناف مؤهلة للتحديث' });
+      return res.json({ success: true, updatedCount: 0, message: 'Ù„Ø§ ØªÙˆØ¬Ø¯ Ø£ØµÙ†Ø§Ù Ù…Ø¤Ù‡Ù„Ø© Ù„Ù„ØªØ­Ø¯ÙŠØ«' });
     }
 
-    const result = brandClassifier.applyBrandChanges(productsPath, itemsToUpdate, editorName || 'مدير النظام');
+    const result = brandClassifier.applyBrandChanges(productsPath, itemsToUpdate, editorName || 'Ù…Ø¯ÙŠØ± Ø§Ù„Ù†Ø¸Ø§Ù…');
 
-    // حفظ سحابي دائم ومباشر في Supabase عبر dataStore
+    // Ø­ÙØ¸ Ø³Ø­Ø§Ø¨ÙŠ Ø¯Ø§Ø¦Ù… ÙˆÙ…Ø¨Ø§Ø´Ø± ÙÙŠ Supabase Ø¹Ø¨Ø± dataStore
     const brandUpdates = itemsToUpdate.map(u => ({
       code: u.code,
       brand: u.proposedBrand,
       brandAr: u.proposedBrandAr
     }));
-    await dataStore.bulkUpdateBrands(brandUpdates, editorName || 'مدير النظام');
+    await dataStore.bulkUpdateBrands(brandUpdates, editorName || 'Ù…Ø¯ÙŠØ± Ø§Ù„Ù†Ø¸Ø§Ù…');
 
     res.json({
       success: true,
       ...result,
-      message: `تم بنجاح تحديث ماركات ${result.updatedCount} صنف وحفظها في قاعدة بيانات Supabase بشكل دائم.`
+      message: `ØªÙ… Ø¨Ù†Ø¬Ø§Ø­ ØªØ­Ø¯ÙŠØ« Ù…Ø§Ø±ÙƒØ§Øª ${result.updatedCount} ØµÙ†Ù ÙˆØ­ÙØ¸Ù‡Ø§ ÙÙŠ Ù‚Ø§Ø¹Ø¯Ø© Ø¨ÙŠØ§Ù†Ø§Øª Supabase Ø¨Ø´ÙƒÙ„ Ø¯Ø§Ø¦Ù….`
     });
   } catch (err) {
     console.error('Apply brand changes error:', err);
@@ -2692,7 +2692,7 @@ app.post('/api/brands-classification/apply', async (req, res) => {
   }
 });
 
-// التراجع عن آخر عملية تعديل للماركات
+// Ø§Ù„ØªØ±Ø§Ø¬Ø¹ Ø¹Ù† Ø¢Ø®Ø± Ø¹Ù…Ù„ÙŠØ© ØªØ¹Ø¯ÙŠÙ„ Ù„Ù„Ù…Ø§Ø±ÙƒØ§Øª
 app.post('/api/brands-classification/rollback', (req, res) => {
   try {
     const productsPath = path.join(__dirname, 'data', 'products.json');
@@ -2707,7 +2707,7 @@ app.post('/api/brands-classification/rollback', (req, res) => {
   }
 });
 
-// جلب قاموس الماركات
+// Ø¬Ù„Ø¨ Ù‚Ø§Ù…ÙˆØ³ Ø§Ù„Ù…Ø§Ø±ÙƒØ§Øª
 app.get('/api/brands-classification/dictionary', (req, res) => {
   try {
     const dict = brandClassifier.loadDictionary();
@@ -2717,12 +2717,12 @@ app.get('/api/brands-classification/dictionary', (req, res) => {
   }
 });
 
-// حفظ / تعديل قاموس الماركات
+// Ø­ÙØ¸ / ØªØ¹Ø¯ÙŠÙ„ Ù‚Ø§Ù…ÙˆØ³ Ø§Ù„Ù…Ø§Ø±ÙƒØ§Øª
 app.post('/api/brands-classification/dictionary', (req, res) => {
   try {
     const { dictionary } = req.body;
     if (!Array.isArray(dictionary)) {
-      return res.status(400).json({ success: false, error: 'صيغة القاموس غير صالحة' });
+      return res.status(400).json({ success: false, error: 'ØµÙŠØºØ© Ø§Ù„Ù‚Ø§Ù…ÙˆØ³ ØºÙŠØ± ØµØ§Ù„Ø­Ø©' });
     }
     const saved = brandClassifier.saveDictionary(dictionary);
     res.json({ success: saved });
@@ -2731,7 +2731,7 @@ app.post('/api/brands-classification/dictionary', (req, res) => {
   }
 });
 
-// جلب سجل التدقيق وتاريخ التعديلات
+// Ø¬Ù„Ø¨ Ø³Ø¬Ù„ Ø§Ù„ØªØ¯Ù‚ÙŠÙ‚ ÙˆØªØ§Ø±ÙŠØ® Ø§Ù„ØªØ¹Ø¯ÙŠÙ„Ø§Øª
 app.get('/api/brands-classification/logs', (req, res) => {
   try {
     const logFile = path.join(__dirname, 'data', 'brand_changes_log.json');
@@ -2742,24 +2742,24 @@ app.get('/api/brands-classification/logs', (req, res) => {
   }
 });
 
-// جدولة النسخ الاحتياطي التلقائي اليومي (كل 24 ساعة)
+// Ø¬Ø¯ÙˆÙ„Ø© Ø§Ù„Ù†Ø³Ø® Ø§Ù„Ø§Ø­ØªÙŠØ§Ø·ÙŠ Ø§Ù„ØªÙ„Ù‚Ø§Ø¦ÙŠ Ø§Ù„ÙŠÙˆÙ…ÙŠ (ÙƒÙ„ 24 Ø³Ø§Ø¹Ø©)
 function startAutoBackupSchedule() {
   const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
   setInterval(async () => {
     try {
-      console.log('⏰ بدء إنشاء النسخة الاحتياطية التلقائية اليومية...');
+      console.log('â° Ø¨Ø¯Ø¡ Ø¥Ù†Ø´Ø§Ø¡ Ø§Ù„Ù†Ø³Ø®Ø© Ø§Ù„Ø§Ø­ØªÙŠØ§Ø·ÙŠØ© Ø§Ù„ØªÙ„Ù‚Ø§Ø¦ÙŠØ© Ø§Ù„ÙŠÙˆÙ…ÙŠØ©...');
       const backup = dataStore.createBackup('auto_daily');
-      console.log(`✅ تم إنشاء النسخة الاحتياطية التلقائية: ${backup.filename}`);
+      console.log(`âœ… ØªÙ… Ø¥Ù†Ø´Ø§Ø¡ Ø§Ù„Ù†Ø³Ø®Ø© Ø§Ù„Ø§Ø­ØªÙŠØ§Ø·ÙŠØ© Ø§Ù„ØªÙ„Ù‚Ø§Ø¦ÙŠØ©: ${backup.filename}`);
 
-      // إرسال لتيليجرام إذا كان البوت مهيأ
+      // Ø¥Ø±Ø³Ø§Ù„ Ù„ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù… Ø¥Ø°Ø§ ÙƒØ§Ù† Ø§Ù„Ø¨ÙˆØª Ù…Ù‡ÙŠØ£
       const settings = dataStore.getSettings();
       if (settings.telegramBotToken && settings.telegramChatId) {
         const buffer = fs.readFileSync(backup.filePath);
         const caption = 
-`🌙 <b>النسخة الاحتياطية التلقائية اليومية (إغلاق اليوم)</b>
-🏢 <b>${settings.companyName || 'شركة أبو رامز'}</b>
-📅 <b>التاريخ:</b> ${formatServerDateTime(new Date())}
-📦 الأصناف: <b>${backup.counts.products}</b> | 🧾 الفواتير: <b>${backup.counts.invoices}</b> | 👥 الزبائن: <b>${backup.counts.customers}</b>`;
+`ðŸŒ™ <b>Ø§Ù„Ù†Ø³Ø®Ø© Ø§Ù„Ø§Ø­ØªÙŠØ§Ø·ÙŠØ© Ø§Ù„ØªÙ„Ù‚Ø§Ø¦ÙŠØ© Ø§Ù„ÙŠÙˆÙ…ÙŠØ© (Ø¥ØºÙ„Ø§Ù‚ Ø§Ù„ÙŠÙˆÙ…)</b>
+ðŸ¢ <b>${settings.companyName || 'Ø´Ø±ÙƒØ© Ø£Ø¨Ùˆ Ø±Ø§Ù…Ø²'}</b>
+ðŸ“… <b>Ø§Ù„ØªØ§Ø±ÙŠØ®:</b> ${formatServerDateTime(new Date())}
+ðŸ“¦ Ø§Ù„Ø£ØµÙ†Ø§Ù: <b>${backup.counts.products}</b> | ðŸ§¾ Ø§Ù„ÙÙˆØ§ØªÙŠØ±: <b>${backup.counts.invoices}</b> | ðŸ‘¥ Ø§Ù„Ø²Ø¨Ø§Ø¦Ù†: <b>${backup.counts.customers}</b>`;
 
         await telegramService.sendDocument(
           settings.telegramBotToken,
@@ -2769,7 +2769,7 @@ function startAutoBackupSchedule() {
           caption,
           'HTML'
         );
-        console.log('✈️ تم إرسال النسخة الاحتياطية اليومية لتيليجرام بنجاح');
+        console.log('âœˆï¸ ØªÙ… Ø¥Ø±Ø³Ø§Ù„ Ø§Ù„Ù†Ø³Ø®Ø© Ø§Ù„Ø§Ø­ØªÙŠØ§Ø·ÙŠØ© Ø§Ù„ÙŠÙˆÙ…ÙŠØ© Ù„ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù… Ø¨Ù†Ø¬Ø§Ø­');
       }
     } catch (e) {
       console.error('Auto backup schedule error:', e.message);
@@ -2778,14 +2778,14 @@ function startAutoBackupSchedule() {
 }
 
 // ================================================================
-// دعم مسارات الواجهات والصفحات المباشرة (Multi-page SPA Routing)
-// يتيح فتح روابط الأقسام مباشرة والتنقل السلس مثل:
+// Ø¯Ø¹Ù… Ù…Ø³Ø§Ø±Ø§Øª Ø§Ù„ÙˆØ§Ø¬Ù‡Ø§Øª ÙˆØ§Ù„ØµÙØ­Ø§Øª Ø§Ù„Ù…Ø¨Ø§Ø´Ø±Ø© (Multi-page SPA Routing)
+// ÙŠØªÙŠØ­ ÙØªØ­ Ø±ÙˆØ§Ø¨Ø· Ø§Ù„Ø£Ù‚Ø³Ø§Ù… Ù…Ø¨Ø§Ø´Ø±Ø© ÙˆØ§Ù„ØªÙ†Ù‚Ù„ Ø§Ù„Ø³Ù„Ø³ Ù…Ø«Ù„:
 // /home, /customers, /settings, /invoices, /pos, /receipts ...
 // ================================================================
 // ================================================================
-// موديول المعاينة المستقلة 100% للزبائن (Isolated Standalone Previews)
-// معزولة تماماً عن نظام الإدارة والكاشير الداخلي لحماية الخصوصية والأمان التام
-// تدعم بطاقات واتساب وشبكات التواصل، وتمنع وصول الزبون لبيانات النظام
+// Ù…ÙˆØ¯ÙŠÙˆÙ„ Ø§Ù„Ù…Ø¹Ø§ÙŠÙ†Ø© Ø§Ù„Ù…Ø³ØªÙ‚Ù„Ø© 100% Ù„Ù„Ø²Ø¨Ø§Ø¦Ù† (Isolated Standalone Previews)
+// Ù…Ø¹Ø²ÙˆÙ„Ø© ØªÙ…Ø§Ù…Ø§Ù‹ Ø¹Ù† Ù†Ø¸Ø§Ù… Ø§Ù„Ø¥Ø¯Ø§Ø±Ø© ÙˆØ§Ù„ÙƒØ§Ø´ÙŠØ± Ø§Ù„Ø¯Ø§Ø®Ù„ÙŠ Ù„Ø­Ù…Ø§ÙŠØ© Ø§Ù„Ø®ØµÙˆØµÙŠØ© ÙˆØ§Ù„Ø£Ù…Ø§Ù† Ø§Ù„ØªØ§Ù…
+// ØªØ¯Ø¹Ù… Ø¨Ø·Ø§Ù‚Ø§Øª ÙˆØ§ØªØ³Ø§Ø¨ ÙˆØ´Ø¨ÙƒØ§Øª Ø§Ù„ØªÙˆØ§ØµÙ„ØŒ ÙˆØªÙ…Ù†Ø¹ ÙˆØµÙˆÙ„ Ø§Ù„Ø²Ø¨ÙˆÙ† Ù„Ø¨ÙŠØ§Ù†Ø§Øª Ø§Ù„Ù†Ø¸Ø§Ù…
 // ================================================================
 const {
   renderProductPreviewHtml,
@@ -2796,7 +2796,7 @@ const {
   renderPublicCatalogHtml
 } = require('./standaloneViews');
 
-// التحقق مما إذا كان الطلب قادماً عبر نطاق المعاينة المستقل على Render
+// Ø§Ù„ØªØ­Ù‚Ù‚ Ù…Ù…Ø§ Ø¥Ø°Ø§ ÙƒØ§Ù† Ø§Ù„Ø·Ù„Ø¨ Ù‚Ø§Ø¯Ù…Ø§Ù‹ Ø¹Ø¨Ø± Ù†Ø·Ø§Ù‚ Ø§Ù„Ù…Ø¹Ø§ÙŠÙ†Ø© Ø§Ù„Ù…Ø³ØªÙ‚Ù„ Ø¹Ù„Ù‰ Render
 function isPreviewHost(req) {
   if (process.env.PREVIEW_ONLY === 'true' || process.env.APP_MODE === 'preview') {
     return true;
@@ -2805,11 +2805,11 @@ function isPreviewHost(req) {
   return host.includes('preview') || host.startsWith('view-');
 }
 
-// حظر صفحات وعمليات الإدارة عند الدخول من نطاق المعاينة
+// Ø­Ø¸Ø± ØµÙØ­Ø§Øª ÙˆØ¹Ù…Ù„ÙŠØ§Øª Ø§Ù„Ø¥Ø¯Ø§Ø±Ø© Ø¹Ù†Ø¯ Ø§Ù„Ø¯Ø®ÙˆÙ„ Ù…Ù† Ù†Ø·Ø§Ù‚ Ø§Ù„Ù…Ø¹Ø§ÙŠÙ†Ø©
 app.use((req, res, next) => {
   if (!isPreviewHost(req)) return next();
 
-  // السماح بالملفات الثابتة والصور وروابط المعاينة العامة
+  // Ø§Ù„Ø³Ù…Ø§Ø­ Ø¨Ø§Ù„Ù…Ù„ÙØ§Øª Ø§Ù„Ø«Ø§Ø¨ØªØ© ÙˆØ§Ù„ØµÙˆØ± ÙˆØ±ÙˆØ§Ø¨Ø· Ø§Ù„Ù…Ø¹Ø§ÙŠÙ†Ø© Ø§Ù„Ø¹Ø§Ù…Ø©
   if (
     req.path.startsWith('/uploads') ||
     req.path.startsWith('/icons') ||
@@ -2828,7 +2828,7 @@ app.use((req, res, next) => {
     return next();
   }
 
-  // الصفحة الرئيسية في نطاق المعاينة تعرض معرض الأصناف العام للزبائن
+  // Ø§Ù„ØµÙØ­Ø© Ø§Ù„Ø±Ø¦ÙŠØ³ÙŠØ© ÙÙŠ Ù†Ø·Ø§Ù‚ Ø§Ù„Ù…Ø¹Ø§ÙŠÙ†Ø© ØªØ¹Ø±Ø¶ Ù…Ø¹Ø±Ø¶ Ø§Ù„Ø£ØµÙ†Ø§Ù Ø§Ù„Ø¹Ø§Ù… Ù„Ù„Ø²Ø¨Ø§Ø¦Ù†
   if (req.path === '/' || req.path === '/catalog' || req.path === '/products') {
     const prods = dataStore.getProducts();
     const settings = dataStore.getSettings() || {};
@@ -2836,21 +2836,21 @@ app.use((req, res, next) => {
     return res.send(renderPublicCatalogHtml(prods, settings, req));
   }
 
-  // حظر أي عمليات كتابة أو تعديل API في نطاق المعاينة
+  // Ø­Ø¸Ø± Ø£ÙŠ Ø¹Ù…Ù„ÙŠØ§Øª ÙƒØªØ§Ø¨Ø© Ø£Ùˆ ØªØ¹Ø¯ÙŠÙ„ API ÙÙŠ Ù†Ø·Ø§Ù‚ Ø§Ù„Ù…Ø¹Ø§ÙŠÙ†Ø©
   if (req.path.startsWith('/api/') && req.method !== 'GET') {
     return res.status(403).json({
       success: false,
-      error: 'نطاق المعاينة مخصص لعرض بطاقات الزبائن فقط ولا يسمح بإجراء أي عمليات إدارية'
+      error: 'Ù†Ø·Ø§Ù‚ Ø§Ù„Ù…Ø¹Ø§ÙŠÙ†Ø© Ù…Ø®ØµØµ Ù„Ø¹Ø±Ø¶ Ø¨Ø·Ø§Ù‚Ø§Øª Ø§Ù„Ø²Ø¨Ø§Ø¦Ù† ÙÙ‚Ø· ÙˆÙ„Ø§ ÙŠØ³Ù…Ø­ Ø¨Ø¥Ø¬Ø±Ø§Ø¡ Ø£ÙŠ Ø¹Ù…Ù„ÙŠØ§Øª Ø¥Ø¯Ø§Ø±ÙŠØ©'
     });
   }
 
-  // حظر صفحات النظام الداخلية (POS، الإعدادات، الموردين، الكاشير) في نطاق المعاينة
+  // Ø­Ø¸Ø± ØµÙØ­Ø§Øª Ø§Ù„Ù†Ø¸Ø§Ù… Ø§Ù„Ø¯Ø§Ø®Ù„ÙŠØ© (POSØŒ Ø§Ù„Ø¥Ø¹Ø¯Ø§Ø¯Ø§ØªØŒ Ø§Ù„Ù…ÙˆØ±Ø¯ÙŠÙ†ØŒ Ø§Ù„ÙƒØ§Ø´ÙŠØ±) ÙÙŠ Ù†Ø·Ø§Ù‚ Ø§Ù„Ù…Ø¹Ø§ÙŠÙ†Ø©
   const settings = dataStore.getSettings() || {};
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   return res.status(403).send(renderPreviewBlockedHtml(settings));
 });
 
-// 1. مسارات معاينة الأصناف المستقلة (Product Standalone Previews)
+// 1. Ù…Ø³Ø§Ø±Ø§Øª Ù…Ø¹Ø§ÙŠÙ†Ø© Ø§Ù„Ø£ØµÙ†Ø§Ù Ø§Ù„Ù…Ø³ØªÙ‚Ù„Ø© (Product Standalone Previews)
 app.get(['/p/:id', '/product/:id', '/products/:id', '/view/product/:id', '/preview/product/:id'], (req, res, next) => {
   const id = req.params.id;
   if (!id || id === 'all') return next();
@@ -2871,16 +2871,16 @@ app.get(['/p/:id', '/product/:id', '/products/:id', '/view/product/:id', '/previ
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   return res.status(404).send(`
-    <!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>الصنف غير متوفر</title>
+    <!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>Ø§Ù„ØµÙ†Ù ØºÙŠØ± Ù…ØªÙˆÙØ±</title>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@700&display=swap" rel="stylesheet">
     <body style="font-family:'Cairo',sans-serif; text-align:center; padding:3rem; background:#f8fafc; color:#0f172a;">
-    <h2>⚠️ عذراً، هذا الصنف غير متوفر أو تم حذفه من النظام.</h2>
-    <p style="margin-top:1rem;"><a href="/" style="color:#2563eb; text-decoration:none; font-weight:bold;">العودة للصفحة الرئيسية</a></p>
+    <h2>âš ï¸ Ø¹Ø°Ø±Ø§Ù‹ØŒ Ù‡Ø°Ø§ Ø§Ù„ØµÙ†Ù ØºÙŠØ± Ù…ØªÙˆÙØ± Ø£Ùˆ ØªÙ… Ø­Ø°ÙÙ‡ Ù…Ù† Ø§Ù„Ù†Ø¸Ø§Ù….</h2>
+    <p style="margin-top:1rem;"><a href="/" style="color:#2563eb; text-decoration:none; font-weight:bold;">Ø§Ù„Ø¹ÙˆØ¯Ø© Ù„Ù„ØµÙØ­Ø© Ø§Ù„Ø±Ø¦ÙŠØ³ÙŠØ©</a></p>
     </body></html>
   `);
 });
 
-// 2. مسارات معاينة الفواتير المستقلة (Invoice Standalone Previews)
+// 2. Ù…Ø³Ø§Ø±Ø§Øª Ù…Ø¹Ø§ÙŠÙ†Ø© Ø§Ù„ÙÙˆØ§ØªÙŠØ± Ø§Ù„Ù…Ø³ØªÙ‚Ù„Ø© (Invoice Standalone Previews)
 app.get(['/v/invoice/:id', '/view/invoice/:id', '/preview/invoice/:id', '/invoice/:id', '/invoices/:id'], (req, res, next) => {
   const id = req.params.id;
   if (!id || id === 'new' || id === 'list') return next();
@@ -2901,16 +2901,16 @@ app.get(['/v/invoice/:id', '/view/invoice/:id', '/preview/invoice/:id', '/invoic
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   return res.status(404).send(`
-    <!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>الفاتورة غير موجودة</title>
+    <!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>Ø§Ù„ÙØ§ØªÙˆØ±Ø© ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯Ø©</title>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@700&display=swap" rel="stylesheet">
     <body style="font-family:'Cairo',sans-serif; text-align:center; padding:3rem; background:#f8fafc; color:#0f172a;">
-    <h2>⚠️ عذراً، الفاتورة غير موجودة أو تم حذفها.</h2>
-    <p style="margin-top:1rem;"><a href="/" style="color:#2563eb; text-decoration:none; font-weight:bold;">العودة للصفحة الرئيسية</a></p>
+    <h2>âš ï¸ Ø¹Ø°Ø±Ø§Ù‹ØŒ Ø§Ù„ÙØ§ØªÙˆØ±Ø© ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯Ø© Ø£Ùˆ ØªÙ… Ø­Ø°ÙÙ‡Ø§.</h2>
+    <p style="margin-top:1rem;"><a href="/" style="color:#2563eb; text-decoration:none; font-weight:bold;">Ø§Ù„Ø¹ÙˆØ¯Ø© Ù„Ù„ØµÙØ­Ø© Ø§Ù„Ø±Ø¦ÙŠØ³ÙŠØ©</a></p>
     </body></html>
   `);
 });
 
-// 3. مسارات معاينة سندات القبض والصرف المستقلة (Receipt Voucher Standalone Previews)
+// 3. Ù…Ø³Ø§Ø±Ø§Øª Ù…Ø¹Ø§ÙŠÙ†Ø© Ø³Ù†Ø¯Ø§Øª Ø§Ù„Ù‚Ø¨Ø¶ ÙˆØ§Ù„ØµØ±Ù Ø§Ù„Ù…Ø³ØªÙ‚Ù„Ø© (Receipt Voucher Standalone Previews)
 app.get(['/v/receipt/:id', '/view/receipt/:id', '/preview/receipt/:id', '/receipt/:id', '/receipts/:id', '/voucher/:id', '/vouchers/:id', '/v/voucher/:id'], (req, res, next) => {
   const id = req.params.id;
   if (!id || id === 'new' || id === 'list') return next();
@@ -2931,16 +2931,16 @@ app.get(['/v/receipt/:id', '/view/receipt/:id', '/preview/receipt/:id', '/receip
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   return res.status(404).send(`
-    <!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>السند المالي غير موجود</title>
+    <!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>Ø§Ù„Ø³Ù†Ø¯ Ø§Ù„Ù…Ø§Ù„ÙŠ ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯</title>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@700&display=swap" rel="stylesheet">
     <body style="font-family:'Cairo',sans-serif; text-align:center; padding:3rem; background:#f8fafc; color:#0f172a;">
-    <h2>⚠️ عذراً، السند المالي غير موجود أو تم حذفه.</h2>
-    <p style="margin-top:1rem;"><a href="/" style="color:#2563eb; text-decoration:none; font-weight:bold;">العودة للصفحة الرئيسية</a></p>
+    <h2>âš ï¸ Ø¹Ø°Ø±Ø§Ù‹ØŒ Ø§Ù„Ø³Ù†Ø¯ Ø§Ù„Ù…Ø§Ù„ÙŠ ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯ Ø£Ùˆ ØªÙ… Ø­Ø°ÙÙ‡.</h2>
+    <p style="margin-top:1rem;"><a href="/" style="color:#2563eb; text-decoration:none; font-weight:bold;">Ø§Ù„Ø¹ÙˆØ¯Ø© Ù„Ù„ØµÙØ­Ø© Ø§Ù„Ø±Ø¦ÙŠØ³ÙŠØ©</a></p>
     </body></html>
   `);
 });
 
-// 4. مسارات معاينة كشف حساب الزبون المستقلة (Customer Statement Standalone Previews)
+// 4. Ù…Ø³Ø§Ø±Ø§Øª Ù…Ø¹Ø§ÙŠÙ†Ø© ÙƒØ´Ù Ø­Ø³Ø§Ø¨ Ø§Ù„Ø²Ø¨ÙˆÙ† Ø§Ù„Ù…Ø³ØªÙ‚Ù„Ø© (Customer Statement Standalone Previews)
 app.get(['/v/statement/:id', '/view/statement/:id', '/preview/statement/:id', '/statement/:id', '/statements/:id', '/customer/:id', '/customers/:id'], (req, res, next) => {
   const id = req.params.id;
   if (!id || id === 'all' || id === 'new') return next();
@@ -2956,20 +2956,20 @@ app.get(['/v/statement/:id', '/view/statement/:id', '/preview/statement/:id', '/
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   return res.status(404).send(`
-    <!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>كشف الحساب غير موجود</title>
+    <!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>ÙƒØ´Ù Ø§Ù„Ø­Ø³Ø§Ø¨ ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯</title>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@700&display=swap" rel="stylesheet">
     <body style="font-family:'Cairo',sans-serif; text-align:center; padding:3rem; background:#f8fafc; color:#0f172a;">
-    <h2>⚠️ عذراً، حساب الزبون غير موجود أو لا يحتوي على كشف حساب مسجل.</h2>
-    <p style="margin-top:1rem;"><a href="/" style="color:#2563eb; text-decoration:none; font-weight:bold;">العودة للصفحة الرئيسية</a></p>
+    <h2>âš ï¸ Ø¹Ø°Ø±Ø§Ù‹ØŒ Ø­Ø³Ø§Ø¨ Ø§Ù„Ø²Ø¨ÙˆÙ† ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯ Ø£Ùˆ Ù„Ø§ ÙŠØ­ØªÙˆÙŠ Ø¹Ù„Ù‰ ÙƒØ´Ù Ø­Ø³Ø§Ø¨ Ù…Ø³Ø¬Ù„.</h2>
+    <p style="margin-top:1rem;"><a href="/" style="color:#2563eb; text-decoration:none; font-weight:bold;">Ø§Ù„Ø¹ÙˆØ¯Ø© Ù„Ù„ØµÙØ­Ø© Ø§Ù„Ø±Ø¦ÙŠØ³ÙŠØ©</a></p>
     </body></html>
   `);
 });
 
-// 5. واجهة المتجر والمعرض العام للزبائن (Public Customer Storefront - Bloom Style)
+// 5. ÙˆØ§Ø¬Ù‡Ø© Ø§Ù„Ù…ØªØ¬Ø± ÙˆØ§Ù„Ù…Ø¹Ø±Ø¶ Ø§Ù„Ø¹Ø§Ù… Ù„Ù„Ø²Ø¨Ø§Ø¦Ù† (Public Customer Storefront - Bloom Style)
 
 // ================================================================
-// إعادة التوجيه التلقائي للمسارات الإدارية القديمة إلى /admin/...
-// لمنع الوصول المباشر من النطاق العام وإلزام استخدام بادئة /admin/
+// Ø¥Ø¹Ø§Ø¯Ø© Ø§Ù„ØªÙˆØ¬ÙŠÙ‡ Ø§Ù„ØªÙ„Ù‚Ø§Ø¦ÙŠ Ù„Ù„Ù…Ø³Ø§Ø±Ø§Øª Ø§Ù„Ø¥Ø¯Ø§Ø±ÙŠØ© Ø§Ù„Ù‚Ø¯ÙŠÙ…Ø© Ø¥Ù„Ù‰ /admin/...
+// Ù„Ù…Ù†Ø¹ Ø§Ù„ÙˆØµÙˆÙ„ Ø§Ù„Ù…Ø¨Ø§Ø´Ø± Ù…Ù† Ø§Ù„Ù†Ø·Ø§Ù‚ Ø§Ù„Ø¹Ø§Ù… ÙˆØ¥Ù„Ø²Ø§Ù… Ø§Ø³ØªØ®Ø¯Ø§Ù… Ø¨Ø§Ø¯Ø¦Ø© /admin/
 // ================================================================
 const ADMIN_LEGACY_REDIRECT_MAP = {
   '/create-invoice': '/admin/create-invoice',
@@ -3022,8 +3022,8 @@ if (APP_MODE === 'admin_only') {
   });
 }
 
-// 6. واجهة نظام الإدارة والكاشير الداخلي المحمي (Protected Admin System)
-// مسارات نظام الأدمن - كل شيء تحت /admin
+// 6. ÙˆØ§Ø¬Ù‡Ø© Ù†Ø¸Ø§Ù… Ø§Ù„Ø¥Ø¯Ø§Ø±Ø© ÙˆØ§Ù„ÙƒØ§Ø´ÙŠØ± Ø§Ù„Ø¯Ø§Ø®Ù„ÙŠ Ø§Ù„Ù…Ø­Ù…ÙŠ (Protected Admin System)
+// Ù…Ø³Ø§Ø±Ø§Øª Ù†Ø¸Ø§Ù… Ø§Ù„Ø£Ø¯Ù…Ù† - ÙƒÙ„ Ø´ÙŠØ¡ ØªØ­Øª /admin
 app.get('/admin', (req, res) => {
   if (APP_MODE === 'store_only') {
     return res.status(404).sendFile(path.join(__dirname, 'public', 'store.html'));
@@ -3034,7 +3034,7 @@ app.get('/admin/*', (req, res, next) => {
   if (APP_MODE === 'store_only') {
     return res.status(404).sendFile(path.join(__dirname, 'public', 'store.html'));
   }
-  // إذا كان الطلب لملف ثابت (مثل /admin/js/... أو /admin/css/...) يتم تقديمه من مجلد public بدلاً من إعادة index.html
+  // Ø¥Ø°Ø§ ÙƒØ§Ù† Ø§Ù„Ø·Ù„Ø¨ Ù„Ù…Ù„Ù Ø«Ø§Ø¨Øª (Ù…Ø«Ù„ /admin/js/... Ø£Ùˆ /admin/css/...) ÙŠØªÙ… ØªÙ‚Ø¯ÙŠÙ…Ù‡ Ù…Ù† Ù…Ø¬Ù„Ø¯ public Ø¨Ø¯Ù„Ø§Ù‹ Ù…Ù† Ø¥Ø¹Ø§Ø¯Ø© index.html
   if (req.path.includes('.')) {
     const relativeAsset = req.path.replace(/^\/admin\//, '');
     const assetPath = path.join(__dirname, 'public', relativeAsset);
@@ -3046,7 +3046,7 @@ app.get('/admin/*', (req, res, next) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// مسار شامل لأي مسار فرعي لصفحات النظام (SPA Fallback) دون التأثير على /api أو /uploads أو الملفات
+// Ù…Ø³Ø§Ø± Ø´Ø§Ù…Ù„ Ù„Ø£ÙŠ Ù…Ø³Ø§Ø± ÙØ±Ø¹ÙŠ Ù„ØµÙØ­Ø§Øª Ø§Ù„Ù†Ø¸Ø§Ù… (SPA Fallback) Ø¯ÙˆÙ† Ø§Ù„ØªØ£Ø«ÙŠØ± Ø¹Ù„Ù‰ /api Ø£Ùˆ /uploads Ø£Ùˆ Ø§Ù„Ù…Ù„ÙØ§Øª
 app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api') || req.path.startsWith('/uploads') || req.path.includes('.')) {
     return next();
@@ -3061,14 +3061,14 @@ app.get('*', (req, res, next) => {
   res.sendFile(path.join(__dirname, 'public', 'store.html'));
 });
 
-// تشغيل الخادم
+// ØªØ´ØºÙŠÙ„ Ø§Ù„Ø®Ø§Ø¯Ù…
 
 // ================================================================
-// معالجة الأخطاء الحرجة غير المتوقعة — إشعار فوري عبر Telegram
-// ================================================================ — إشعار فوري عبر Telegram
+// Ù…Ø¹Ø§Ù„Ø¬Ø© Ø§Ù„Ø£Ø®Ø·Ø§Ø¡ Ø§Ù„Ø­Ø±Ø¬Ø© ØºÙŠØ± Ø§Ù„Ù…ØªÙˆÙ‚Ø¹Ø© â€” Ø¥Ø´Ø¹Ø§Ø± ÙÙˆØ±ÙŠ Ø¹Ø¨Ø± Telegram
+// ================================================================ â€” Ø¥Ø´Ø¹Ø§Ø± ÙÙˆØ±ÙŠ Ø¹Ø¨Ø± Telegram
 // ================================================================
 process.on('uncaughtException', function(err) {
-  console.error('💥 uncaughtException:', err.message);
+  console.error('ðŸ’¥ uncaughtException:', err.message);
   telegramService.sendSystemAlert('server_crash', {
     errorType: 'UncaughtException',
     error: err.message + (err.stack ? '\n' + err.stack.slice(0, 200) : '')
@@ -3077,7 +3077,7 @@ process.on('uncaughtException', function(err) {
 
 process.on('unhandledRejection', function(reason) {
   var msg = reason instanceof Error ? reason.message : String(reason);
-  console.error('💥 unhandledRejection:', msg);
+  console.error('ðŸ’¥ unhandledRejection:', msg);
   telegramService.sendSystemAlert('server_crash', {
     errorType: 'UnhandledRejection',
     error: msg
@@ -3086,40 +3086,41 @@ process.on('unhandledRejection', function(reason) {
 
 app.listen(PORT, '0.0.0.0', async () => {
   console.log(`=======================================================`);
-  console.log(`🚀 نظام المبيعات وإصدار الفواتير يعمل بنجاح على:`);
-  console.log(`🔗 الرابط المحلي: http://localhost:${PORT}`);
+  console.log(`ðŸš€ Ù†Ø¸Ø§Ù… Ø§Ù„Ù…Ø¨ÙŠØ¹Ø§Øª ÙˆØ¥ØµØ¯Ø§Ø± Ø§Ù„ÙÙˆØ§ØªÙŠØ± ÙŠØ¹Ù…Ù„ Ø¨Ù†Ø¬Ø§Ø­ Ø¹Ù„Ù‰:`);
+  console.log(`ðŸ”— Ø§Ù„Ø±Ø§Ø¨Ø· Ø§Ù„Ù…Ø­Ù„ÙŠ: http://localhost:${PORT}`);
   console.log(`=======================================================`);
 
-  // بدء جدولة النسخ الاحتياطي التلقائي
+  // Ø¨Ø¯Ø¡ Ø¬Ø¯ÙˆÙ„Ø© Ø§Ù„Ù†Ø³Ø® Ø§Ù„Ø§Ø­ØªÙŠØ§Ø·ÙŠ Ø§Ù„ØªÙ„Ù‚Ø§Ø¦ÙŠ
   startAutoBackupSchedule();
 
-  // ─── فحص جاهزية Supabase قبل استقبال أي طلبات كتابة ───
+  // â”€â”€â”€ ÙØ­Øµ Ø¬Ø§Ù‡Ø²ÙŠØ© Supabase Ù‚Ø¨Ù„ Ø§Ø³ØªÙ‚Ø¨Ø§Ù„ Ø£ÙŠ Ø·Ù„Ø¨Ø§Øª ÙƒØªØ§Ø¨Ø© â”€â”€â”€
   const readiness = await systemMode.verifyReadiness();
   if (readiness.ok) {
-    console.log(`✅ وضع النظام: قراءة وكتابة (Read-Write Mode) — جميع العمليات مفعّلة`);
-    // تم إلغاء إرسال إشعار النجاح — يتم إرسال إشعارات الفشل فقط
+    console.log(`âœ… ÙˆØ¶Ø¹ Ø§Ù„Ù†Ø¸Ø§Ù…: Ù‚Ø±Ø§Ø¡Ø© ÙˆÙƒØªØ§Ø¨Ø© (Read-Write Mode) â€” Ø¬Ù…ÙŠØ¹ Ø§Ù„Ø¹Ù…Ù„ÙŠØ§Øª Ù…ÙØ¹Ù‘Ù„Ø©`);
+    // ØªÙ… Ø¥Ù„ØºØ§Ø¡ Ø¥Ø±Ø³Ø§Ù„ Ø¥Ø´Ø¹Ø§Ø± Ø§Ù„Ù†Ø¬Ø§Ø­ â€” ÙŠØªÙ… Ø¥Ø±Ø³Ø§Ù„ Ø¥Ø´Ø¹Ø§Ø±Ø§Øª Ø§Ù„ÙØ´Ù„ ÙÙ‚Ø·
   } else {
-    console.warn(`⚠️ وضع النظام: قراءة فقط (Read-Only Degraded Mode) — سبب: ${readiness.error || 'تعذر الاتصال بـ Supabase'}`);
-    console.warn(`   ستُرفض جميع عمليات الحفظ والتعديل والحذف حتى يعود الاتصال.`);
+    console.warn(`âš ï¸ ÙˆØ¶Ø¹ Ø§Ù„Ù†Ø¸Ø§Ù…: Ù‚Ø±Ø§Ø¡Ø© ÙÙ‚Ø· (Read-Only Degraded Mode) â€” Ø³Ø¨Ø¨: ${readiness.error || 'ØªØ¹Ø°Ø± Ø§Ù„Ø§ØªØµØ§Ù„ Ø¨Ù€ Supabase'}`);
+    console.warn(`   Ø³ØªÙØ±ÙØ¶ Ø¬Ù…ÙŠØ¹ Ø¹Ù…Ù„ÙŠØ§Øª Ø§Ù„Ø­ÙØ¸ ÙˆØ§Ù„ØªØ¹Ø¯ÙŠÙ„ ÙˆØ§Ù„Ø­Ø°Ù Ø­ØªÙ‰ ÙŠØ¹ÙˆØ¯ Ø§Ù„Ø§ØªØµØ§Ù„.`);
     telegramService.sendSystemAlert('startup', { mode: 'read-only', error: readiness.error }).catch(() => {});
   }
 
-  // فحص دوري كل 30 ثانية لاستعادة وضع الكتابة عند عودة الاتصال
+  // ÙØ­Øµ Ø¯ÙˆØ±ÙŠ ÙƒÙ„ 30 Ø«Ø§Ù†ÙŠØ© Ù„Ø§Ø³ØªØ¹Ø§Ø¯Ø© ÙˆØ¶Ø¹ Ø§Ù„ÙƒØªØ§Ø¨Ø© Ø¹Ù†Ø¯ Ø¹ÙˆØ¯Ø© Ø§Ù„Ø§ØªØµØ§Ù„
   systemMode.startPeriodicHealthCheck(30000, async () => {
     await dataStore.initFromSupabase();
   });
 
-  // استعادة البيانات من Supabase
+  // Ø§Ø³ØªØ¹Ø§Ø¯Ø© Ø§Ù„Ø¨ÙŠØ§Ù†Ø§Øª Ù…Ù† Supabase
   await dataStore.initFromSupabase();
 
-  // تحديث دوري كل 3 دقائق لمزامنة البيانات بين السيرفرات
-  const CLOUD_REFRESH_INTERVAL = 3 * 60 * 1000; // 3 دقائق
+  // ØªØ­Ø¯ÙŠØ« Ø¯ÙˆØ±ÙŠ ÙƒÙ„ 3 Ø¯Ù‚Ø§Ø¦Ù‚ Ù„Ù…Ø²Ø§Ù…Ù†Ø© Ø§Ù„Ø¨ÙŠØ§Ù†Ø§Øª Ø¨ÙŠÙ† Ø§Ù„Ø³ÙŠØ±ÙØ±Ø§Øª
+  const CLOUD_REFRESH_INTERVAL = 3 * 60 * 1000; // 3 Ø¯Ù‚Ø§Ø¦Ù‚
   setInterval(async () => {
     try {
       await dataStore.refreshFromCloud();
     } catch (err) {
-      console.warn('⚠️ خطأ في التحديث الدوري من Supabase:', err.message);
+      console.warn('âš ï¸ Ø®Ø·Ø£ ÙÙŠ Ø§Ù„ØªØ­Ø¯ÙŠØ« Ø§Ù„Ø¯ÙˆØ±ÙŠ Ù…Ù† Supabase:', err.message);
     }
   }, CLOUD_REFRESH_INTERVAL);
-  console.log('✅ تم تفعيل التحديث الدوري من Supabase كل 3 دقائق');
+  console.log('âœ… ØªÙ… ØªÙØ¹ÙŠÙ„ Ø§Ù„ØªØ­Ø¯ÙŠØ« Ø§Ù„Ø¯ÙˆØ±ÙŠ Ù…Ù† Supabase ÙƒÙ„ 3 Ø¯Ù‚Ø§Ø¦Ù‚');
 });
+
