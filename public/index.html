@@ -243,6 +243,13 @@
         </div>
 
         <div class="header-actions">
+          <!-- زر إدارة المتجر والطلبات المباشر الفوري في رأس الصفحة -->
+          <button type="button" class="header-store-btn" onclick="switchTab('store-manager')" title="إدارة المتجر الإلكتروني والطلبات الواردة" style="display: inline-flex; align-items: center; gap: 0.45rem; background: linear-gradient(135deg, #2563eb, #1d4ed8); border: none; border-radius: 8px; padding: 6px 14px; font-size: 0.82rem; font-weight: 800; color: #ffffff; cursor: pointer; box-shadow: 0 2px 8px rgba(37,99,235,0.35); transition: all 0.2s;">
+            <span>🛍️</span>
+            <span>إدارة المتجر</span>
+            <span class="badge" id="adminHeaderOrdersBadge" style="display:none; background:#ef4444; color:#ffffff; font-size:0.7rem; font-weight:900; padding:2px 6px; border-radius:10px; margin-right:2px;">0</span>
+          </button>
+
           <!-- زر البحث الشامل الذكي (Ctrl + K) -->
           <button type="button" class="header-search-btn" onclick="openGlobalSearchModal()" title="البحث الشامل في النظام (Ctrl + K)" style="display: inline-flex; align-items: center; gap: 0.5rem; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 6px 14px; font-size: 0.82rem; font-weight: 700; color: #1e293b; cursor: pointer; transition: all 0.2s;">
             <span>🔍</span>
@@ -286,6 +293,12 @@
         <button class="nav-tab-btn active" data-tab="catalog" id="tabBtnCatalog">
           <span>📦</span>
           <span>كتالوج المنتجات</span>
+        </button>
+
+        <button class="nav-tab-btn" data-tab="store-manager" id="tabBtnStoreManager" style="background: rgba(37, 99, 235, 0.12); border: 1.5px solid rgba(59, 130, 246, 0.4); color: #3b82f6; font-weight: 800;">
+          <span>🛍️</span>
+          <span>إدارة المتجر والطلبات</span>
+          <span class="badge" id="adminPendingOrdersBadge" style="display:none; background:#ef4444; color:#fff; font-size:0.7rem; padding:2px 6px; border-radius:10px; margin-right:4px;">0</span>
         </button>
 
         <button class="nav-tab-btn" data-tab="create-invoice" id="tabBtnCreateInvoice">
@@ -334,11 +347,7 @@
         </button>
 
         
-        <button class="nav-tab-btn" data-tab="store-manager" id="tabBtnStoreManager">
-          <span>🛍️</span>
-          <span>إدارة المتجر والطلبات</span>
-          <span class="badge" id="adminPendingOrdersBadge" style="display:none; background:#ef4444; color:#fff; font-size:0.7rem; padding:2px 6px; border-radius:10px; margin-right:4px;">0</span>
-        </button>
+        
         
         <button class="nav-tab-btn" data-tab="settings" id="tabBtnSettings">
           <span>⚙️</span>
@@ -4105,6 +4114,11 @@
       <button type="button" class="sheet-close-btn" onclick="closeMobileMoreSheet()">✕</button>
     </div>
     <div class="sheet-grid">
+      <button type="button" class="sheet-item-btn" onclick="switchTabAndCloseMore('store-manager')" style="background: linear-gradient(135deg, #eff6ff, #dbeafe); border: 2px solid #3b82f6; grid-column: span 2;">
+        <span class="sheet-item-icon" style="font-size: 1.5rem;">🛍️</span>
+        <span class="sheet-item-title" style="color: #1d4ed8; font-weight: 900; font-size: 0.95rem;">إدارة المتجر والطلبات الإلكترونية</span>
+        <span class="sheet-item-desc" style="color: #2563eb; font-weight: 700;">الطلبات الواردة، الأصناف المعروضة، الأقسام والعروض</span>
+      </button>
       <button type="button" class="sheet-item-btn" onclick="switchTabAndCloseMore('inventory')">
         <span class="sheet-item-icon">📋</span>
         <span class="sheet-item-title">الجرد والمخزون</span>

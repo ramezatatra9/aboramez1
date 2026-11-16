@@ -1195,6 +1195,14 @@ async function initApp() {
   checkDatabaseStatus();
   setInterval(checkDatabaseStatus, 60000);
 
+  // جلب الطلبات الواردة فوراً في الخلفية لتحديث أعداد الإشعارات في الرأس والتبويبات
+  fetch('/api/admin/orders').then(r => r.json()).then(data => {
+    if (data.success && Array.isArray(data.orders)) {
+      _storeManagerOrders = data.orders;
+      updatePendingOrdersBadges();
+    }
+  }).catch(() => {});
+
   // استرجاع اسم الموظف الأخير من الذاكرة المحلية للتسهيل
   const lastEmployee = localStorage.getItem('last_employee_name');
   if (lastEmployee) {
@@ -1227,11 +1235,27 @@ async function initApp() {
   // دعم /admin/xxx أو /xxx (للتوافق مع الإصدارات القديمة)
   const pathParts = window.location.pathname.replace(/^\/+/, '').split('/');
   const isAdminPath = pathParts[0].toLowerCase() === 'admin';
-  const initialPath = (isAdminPath ? (pathParts[1] || '') : pathParts[0]).toLowerCase();
-  const initialSection = (isAdminPath ? (pathParts[1] || '') : pathParts[0]).toLowerCase();
-  const initialEntityId = (isAdminPath ? (pathParts[2] || '') : pathParts[1]) || '';
-  const initialSubTab = (isAdminPath ? (pathParts[2] || '') : '') || '';
-  const initialTab = ROUTE_MAP[initialPath] || 'catalog';
+  let initialPath = (isAdminPath ? (pathParts[1] || '') : pathParts[0]).toLowerCase();
+  let initialSection = (isAdminPath ? (pathParts[1] || '') : pathParts[0]).toLowerCase();
+  let initialEntityId = (isAdminPath ? (pathParts[2] || '') : pathParts[1]) || '';
+  let initialSubTab = (isAdminPath ? (pathParts[2] || '') : '') || '';
+
+  // دعم الاستعلامات عبر Hash أو Query Parameters (?tab=store-manager&sub=products أو #store-manager/products)
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const hashVal = (window.location.hash || '').replace(/^#\/?/, '').trim().toLowerCase();
+    const hashParts = hashVal ? hashVal.split('/') : [];
+
+    if (urlParams.get('tab')) {
+      initialPath = urlParams.get('tab').toLowerCase();
+      if (urlParams.get('sub')) initialSubTab = urlParams.get('sub').toLowerCase();
+    } else if (hashParts[0]) {
+      initialPath = hashParts[0];
+      if (hashParts[1]) initialSubTab = hashParts[1];
+    }
+  } catch (e) {}
+
+  let initialTab = ROUTE_MAP[initialPath] || 'catalog';
 
   // تحميل الإعدادات أولاً لتحديد العملة واسم الشركة
   await loadSettings();
@@ -10732,6 +10756,7 @@ function updatePendingOrdersBadges() {
   const pendingCount = _storeManagerOrders.filter(o => o.status === 'pending').length;
   const navBadge = document.getElementById('adminPendingOrdersBadge');
   const subBadge = document.getElementById('storeSubOrdersCount');
+  const headerBadge = document.getElementById('adminHeaderOrdersBadge');
   
   if (navBadge) {
     navBadge.textContent = pendingCount;
@@ -10739,6 +10764,10 @@ function updatePendingOrdersBadges() {
   }
   if (subBadge) {
     subBadge.textContent = pendingCount;
+  }
+  if (headerBadge) {
+    headerBadge.textContent = pendingCount;
+    headerBadge.style.display = pendingCount > 0 ? 'inline-block' : 'none';
   }
 }
 
