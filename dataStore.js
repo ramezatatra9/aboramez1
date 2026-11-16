@@ -4070,9 +4070,12 @@ const dataStore = {
     // Update order status
     order.status = 'approved';
     order.approvedAt = nowIso;
+    order.updatedAt = nowIso;
     order.approvedBy = approvedBy || 'الإدارة';
     orders[orderIdx] = order;
     writeJson(ORDERS_FILE, orders);
+    syncOrdersToSupabase(orders).catch(err => console.warn('Supabase sync on approve:', err.message));
+    notifyStoreServers();
 
     console.log(`✅ تم اعتماد الطلب #${order.id} بنجاح وخصم المخزون لـ ${updatedProductsList.length} صنف.`);
     return { success: true, order, updatedProductsCount: updatedProductsList.length };
@@ -4086,11 +4089,15 @@ const dataStore = {
     }
     const order = orders[orderIdx];
     order.status = 'cancelled';
-    order.cancelledAt = new Date().toISOString();
+    const nowIso = new Date().toISOString();
+    order.cancelledAt = nowIso;
+    order.updatedAt = nowIso;
     order.cancelledBy = cancelledBy || 'الإدارة';
     order.cancelReason = reason || 'تم الإلغاء بواسطة الإدارة';
     orders[orderIdx] = order;
     writeJson(ORDERS_FILE, orders);
+    syncOrdersToSupabase(orders).catch(err => console.warn('Supabase sync on cancel:', err.message));
+    notifyStoreServers();
     return { success: true, order };
   },
 
