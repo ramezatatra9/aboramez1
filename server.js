@@ -473,9 +473,11 @@ app.post('/api/admin/store/toggle-manual-show', async (req, res) => {
 
 
 // Ø¬Ù„Ø¨ Ø¬Ù…ÙŠØ¹ Ø§Ù„Ù…Ù†ØªØ¬Ø§Øª
-app.get('/api/products', (req, res) => {
+app.get('/api/products', async (req, res) => {
   try {
-    const products = dataStore.getProducts();
+    const products = typeof dataStore.getProductsAsync === 'function'
+      ? await dataStore.getProductsAsync()
+      : dataStore.getProducts();
     res.json({ success: true, products });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -1532,9 +1534,11 @@ app.delete('/api/warranties/:id', async (req, res) => {
 
 
 // Ø¬Ù„Ø¨ Ø§Ù„Ø¥Ø¹Ø¯Ø§Ø¯Ø§Øª
-app.get('/api/settings', (req, res) => {
+app.get('/api/settings', async (req, res) => {
   try {
-    const settings = dataStore.getSettings();
+    const settings = typeof dataStore.getSettingsAsync === 'function'
+      ? await dataStore.getSettingsAsync()
+      : dataStore.getSettings();
     res.json({ success: true, settings });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

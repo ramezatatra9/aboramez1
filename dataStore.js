@@ -485,7 +485,20 @@ try {
 function readJson(filePath, defaultValue) {
   try {
     if (!fs.existsSync(filePath)) {
-      fs.writeFileSync(filePath, JSON.stringify(defaultValue, null, 2), 'utf-8');
+      // إذا كان الملف غير موجود في /tmp/data، انسخ من مجلد data المرفق في المشروع أولاً
+      try {
+        const bundledPath = path.join(BUNDLED_DATA_DIR, path.basename(filePath));
+        if (fs.existsSync(bundledPath)) {
+          const bundledContent = fs.readFileSync(bundledPath, 'utf-8');
+          try {
+            fs.writeFileSync(filePath, bundledContent, 'utf-8');
+          } catch (_) {}
+          return JSON.parse(bundledContent);
+        }
+      } catch (_) {}
+      try {
+        fs.writeFileSync(filePath, JSON.stringify(defaultValue, null, 2), 'utf-8');
+      } catch (_) {}
       return defaultValue;
     }
     const data = fs.readFileSync(filePath, 'utf-8');
@@ -513,8 +526,8 @@ const defaultSettings = {
   companyPhone: "0595979592",
   companyAddress: "الفرع الاول: جنين / يعبد - الكراج | الفرع الثاني: جنين / يعبد - بطن الضبع",
   currency: "شيكل",
-  telegramBotToken: "",
-  telegramChatId: "",
+  telegramBotToken: "8796168868:AAGmJPZWGM_s0Z8FhDVNjFu1IuLPS92s0mk",
+  telegramChatId: "-5562183330",
   invoiceFooterText: "شكراً لتعاملكم معنا - بضاعة الشركة مكفولة حسب شروط الضمان",
   pinLockEnabled: true,
   securityUsers: [
@@ -538,6 +551,85 @@ const CACHE_TTL_MS = 5 * 60 * 1000; // 5 دقائق
 
 const dataStore = {
   // المنتجات - يقرأ من الذاكرة المؤقتة ثم الملف المحلي المتزامن (بدون أي منتجات وهمية نهائياً)
+  async getProductsAsync(force = false) {
+    if (!force && _productsCache && _productsCache.length > 50 && (Date.now() - _productsCacheTime) < CACHE_TTL_MS) {
+      return _productsCache;
+    }
+    if (supabase) {
+      try {
+        let allSbProducts = [];
+        let page = 0;
+        const pageSize = 1000;
+        let hasMore = true;
+        while (hasMore) {
+          const { data, error } = await supabase
+            .from('products')
+            .select('*')
+            .range(page * pageSize, (page + 1) * pageSize - 1);
+          if (error) {
+            console.warn('⚠️ Supabase getProductsAsync page error:', error.message);
+            break;
+          }
+          if (data && data.length > 0) {
+            allSbProducts = allSbProducts.concat(data);
+            page++;
+            hasMore = data.length === pageSize;
+          } else {
+            hasMore = false;
+          }
+        }
+
+        if (allSbProducts.length > 0) {
+          const localProducts = readJson(PRODUCTS_FILE, []);
+          const localMap = new Map();
+          localProducts.forEach(p => {
+            if (p.id) localMap.set(String(p.id), p);
+            if (p.code) localMap.set(String(p.code).toUpperCase(), p);
+          });
+
+          const merged = allSbProducts.map(p => {
+            const loc = localMap.get(String(p.id)) || localMap.get(String(p.code || '').toUpperCase());
+            const finalImage = (p.image && !p.image.includes('placeholder')) ? p.image : (loc && loc.image && !loc.image.includes('placeholder') ? loc.image : (p.image || 'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80'));
+            const finalBrand = (loc && loc.brand && loc.brand !== 'أخرى') ? loc.brand : (p.brand || 'أخرى');
+            const finalBrandAr = (loc && loc.brandAr && loc.brandAr !== 'أخرى / عام') ? loc.brandAr : (p.brandAr || 'أخرى / عام');
+
+            return {
+              id: p.id,
+              code: p.code || '',
+              name: p.name || '',
+              mainCategory: (loc && loc.mainCategory) ? loc.mainCategory : (p.category || 'أجهزة كهربائية كبيرة'),
+              category: (loc && loc.category) ? loc.category : (p.subcategory || p.category || 'عام'),
+              costPrice: Number(p.costPrice) || 0,
+              sellPrice: Number(p.sellPrice) || 0,
+              stock: parseInt(p.stock) || 0,
+              unit: p.unit || 'قطعة',
+              image: finalImage,
+              description: (loc && loc.description) ? loc.description : (p.description || ''),
+              barcode: (loc && loc.barcode) ? loc.barcode : (p.barcode || ''),
+              isSuspended: loc ? Boolean(loc.isSuspended) : Boolean(p.isSuspended),
+              brand: finalBrand,
+              brandAr: finalBrandAr,
+              images: Array.isArray(p.images) && p.images.length > 0 ? p.images : (loc && Array.isArray(loc.images) ? loc.images : []),
+              lastStockUpdate: p.lastStockUpdate || (loc ? loc.lastStockUpdate : null),
+              lastStockEditor: p.lastStockEditor || (loc ? loc.lastStockEditor : null),
+              createdAt: p.createdAt || (loc ? loc.createdAt : new Date().toISOString()),
+              updatedAt: p.updatedAt || (loc ? loc.updatedAt : null),
+              lastSyncAt: p.lastSyncAt || (loc ? loc.lastSyncAt : null)
+            };
+          });
+
+          _productsCache = merged;
+          _productsCacheTime = Date.now();
+          writeJson(PRODUCTS_FILE, merged);
+          return merged;
+        }
+      } catch (err) {
+        console.warn('⚠️ getProductsAsync Supabase error:', err.message);
+      }
+    }
+    return this.getProducts();
+  },
+
   getProducts() {
     // إن كانت الذاكرة المؤقتة حديثة استخدمها فوراً
     if (_productsCache && (Date.now() - _productsCacheTime) < CACHE_TTL_MS) {
@@ -566,7 +658,7 @@ const dataStore = {
   },
 
   async saveProduct(productData) {
-    const products = this.getProducts();
+    const products = typeof this.getProductsAsync === 'function' ? await this.getProductsAsync() : this.getProducts();
     let product;
 
     // معالجة مصفوفة الصور ودعم إضافة أكثر من صورة للصنف
@@ -656,7 +748,7 @@ const dataStore = {
   },
 
   async deleteProduct(id) {
-    const products = this.getProducts();
+    const products = typeof this.getProductsAsync === 'function' ? await this.getProductsAsync() : this.getProducts();
     const toDelete = products.find(p => p.id === id);
     if (!toDelete) return false;
     if (supabase) {
@@ -674,7 +766,7 @@ const dataStore = {
   // خصم الكميات المباعة من المخزون عند إنشاء فاتورة
   async deductStockForInvoice(items, editorName) {
     if (!Array.isArray(items) || items.length === 0) return [];
-    const products = this.getProducts();
+    const products = typeof this.getProductsAsync === 'function' ? await this.getProductsAsync() : this.getProducts();
     const now = new Date().toISOString();
     const modifiedProducts = [];
 
@@ -1902,16 +1994,24 @@ const dataStore = {
 
   // الإعدادات
   async getSettingsAsync(forceCloud = false) {
-    if (!forceCloud && _settingsCache && (Date.now() - _settingsCacheTime) < 30000) {
+    if (!forceCloud && _settingsCache && _settingsCache.telegramBotToken && (Date.now() - _settingsCacheTime) < 30000) {
       return _settingsCache;
     }
     if (supabase) {
       try {
         const { data, error } = await supabase.from('settings').select('data').eq('id', 'general').maybeSingle();
         if (!error && data && data.data && typeof data.data === 'object' && Object.keys(data.data).length > 0) {
-          _settingsCache = { ...defaultSettings, ...data.data };
+          const bundled = readJson(path.join(BUNDLED_DATA_DIR, 'settings.json'), defaultSettings);
+          _settingsCache = {
+            ...defaultSettings,
+            ...bundled,
+            ...data.data,
+            securityUsers: (data.data.securityUsers && Array.isArray(data.data.securityUsers) && data.data.securityUsers.length > 0)
+              ? data.data.securityUsers
+              : (bundled.securityUsers || defaultSettings.securityUsers)
+          };
           _settingsCacheTime = Date.now();
-          writeJson(SETTINGS_FILE, data.data);
+          writeJson(SETTINGS_FILE, _settingsCache);
           return _settingsCache;
         }
       } catch (err) {

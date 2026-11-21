@@ -2382,10 +2382,14 @@
             <div class="input-hint">معرف حسابك الشخصي أو معرف مجموعة تيليجرام الخاصة بالإدارة</div>
           </div>
 
-          <div style="display: flex; gap: 0.75rem; margin-top: 1.5rem;">
-            <button class="btn btn-telegram btn-block" onclick="testTelegramConnection()">
+          <div style="display: flex; gap: 0.75rem; margin-top: 1.5rem; flex-wrap: wrap;">
+            <button type="button" class="btn btn-telegram" style="flex: 1; min-width: 200px;" onclick="testTelegramConnection()">
               <span>🚀</span>
-              <span>فحص الاتصال وإرسال رسالة تجريبية لهاتفي</span>
+              <span>فحص الاتصال وإرسال تجربة</span>
+            </button>
+            <button type="button" class="btn btn-primary" style="flex: 1; min-width: 200px;" onclick="saveCompanySettings()">
+              <span>💾</span>
+              <span>حفظ إعدادات تيليجرام</span>
             </button>
           </div>
         </div>
