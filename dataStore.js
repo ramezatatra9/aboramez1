@@ -17,9 +17,13 @@ const STORE_CONFIG_FILE = path.join(DATA_DIR, 'store_config.json');
 const ORDERS_FILE = path.join(DATA_DIR, 'orders.json');
 let debounceInvoicesSnapshotTimer = null;
 let debounceReceiptsSnapshotTimer = null;
-const BACKUPS_DIR = path.join(__dirname, 'backups');
-if (!fs.existsSync(BACKUPS_DIR)) {
-  fs.mkdirSync(BACKUPS_DIR, { recursive: true });
+const BACKUPS_DIR = process.env.VERCEL ? path.join('/tmp', 'backups') : path.join(__dirname, 'backups');
+try {
+  if (!fs.existsSync(BACKUPS_DIR)) {
+    fs.mkdirSync(BACKUPS_DIR, { recursive: true });
+  }
+} catch (e) {
+  console.warn('Could not create BACKUPS_DIR:', e.message);
 }
 
 // مزامنة صنف مع قاعدة بيانات Supabase الدائمة مع الحفاظ الصارم على كافة الحقول
@@ -467,9 +471,11 @@ async function notifyAdminServerNewOrder(order) {
   }
 }
 
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
+try {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+} catch (e) {}
 
 // قراءة ملف JSON بشكل آمن
 function readJson(filePath, defaultValue) {

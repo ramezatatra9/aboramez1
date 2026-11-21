@@ -10,7 +10,8 @@ const completedCache = new Map(); // key -> { response, timestamp }
 const TTL_MS = 10000; // نافذة الحماية: 10 ثوانٍ
 
 // تنظيف دوري للذاكرة المؤقتة كل دقيقة
-setInterval(() => {
+const cleanupTimer = setInterval(() => {
+  if (cleanupTimer && cleanupTimer.unref) cleanupTimer.unref();
   const now = Date.now();
   for (const [key, val] of completedCache.entries()) {
     if (now - val.timestamp > TTL_MS) {

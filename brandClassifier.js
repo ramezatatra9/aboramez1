@@ -16,13 +16,15 @@ const fs = require('fs');
 const path = require('path');
 
 const DATA_DIR = path.join(__dirname, 'data');
-const BACKUPS_DIR = path.join(__dirname, 'backups');
+const BACKUPS_DIR = process.env.VERCEL ? path.join('/tmp', 'backups') : path.join(__dirname, 'backups');
 const DICTIONARY_FILE = path.join(DATA_DIR, 'brands_dictionary.json');
 const AUDIT_LOG_FILE = path.join(DATA_DIR, 'brand_changes_log.json');
 
-if (!fs.existsSync(BACKUPS_DIR)) {
-  fs.mkdirSync(BACKUPS_DIR, { recursive: true });
-}
+try {
+  if (!fs.existsSync(BACKUPS_DIR)) {
+    fs.mkdirSync(BACKUPS_DIR, { recursive: true });
+  }
+} catch (e) {}
 
 // -------------------------------------------------------------
 // الماركات الافتراضية الشاملة وقاموس الموديلات والتهجئات

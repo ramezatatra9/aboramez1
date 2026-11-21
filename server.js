@@ -22,9 +22,13 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Ø¥Ø¹Ø¯Ø§Ø¯ Ù…Ø¬Ù„Ø¯ Ø§Ù„Ø±ÙØ¹
-const UPLOADS_DIR = path.join(__dirname, 'uploads');
-if (!fs.existsSync(UPLOADS_DIR)) {
-  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+const UPLOADS_DIR = process.env.VERCEL ? path.join('/tmp', 'uploads') : path.join(__dirname, 'uploads');
+try {
+  if (!fs.existsSync(UPLOADS_DIR)) {
+    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+  }
+} catch (e) {
+  console.warn('Could not create UPLOADS_DIR:', e.message);
 }
 
 // Ø¥Ø¹Ø¯Ø§Ø¯ Multer Ù„ØªØ®Ø²ÙŠÙ† ØµÙˆØ± Ø§Ù„Ù…Ù†ØªØ¬Ø§Øª
