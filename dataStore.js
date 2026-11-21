@@ -509,9 +509,9 @@ function writeJson(filePath, data) {
 
 // الإعدادات الافتراضية
 const defaultSettings = {
-  companyName: "رامز عطاطرة",
-  companyPhone: "059-1234567",
-  companyAddress: "المركز التجاري الرئيسي - الطابق الأول",
+  companyName: "شركة ابو رامز للأجهزة الكهربائية",
+  companyPhone: "0595979592",
+  companyAddress: "الفرع الاول: جنين / يعبد - الكراج | الفرع الثاني: جنين / يعبد - بطن الضبع",
   currency: "شيكل",
   telegramBotToken: "",
   telegramChatId: "",

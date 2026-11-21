@@ -314,7 +314,7 @@ app.post('/api/public/orders', async (req, res) => {
 
     // Ø¥Ø±Ø³Ø§Ù„ Ø¥Ø´Ø¹Ø§Ø± ÙÙˆØ±ÙŠ Ù„ØªÙŠÙ„ÙŠØ¬Ø±Ø§Ù…
     const settings = dataStore.getSettings() || {};
-    const telegramBotToken = settings.telegramBotToken || process.env.TELEGRAM_BOT_TOKEN || '8796168868:AAGmJPZWGM_s0Z8FhDVNjFu1IuLPS92s0mk';
+    const telegramBotToken = settings.telegramBotToken || process.env.TELEGRAM_BOT_TOKEN || '8764055418:AAFJG3MY6LZFR8q5rgodajcJl448LdYOEgI';
     const telegramChatId = settings.telegramChatId || process.env.TELEGRAM_CHAT_ID || '-5562183330';
     let telegramResult = { ok: false, error: 'ØºÙŠØ± Ù…Ù‡ÙŠØ£' };
     if (telegramBotToken && telegramChatId) {

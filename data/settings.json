@@ -1,10 +1,10 @@
 {
   "currency": "شيكل",
-  "companyName": "شركة أبو رامز",
+  "companyName": "شركة ابو رامز للأجهزة الكهربائية",
   "companyPhone": "0595979592",
-  "companyAddress": "يعبد",
+  "companyAddress": "الفرع الاول: جنين / يعبد - الكراج | الفرع الثاني: جنين / يعبد - بطن الضبع",
   "telegramChatId": "-5562183330",
-  "telegramBotToken": "8796168868:AAGmJPZWGM_s0Z8FhDVNjFu1IuLPS92s0mk",
+  "telegramBotToken": "8764055418:AAFJG3MY6LZFR8q5rgodajcJl448LdYOEgI",
   "invoiceFooterText": "شكراً لتعاملكم معنا - بضاعة الشركة مكفولة حسب شروط الضمان",
   "previewBaseUrl": "https://aboramez.store",
   "pinLockEnabled": true,
