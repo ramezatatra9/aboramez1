@@ -1,4 +1,4 @@
-﻿const express = require('express');
+const express = require('express');
 const compression = require('compression');
 const cors = require('cors');
 const path = require('path');
@@ -3086,6 +3086,9 @@ process.on('unhandledRejection', function(reason) {
   }).catch(function() {});
 });
 
+module.exports = app;
+
+if (!process.env.VERCEL) {
 app.listen(PORT, '0.0.0.0', async () => {
   console.log(`=======================================================`);
   console.log(`ðŸš€ Ù†Ø¸Ø§Ù… Ø§Ù„Ù…Ø¨ÙŠØ¹Ø§Øª ÙˆØ¥ØµØ¯Ø§Ø± Ø§Ù„ÙÙˆØ§ØªÙŠØ± ÙŠØ¹Ù…Ù„ Ø¨Ù†Ø¬Ø§Ø­ Ø¹Ù„Ù‰:`);
@@ -3125,4 +3128,4 @@ app.listen(PORT, '0.0.0.0', async () => {
   }, CLOUD_REFRESH_INTERVAL);
   console.log('âœ… ØªÙ… ØªÙØ¹ÙŠÙ„ Ø§Ù„ØªØ­Ø¯ÙŠØ« Ø§Ù„Ø¯ÙˆØ±ÙŠ Ù…Ù† Supabase ÙƒÙ„ 3 Ø¯Ù‚Ø§Ø¦Ù‚');
 });
-
+}
