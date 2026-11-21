@@ -94,6 +94,18 @@ app.use((req, res, next) => {
     serverlessInitStarted = true;
     systemMode.verifyReadiness({ quiet: true }).then(async (r) => {
       if (r && r.ok && supabase) {
+        try {
+          const { data: existingSc } = await supabase.from('settings').select('id').eq('id', 'store_config').maybeSingle();
+          if (!existingSc) {
+            const initialSc = dataStore.getStoreConfig();
+            await supabase.from('settings').upsert({ id: 'store_config', data: initialSc });
+          }
+          const { data: existingGen } = await supabase.from('settings').select('id').eq('id', 'general').maybeSingle();
+          if (!existingGen) {
+            const initialGen = dataStore.getSettings();
+            await supabase.from('settings').upsert({ id: 'general', data: initialGen });
+          }
+        } catch (_) {}
         await dataStore.refreshFromCloud().catch(() => {});
       }
     }).catch(() => {});
@@ -139,16 +151,15 @@ app.get('/api/ready', (req, res) => {
 // Ø¨ÙŠØ§Ù†Ø§Øª Ø¢Ù…Ù†Ø© 100% Ø¨Ø­Ø¬Ø¨ ÙƒØ§Ù…Ù„ Ù„Ø£Ø³Ø¹Ø§Ø± Ø§Ù„ØªÙƒÙ„ÙØ© ÙˆØ§Ù„Ù…ÙˆØ±Ø¯ÙŠÙ† + Ø¯Ø¹Ù… Ø§Ù„Ø£Ù‚Ø³Ø§Ù… ÙˆØ§Ù„Ù…Ø§Ø±ÙƒØ§Øª ÙˆØ§Ù„Ø¹Ø±ÙˆØ¶
 // ================================================================
 app.get('/api/public/store-data', async (req, res) => {
-  if (process.env.VERCEL && supabase && typeof dataStore.isCacheStale === 'function' && dataStore.isCacheStale()) {
-    try { await dataStore.refreshFromCloud(); } catch (_) {}
-  }
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   res.set('Pragma', 'no-cache');
   res.set('Expires', '0');
   try {
-    const products = dataStore.getProducts() || [];
-    const settings = dataStore.getSettings() || {};
-    const storeConfig = dataStore.getStoreConfig() || {};
+    const [products, storeConfig, settings] = await Promise.all([
+      typeof dataStore.getProductsAsync === 'function' ? dataStore.getProductsAsync() : Promise.resolve(dataStore.getProducts() || []),
+      typeof dataStore.getStoreConfigAsync === 'function' ? dataStore.getStoreConfigAsync() : Promise.resolve(dataStore.getStoreConfig() || {}),
+      typeof dataStore.getSettingsAsync === 'function' ? dataStore.getSettingsAsync() : Promise.resolve(dataStore.getSettings() || {})
+    ]);
     const manualShowSet = new Set((storeConfig.manuallyShownOutOfStock || []).map(String));
     const customNames = storeConfig.customProductNames || {};
     const customCategories = storeConfig.customProductCategories || {};
@@ -354,9 +365,9 @@ app.get('/api/admin/store-config', (req, res) => {
 });
 
 // 2. ØªØ­Ø¯ÙŠØ« ÙˆØªØ®ØµÙŠØµ Ø¥Ø¹Ø¯Ø§Ø¯Ø§Øª Ø§Ù„Ù…ØªØ¬Ø± Ø§Ù„ÙƒØ§Ù…Ù„Ø©
-app.post('/api/admin/store-config', (req, res) => {
+app.post(['/api/admin/store-config', '/api/store-config'], async (req, res) => {
   try {
-    const updated = dataStore.saveStoreConfig(req.body);
+    const updated = await dataStore.saveStoreConfig(req.body);
     res.json({ success: true, config: updated, message: 'ØªÙ… Ø­ÙØ¸ Ø¥Ø¹Ø¯Ø§Ø¯Ø§Øª Ø§Ù„Ù…ØªØ¬Ø± Ø¨Ù†Ø¬Ø§Ø­.' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -437,11 +448,11 @@ app.post('/api/admin/store/custom-category', async (req, res) => {
   }
 });
 
-app.post('/api/admin/store/custom-name', (req, res) => {
+app.post('/api/admin/store/custom-name', async (req, res) => {
   try {
     const { productId, customName } = req.body;
     if (!productId) return res.status(400).json({ success: false, error: 'Ù…Ø¹Ø±Ù Ø§Ù„ØµÙ†Ù Ù…Ø·Ù„ÙˆØ¨' });
-    const config = dataStore.updateCustomProductName(productId, customName);
+    const config = await dataStore.updateCustomProductName(productId, customName);
     res.json({ success: true, customProductNames: config.customProductNames });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -449,11 +460,11 @@ app.post('/api/admin/store/custom-name', (req, res) => {
 });
 
 // 7. ØªÙØ¹ÙŠÙ„/ØªØ¹Ø·ÙŠÙ„ Ø¥Ø¸Ù‡Ø§Ø± ØµÙ†Ù ØºÙŠØ± Ù…ØªÙˆÙØ± Ø¨Ø§Ù„Ù…Ø®Ø²ÙˆÙ† ÙŠØ¯ÙˆÙŠØ§Ù‹
-app.post('/api/admin/store/toggle-manual-show', (req, res) => {
+app.post('/api/admin/store/toggle-manual-show', async (req, res) => {
   try {
     const { productId, forceShow } = req.body;
     if (!productId) return res.status(400).json({ success: false, error: 'Ù…Ø¹Ø±Ù Ø§Ù„ØµÙ†Ù Ù…Ø·Ù„ÙˆØ¨' });
-    const config = dataStore.toggleManualOutOfStock(productId, Boolean(forceShow));
+    const config = await dataStore.toggleManualOutOfStock(productId, Boolean(forceShow));
     res.json({ success: true, manuallyShownOutOfStock: config.manuallyShownOutOfStock });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

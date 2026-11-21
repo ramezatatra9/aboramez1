@@ -3,7 +3,11 @@ const path = require('path');
 const { supabase } = require('./supabaseClient');
 const { categorizeProduct, getDefaultImageForCategory, detectBrand } = require('./categoryHelper');
 
-const DATA_DIR = path.join(__dirname, 'data');
+const BUNDLED_DATA_DIR = path.join(__dirname, 'data');
+const DATA_DIR = process.env.VERCEL ? path.join('/tmp', 'data') : path.join(__dirname, 'data');
+try {
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+} catch (_) {}
 const PRODUCTS_FILE = path.join(DATA_DIR, 'products.json');
 const INVOICES_FILE = path.join(DATA_DIR, 'invoices.json');
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
@@ -526,6 +530,10 @@ const defaultSettings = {
 // ذاكرة تخزين مؤقت للمنتجات (تُحدَّث عند كل عملية تعديل أو مزامنة)
 let _productsCache = null;
 let _productsCacheTime = 0;
+let _storeConfigCache = null;
+let _storeConfigCacheTime = 0;
+let _settingsCache = null;
+let _settingsCacheTime = 0;
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 دقائق
 
 const dataStore = {
@@ -1893,23 +1901,54 @@ const dataStore = {
 
 
   // الإعدادات
+  async getSettingsAsync(forceCloud = false) {
+    if (!forceCloud && _settingsCache && (Date.now() - _settingsCacheTime) < 30000) {
+      return _settingsCache;
+    }
+    if (supabase) {
+      try {
+        const { data, error } = await supabase.from('settings').select('data').eq('id', 'general').maybeSingle();
+        if (!error && data && data.data && typeof data.data === 'object' && Object.keys(data.data).length > 0) {
+          _settingsCache = { ...defaultSettings, ...data.data };
+          _settingsCacheTime = Date.now();
+          writeJson(SETTINGS_FILE, data.data);
+          return _settingsCache;
+        }
+      } catch (err) {
+        console.warn('⚠️ getSettingsAsync error:', err.message);
+      }
+    }
+    return this.getSettings();
+  },
+
   getSettings() {
+    if (_settingsCache) return _settingsCache;
     const s = readJson(SETTINGS_FILE, defaultSettings);
-    return {
+    _settingsCache = {
       ...defaultSettings,
       ...s,
       securityUsers: (s && Array.isArray(s.securityUsers) && s.securityUsers.length > 0) ? s.securityUsers : defaultSettings.securityUsers
     };
+    _settingsCacheTime = Date.now();
+    return _settingsCache;
   },
 
-  saveSettings(newSettings) {
-    const current = this.getSettings();
+  async saveSettings(newSettings) {
+    const current = await this.getSettingsAsync();
     const updated = {
       ...current,
       ...newSettings
     };
+    _settingsCache = updated;
+    _settingsCacheTime = Date.now();
     writeJson(SETTINGS_FILE, updated);
-    syncSettingsToSupabase(updated);
+    if (supabase) {
+      try {
+        await syncSettingsToSupabase(updated);
+      } catch (err) {
+        console.warn('⚠️ syncSettingsToSupabase error:', err.message);
+      }
+    }
     notifyStoreServers();
     return updated;
   },
@@ -3828,13 +3867,34 @@ const dataStore = {
   // ================================================================
   // إدارة إعدادات وتخصيص المتجر الإلكتروني العام (Store Config)
   // ================================================================
+  async getStoreConfigAsync(forceCloud = false) {
+    if (!forceCloud && _storeConfigCache && (Date.now() - _storeConfigCacheTime) < 30000) {
+      return _storeConfigCache;
+    }
+    if (supabase) {
+      try {
+        const { data, error } = await supabase.from('settings').select('data').eq('id', 'store_config').maybeSingle();
+        if (!error && data && data.data && typeof data.data === 'object' && Object.keys(data.data).length > 0) {
+          _storeConfigCache = data.data;
+          _storeConfigCacheTime = Date.now();
+          writeJson(STORE_CONFIG_FILE, data.data);
+          return _storeConfigCache;
+        }
+      } catch (err) {
+        console.warn('⚠️ getStoreConfigAsync error:', err.message);
+      }
+    }
+    return this.getStoreConfig();
+  },
+
   getStoreConfig() {
+    if (_storeConfigCache) return _storeConfigCache;
     const defaultConfig = {
       storeSettings: {
         heroTitle: 'كل ما يحتاجه بيتك، في مكان واحد.',
-        heroSubtitle: 'معرض الأجهزة الكهربائية والمنزلية المعتمد • أفضل الموديلات والأسعار المكفولة مع إمكانية الطلب المباشر والتوصيل لكافة المناطق',
+        heroSubtitle: 'معرض الأجهزة الكهربائية والمنزلية المعتمد • أفضل الموديلات والأسعار المكفولة',
         heroBadge: '🌟 المعرض المعتمد 2026',
-        announcementText: '🚚 توصيل سريع لكافة المناطق والدفع عند الاستلام • 🛡️ بضاعة أصلية ومكفولة بالكامل • 💬 خدمة عملاء مباشرة',
+        announcementText: '🚚 توصيل سريع لكافة المناطق والدفع عند الاستلام • 🛡️ بضاعة أصلية ومكفولة بالكامل',
         announcementActive: true,
         phone: '0599000000',
         whatsapp: '0599000000',
@@ -3856,13 +3916,17 @@ const dataStore = {
         buttonLink: '#categoriesSection'
       },
       customProductNames: {},
+      customProductCategories: {},
       manuallyShownOutOfStock: []
     };
-    return readJson(STORE_CONFIG_FILE, defaultConfig);
+    const c = readJson(STORE_CONFIG_FILE, defaultConfig);
+    _storeConfigCache = c;
+    _storeConfigCacheTime = Date.now();
+    return _storeConfigCache;
   },
 
-  saveStoreConfig(newConfig) {
-    const current = this.getStoreConfig();
+  async saveStoreConfig(newConfig) {
+    const current = await this.getStoreConfigAsync();
     const updated = {
       ...current,
       ...newConfig,
@@ -3875,18 +3939,23 @@ const dataStore = {
         ...(newConfig.popupOffer || {})
       }
     };
+    _storeConfigCache = updated;
+    _storeConfigCacheTime = Date.now();
     writeJson(STORE_CONFIG_FILE, updated);
-    // مزامنة إعدادات المتجر مع Supabase لمشاركتها مع السيرفرات الأخرى
-    syncStoreConfigToSupabase(updated).catch(err => {
-      console.warn('⚠️ تعذر مزامنة إعدادات المتجر مع Supabase:', err.message);
-    });
+    if (supabase) {
+      try {
+        await syncStoreConfigToSupabase(updated);
+        console.log('✅ تم حفظ وتثبيت إعدادات المتجر في Supabase بنجاح');
+      } catch (err) {
+        console.warn('⚠️ تعذر مزامنة إعدادات المتجر مع Supabase:', err.message);
+      }
+    }
     notifyStoreServers();
     return updated;
   },
 
-  
   async updateCustomProductCategory(productId, category) {
-    const config = this.getStoreConfig();
+    const config = await this.getStoreConfigAsync();
     if (!config.customProductCategories) config.customProductCategories = {};
     const pId = String(productId);
     const catName = category ? String(category).trim() : '';
@@ -3897,7 +3966,6 @@ const dataStore = {
       delete config.customProductCategories[pId];
     }
 
-    // إزالة الصنف فوراً من أي قسم آخر لتجنب تكرار ظهوره في أكثر من قسم
     if (Array.isArray(config.categories)) {
       config.categories.forEach(c => {
         if (!Array.isArray(c.customProductIds)) c.customProductIds = [];
@@ -3910,10 +3978,15 @@ const dataStore = {
       });
     }
 
+    _storeConfigCache = config;
+    _storeConfigCacheTime = Date.now();
     writeJson(STORE_CONFIG_FILE, config);
-    syncStoreConfigToSupabase(config).catch(() => {});
+    if (supabase) {
+      try {
+        await syncStoreConfigToSupabase(config);
+      } catch (_) {}
+    }
 
-    // تحديث وتوحيد قسم الصنف في ملف المنتجات الأساسية وقاعدة بيانات Supabase
     if (catName) {
       const products = this.getProducts();
       const prod = products.find(p => String(p.id) === pId || String(p.code) === pId);
@@ -3923,19 +3996,7 @@ const dataStore = {
         writeJson(PRODUCTS_FILE, products);
         if (supabase) {
           try {
-            await supabase.from('products').upsert({
-              id: prod.id,
-              code: prod.code,
-              name: prod.name,
-              category: catName,
-              brand: prod.brand,
-              cost_price: prod.costPrice,
-              sell_price: prod.sellPrice,
-              stock: prod.stock,
-              image: prod.image,
-              images: prod.images,
-              updated_at: prod.updatedAt
-            }, { onConflict: 'id' });
+            await syncProductToSupabase(prod);
           } catch (err) {}
         }
       }
@@ -3945,22 +4006,28 @@ const dataStore = {
     return config;
   },
 
-  updateCustomProductName(productId, customName) {
-    const config = this.getStoreConfig();
+  async updateCustomProductName(productId, customName) {
+    const config = await this.getStoreConfigAsync();
     if (!config.customProductNames) config.customProductNames = {};
     if (customName && customName.trim()) {
       config.customProductNames[String(productId)] = customName.trim();
     } else {
       delete config.customProductNames[String(productId)];
     }
+    _storeConfigCache = config;
+    _storeConfigCacheTime = Date.now();
     writeJson(STORE_CONFIG_FILE, config);
-    syncStoreConfigToSupabase(config).catch(() => {});
+    if (supabase) {
+      try {
+        await syncStoreConfigToSupabase(config);
+      } catch (_) {}
+    }
     notifyStoreServers();
     return config;
   },
 
-  toggleManualOutOfStock(productId, forceShow) {
-    const config = this.getStoreConfig();
+  async toggleManualOutOfStock(productId, forceShow) {
+    const config = await this.getStoreConfigAsync();
     if (!Array.isArray(config.manuallyShownOutOfStock)) config.manuallyShownOutOfStock = [];
     const pId = String(productId);
     const idx = config.manuallyShownOutOfStock.indexOf(pId);
@@ -3969,8 +4036,14 @@ const dataStore = {
     } else if (!forceShow && idx !== -1) {
       config.manuallyShownOutOfStock.splice(idx, 1);
     }
+    _storeConfigCache = config;
+    _storeConfigCacheTime = Date.now();
     writeJson(STORE_CONFIG_FILE, config);
-    syncStoreConfigToSupabase(config).catch(() => {});
+    if (supabase) {
+      try {
+        await syncStoreConfigToSupabase(config);
+      } catch (_) {}
+    }
     notifyStoreServers();
     return config;
   },
@@ -4144,57 +4217,29 @@ const dataStore = {
     return { success: true, order };
   },
 
-  // تحديث دوري ذكي من سيرفر الأدمن المباشر ومن Supabase
+  // تحديث دوري ذكي من قاعدة بيانات Supabase المشتركة
   async refreshFromCloud() {
     const results = { updated: [] };
-    const adminUrl = process.env.ADMIN_URL || 'https://aboramez1-admin.onrender.com';
-    const currentHost = (process.env.RENDER_EXTERNAL_HOSTNAME || '').toLowerCase();
-    const isStoreOnly = (process.env.APP_MODE || '').toLowerCase() === 'store_only' || currentHost.includes('aboramez1.') || currentHost.includes('aboramez.store');
 
     const withTimeout = (promise, ms = 6000) => Promise.race([
       promise,
       new Promise((_, reject) => setTimeout(() => reject(new Error('timeout after ' + ms + 'ms')), ms))
     ]);
 
-    // 1. إذا كان هذا السيرفر هو متجر الزبائن، اسحب فوراً أحدث الإعدادات والمنتجات من سيرفر الأدمن الحي
-    if (isStoreOnly && adminUrl && !currentHost.includes('admin')) {
-      try {
-        const fetchMod = adminUrl.startsWith('https') ? require('https') : require('http');
-        const adminConfig = await new Promise((resolve, reject) => {
-          const req = fetchMod.get(adminUrl + '/api/admin/store-config', (res) => {
-            let data = '';
-            res.on('data', chunk => data += chunk);
-            res.on('end', () => {
-              try { resolve(JSON.parse(data)); } catch (e) { reject(e); }
-            });
-          });
-          req.on('error', reject);
-          req.setTimeout(5000, () => { req.destroy(); reject(new Error('Admin store-config timeout')); });
-        });
-
-        if (adminConfig && adminConfig.config) {
-          writeJson(STORE_CONFIG_FILE, adminConfig.config);
-          results.updated.push('store_config_from_admin');
-        }
-      } catch (adminErr) {
-        console.warn('⚠️ تعذر السحب المباشر من سيرفر الأدمن:', adminErr.message);
-      }
-    }
-
-    // 2. مزامنة قاعدة بيانات Supabase (مع مهلة أمان لمنع التعليق عند انقطاع السحابة)
+    // مزامنة قاعدة بيانات Supabase (مع مهلة أمان لمنع التعليق عند انقطاع السحابة)
     if (supabase) {
       try {
-        // أ) تحديث إعدادات المتجر من Supabase إذا لم تُسحب من الأدمن
-        if (!results.updated.includes('store_config_from_admin')) {
-          try {
-            const scRes = await withTimeout(supabase.from('settings').select('data').eq('id', 'store_config').maybeSingle(), 5000);
-            if (scRes && scRes.data && scRes.data.data && typeof scRes.data.data === 'object' && Object.keys(scRes.data.data).length > 0) {
-              writeJson(STORE_CONFIG_FILE, scRes.data.data);
-              results.updated.push('store_config_from_supabase');
-            }
-          } catch (e) {
-            console.warn('⚠️ Supabase store_config check timed out / failed:', e.message);
+        // أ) تحديث إعدادات المتجر من Supabase فوراً
+        try {
+          const scRes = await withTimeout(supabase.from('settings').select('data').eq('id', 'store_config').maybeSingle(), 5000);
+          if (scRes && scRes.data && scRes.data.data && typeof scRes.data.data === 'object' && Object.keys(scRes.data.data).length > 0) {
+            _storeConfigCache = scRes.data.data;
+            _storeConfigCacheTime = Date.now();
+            writeJson(STORE_CONFIG_FILE, scRes.data.data);
+            results.updated.push('store_config_from_supabase');
           }
+        } catch (e) {
+          console.warn('⚠️ Supabase store_config check timed out / failed:', e.message);
         }
 
         // ب) تحديث المنتجات من جدول products
@@ -4264,6 +4309,8 @@ const dataStore = {
         try {
           const stRes = await withTimeout(supabase.from('settings').select('data').eq('id', 'general').maybeSingle(), 5000);
           if (stRes && stRes.data && stRes.data.data && typeof stRes.data.data === 'object' && Object.keys(stRes.data.data).length > 0) {
+            _settingsCache = { ...defaultSettings, ...stRes.data.data };
+            _settingsCacheTime = Date.now();
             writeJson(SETTINGS_FILE, stRes.data.data);
             results.updated.push('settings');
 
