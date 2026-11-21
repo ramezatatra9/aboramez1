@@ -3010,17 +3010,19 @@ app.use((req, res, next) => {
   next();
 });
 
+function isAdminHost(req) {
+  const host = (req.hostname || req.headers.host || '').toLowerCase();
+  return host.startsWith('admin.') || host.includes('-admin.');
+}
+
 const APP_MODE = (process.env.APP_MODE || 'full').toLowerCase(); // 'full' | 'admin_only' | 'store_only'
 
-if (APP_MODE === 'admin_only') {
-  app.get(['/', '/store', '/shop'], (req, res) => {
-    res.redirect('/admin');
-  });
-} else {
-  app.get(['/', '/store', '/shop'], (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'store.html'));
-  });
-}
+app.get(['/', '/store', '/shop'], (req, res) => {
+  if (APP_MODE === 'admin_only' || isAdminHost(req)) {
+    return res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  }
+  res.sendFile(path.join(__dirname, 'public', 'store.html'));
+});
 
 // 6. ÙˆØ§Ø¬Ù‡Ø© Ù†Ø¸Ø§Ù… Ø§Ù„Ø¥Ø¯Ø§Ø±Ø© ÙˆØ§Ù„ÙƒØ§Ø´ÙŠØ± Ø§Ù„Ø¯Ø§Ø®Ù„ÙŠ Ø§Ù„Ù…Ø­Ù…ÙŠ (Protected Admin System)
 // Ù…Ø³Ø§Ø±Ø§Øª Ù†Ø¸Ø§Ù… Ø§Ù„Ø£Ø¯Ù…Ù† - ÙƒÙ„ Ø´ÙŠØ¡ ØªØ­Øª /admin
@@ -3051,7 +3053,7 @@ app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api') || req.path.startsWith('/uploads') || req.path.includes('.')) {
     return next();
   }
-  if (APP_MODE === 'admin_only') {
+  if (APP_MODE === 'admin_only' || isAdminHost(req)) {
     return res.sendFile(path.join(__dirname, 'public', 'index.html'));
   }
   if (req.path.startsWith('/admin')) {
