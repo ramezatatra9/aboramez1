@@ -151,6 +151,71 @@
   }
 </style>
 
+
+<style id="aiStudioStyles">
+  .prod-modal-thumb-item {
+    position: relative;
+  }
+  .prod-modal-thumb-ai {
+    position: absolute;
+    bottom: 4px;
+    left: 4px;
+    background: linear-gradient(135deg, #7c3aed, #6d28d9);
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 2px 6px;
+    font-size: 0.7rem;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(109, 40, 217, 0.4);
+    transition: transform 0.15s, background 0.15s;
+    z-index: 5;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .prod-modal-thumb-ai:hover {
+    transform: scale(1.08);
+    background: linear-gradient(135deg, #6d28d9, #5b21b6);
+  }
+  .ai-mode-btn {
+    border: 1.5px solid #cbd5e1;
+    background: #ffffff;
+    color: #334155;
+    font-weight: 700;
+    padding: 6px 14px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .ai-mode-btn.active {
+    background: #7c3aed;
+    color: #ffffff;
+    border-color: #7c3aed;
+    box-shadow: 0 2px 8px rgba(124, 58, 237, 0.35);
+  }
+  .ai-auto-toggle-box {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    background: linear-gradient(135deg, #f5f3ff, #ede9fe);
+    border: 1.5px solid #ddd6fe;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 800;
+    color: #6d28d9;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.2s;
+  }
+  .ai-auto-toggle-box:hover {
+    background: #ede9fe;
+    border-color: #c4b5fd;
+  }
+</style>
+
 </head>
 <body class="auth-locked">
   <!-- ─── شاشة قفل وتحديد صلاحيات المستخدمين الحديثة (First in DOM) ─── -->
@@ -2804,6 +2869,18 @@
             </div>
             
             <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.6rem; align-items: center;">
+              <!-- مفتاح التفعيل التلقائي للذكاء الاصطناعي (الخيار الأول) -->
+              <label class="ai-auto-toggle-box" title="عند التفعيل: يتم تفريغ خلفية الصورة وتوسيطها في استوديو إضاءة أبيض تلقائياً بمجرد اختيارها">
+                <input type="checkbox" id="chkAutoAiEnhance" onchange="window.aiImageStudio.setAutoAiEnhance(this.checked)" style="cursor: pointer; width: 16px; height: 16px; accent-color: #7c3aed;" checked>
+                <span>✨ تفريغ وتحسين تلقائي بالذكاء الاصطناعي</span>
+              </label>
+
+              <!-- زر استوديو الذكاء الاصطناعي اليدوي المخصص (الخيار الثاني) -->
+              <button type="button" class="btn btn-sm" onclick="triggerManualAiStudioUpload()" style="background: linear-gradient(135deg, #8b5cf6, #6d28d9); color: #fff; font-weight: 800; border: none; padding: 6px 14px; border-radius: 8px; display: inline-flex; align-items: center; gap: 0.4rem; box-shadow: 0 2px 6px rgba(109,40,217,0.3); cursor: pointer;" title="فتح استوديو الذكاء الاصطناعي لاختيار وتعديل صورة مع معاينة حية">
+                <span>🪄</span>
+                <span>استوديو AI (تعديل ومعاينة)</span>
+              </button>
+              <input type="file" id="aiStudioUploadInput" accept="image/*" style="display:none;" onchange="handleManualAiStudioFile(this)">
               <!-- زر اختيار من الاستوديو / المعرض للأندرويد والأجهزة الذكية مع دعم اختيار صور متعددة -->
               <button type="button" class="btn btn-sm btn-outline-primary" onclick="document.getElementById('prodImageFileGallery').click()" style="display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 700;">
                 <span>🖼️</span>
@@ -4564,6 +4641,7 @@
   <script src="/js/html2pdf.bundle.min.js?v=11.0.0"></script>
   <script src="/js/warranties.js"></script>
   <script src="/js/brandsAudit.js"></script>
+  <script src="/js/aiImageStudio.js?v=1.0.0"></script>
   <script src="/js/app.js?v=11.0.7"></script>
   <script src="/js/pwa.js?v=11.0.7"></script>
   <!-- مكتبة مسح الباركود المحلية السريعة -->
@@ -4739,6 +4817,91 @@
           <span>↑↓ للتنقل</span>
           <span>↵ للفتح</span>
           <span>Esc للإغلاق</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ======================================================= -->
+  <!-- نافذة استوديو تحسين الصور بالذكاء الاصطناعي (AI Studio Modal) -->
+  <!-- ======================================================= -->
+  <div class="modal-backdrop" id="aiStudioModal" style="z-index: 100050; display: none;">
+    <div class="modal-card" style="max-width: 820px; border-radius: 18px; overflow: hidden; box-shadow: 0 25px 60px rgba(0,0,0,0.35); border: 2px solid #8b5cf6; margin: auto;">
+      <div class="modal-header" style="background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%); color: #fff; padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 0.6rem;">
+          <span style="font-size: 1.5rem;">✨</span>
+          <div>
+            <h3 style="font-weight: 800; margin: 0; font-size: 1.15rem; color: #fff;">استوديو الذكاء الاصطناعي لتحسين صور المنتجات</h3>
+            <p style="font-size: 0.78rem; color: #c7d2fe; margin: 0;">تفريغ الخلفية تلقائياً، إضاءة استوديو بيضاء، وظل واقعي للمتجر</p>
+          </div>
+        </div>
+        <button type="button" class="close-btn" style="color: #fff; background: none; border: none; font-size: 1.3rem; cursor: pointer;" onclick="window.aiImageStudio.closeAiStudioModal()">✕</button>
+      </div>
+
+      <div class="modal-body" style="padding: 1.25rem;">
+        <!-- أزرار اختيار النمط -->
+        <div style="display: flex; gap: 0.5rem; justify-content: center; margin-bottom: 1.25rem; flex-wrap: wrap;">
+          <button type="button" class="ai-mode-btn active" data-mode="studio" onclick="window.aiImageStudio.rerunAiStudioGeneration('studio')">
+            <span>🌟</span>
+            <span>خلفية استوديو بيضاء وظل واقعي (الموصى بها)</span>
+          </button>
+          <button type="button" class="ai-mode-btn" data-mode="transparent" onclick="window.aiImageStudio.rerunAiStudioGeneration('transparent')">
+            <span>🔳</span>
+            <span>خلفية شفافة مفرغة (PNG)</span>
+          </button>
+          <button type="button" class="ai-mode-btn" data-mode="lighting" onclick="window.aiImageStudio.rerunAiStudioGeneration('lighting')">
+            <span>⚡</span>
+            <span>تحسين الإضاءة والألوان فقط</span>
+          </button>
+        </div>
+
+        <!-- المقارنة بين الصورة الأصلية والمحسنة -->
+        <div style="display: grid; grid-template-columns: 1fr 1.1fr; gap: 1rem; align-items: center; margin-bottom: 1.25rem;">
+          <!-- الأصلية -->
+          <div style="border: 1.5px solid #cbd5e1; border-radius: 14px; overflow: hidden; background: #f8fafc; text-align: center; padding: 0.75rem;">
+            <div style="font-size: 0.82rem; font-weight: 800; color: #64748b; margin-bottom: 0.5rem;">📷 الصورة الأصلية (المدخلة)</div>
+            <div style="width: 100%; height: 260px; display: flex; align-items: center; justify-content: center; background: #fff; border-radius: 10px; overflow: hidden;">
+              <img id="aiStudioOrigImg" src="" alt="الأصلية" style="max-width: 100%; max-height: 100%; object-fit: contain;">
+            </div>
+          </div>
+
+          <!-- بعد المعالجة بالذكاء الاصطناعي -->
+          <div style="border: 2px solid #8b5cf6; border-radius: 14px; overflow: hidden; background: #faf5ff; text-align: center; padding: 0.75rem; position: relative;">
+            <div style="font-size: 0.82rem; font-weight: 800; color: #7c3aed; margin-bottom: 0.5rem; display: flex; align-items: center; justify-content: center; gap: 0.35rem;">
+              <span>✨</span>
+              <span>النتيجة بعد الذكاء الاصطناعي (Studio 1:1)</span>
+            </div>
+            <div style="width: 100%; height: 260px; display: flex; align-items: center; justify-content: center; background: #ffffff; border-radius: 10px; overflow: hidden; position: relative; border: 1px dashed #c084fc;">
+              <img id="aiStudioResultImg" src="" alt="النتيجة" style="max-width: 100%; max-height: 100%; object-fit: contain; transition: opacity 0.3s;">
+            </div>
+          </div>
+        </div>
+
+        <!-- مؤشر التقدم -->
+        <div id="aiStudioProgressWrap" style="margin-bottom: 1rem; text-align: center;">
+          <div style="font-size: 0.88rem; font-weight: 700; color: #4338ca; margin-bottom: 0.5rem; display: flex; align-items: center; justify-content: center; gap: 0.4rem;">
+            <span class="spinner" style="width: 18px; height: 18px; border-width: 2.5px; display: inline-block;"></span>
+            <span id="aiStudioProgressText">جاري المعالجة والتفريغ بالذكاء الاصطناعي...</span>
+          </div>
+          <div style="width: 100%; height: 8px; background: #e0e7ff; border-radius: 10px; overflow: hidden;">
+            <div id="aiStudioProgressBar" style="width: 15%; height: 100%; background: linear-gradient(90deg, #6366f1, #8b5cf6); transition: width 0.3s;"></div>
+          </div>
+        </div>
+
+        <!-- أزرار الإجراءات والاعتماد -->
+        <div id="aiStudioActionsWrap" style="display: none; gap: 0.75rem; justify-content: center; flex-wrap: wrap;">
+          <button type="button" class="btn btn-primary" id="btnAiApplyResult" onclick="window.aiImageStudio.applyAiStudioResult(true)" style="background: linear-gradient(135deg, #16a34a, #15803d); font-weight: 800; padding: 0.75rem 1.5rem; border: none; border-radius: 10px; cursor: pointer;">
+            <span>✅</span>
+            <span>اعتماد واستبدال الصورة الحالية</span>
+          </button>
+          <button type="button" class="btn btn-secondary" onclick="window.aiImageStudio.applyAiStudioResult(false)" style="font-weight: 700; padding: 0.75rem 1.25rem; cursor: pointer;">
+            <span>➕</span>
+            <span>حفظ كصورة إضافية للمنتج</span>
+          </button>
+          <button type="button" class="btn btn-outline-secondary" onclick="window.aiImageStudio.closeAiStudioModal()" style="padding: 0.75rem 1.25rem; cursor: pointer;">
+            <span>إلغاء</span>
+          </button>
         </div>
       </div>
     </div>
