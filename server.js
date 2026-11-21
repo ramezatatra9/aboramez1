@@ -86,12 +86,32 @@ app.use(express.static(path.join(__dirname, 'public'), { index: false, maxAge: '
 app.use('/uploads', express.static(UPLOADS_DIR, { maxAge: '7d', etag: true }));
 
 // â”€â”€â”€ ÙØ­Øµ Ø¬Ø§Ù‡Ø²ÙŠØ© Supabase Ù‚Ø¨Ù„ ÙƒÙ„ Ø¹Ù…Ù„ÙŠØ© ÙƒØªØ§Ø¨Ø© (Read-Only Degraded Mode) â”€â”€â”€
+
+// تهيئة أولية لبيئات Vercel Serverless لضمان تفعيل وضع القراءة والكتابة وجلب أحدث البيانات
+let serverlessInitStarted = false;
+app.use((req, res, next) => {
+  if (process.env.VERCEL && !serverlessInitStarted) {
+    serverlessInitStarted = true;
+    systemMode.verifyReadiness({ quiet: true }).then(async (r) => {
+      if (r && r.ok && supabase) {
+        await dataStore.refreshFromCloud().catch(() => {});
+      }
+    }).catch(() => {});
+  }
+  next();
+});
+
 app.use(systemMode.requireWritePermission);
 
 // â”€â”€â”€ endpoints Ù„Ù„ØµØ­Ø© ÙˆØ§Ù„Ø¬Ø§Ù‡Ø²ÙŠØ© â”€â”€â”€
 const { getSafeKeyMetadata } = require('./supabaseClient');
 
-app.get('/api/health', (req, res) => {
+app.get('/api/health', async (req, res) => {
+  if (systemMode.getStatus().mode !== 'read-write') {
+    try {
+      await systemMode.verifyReadiness({ quiet: true });
+    } catch (_) {}
+  }
   const meta = typeof getSafeKeyMetadata === 'function' ? getSafeKeyMetadata() : {};
   res.json({
     status: 'ok',
@@ -118,7 +138,10 @@ app.get('/api/ready', (req, res) => {
 // Ù†Ù‚Ø·Ø© ÙˆØµÙˆÙ„ Ù…ØªØ¬Ø± Ø§Ù„Ø²Ø¨Ø§Ø¦Ù† Ø§Ù„Ø¹Ø§Ù… (Public Store API - Almnar Style)
 // Ø¨ÙŠØ§Ù†Ø§Øª Ø¢Ù…Ù†Ø© 100% Ø¨Ø­Ø¬Ø¨ ÙƒØ§Ù…Ù„ Ù„Ø£Ø³Ø¹Ø§Ø± Ø§Ù„ØªÙƒÙ„ÙØ© ÙˆØ§Ù„Ù…ÙˆØ±Ø¯ÙŠÙ† + Ø¯Ø¹Ù… Ø§Ù„Ø£Ù‚Ø³Ø§Ù… ÙˆØ§Ù„Ù…Ø§Ø±ÙƒØ§Øª ÙˆØ§Ù„Ø¹Ø±ÙˆØ¶
 // ================================================================
-app.get('/api/public/store-data', (req, res) => {
+app.get('/api/public/store-data', async (req, res) => {
+  if (process.env.VERCEL && supabase && typeof dataStore.isCacheStale === 'function' && dataStore.isCacheStale()) {
+    try { await dataStore.refreshFromCloud(); } catch (_) {}
+  }
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   res.set('Pragma', 'no-cache');
   res.set('Expires', '0');
@@ -735,17 +758,35 @@ app.delete('/api/products/:id', async (req, res) => {
 });
 
 // Ø±ÙØ¹ ØµÙˆØ±Ø© Ù„Ù„Ù…Ù†ØªØ¬ (Ù…Ø¹ Ø¯Ø¹Ù… Ø§Ù„ØªØ®Ø²ÙŠÙ† Ø§Ù„Ø³Ø­Ø§Ø¨ÙŠ Ø§Ù„Ø¯Ø§Ø¦Ù… ÙÙŠ Supabase ÙˆØ§Ù„Ø£Ù†Ø¯Ø±ÙˆÙŠØ¯)
+let _bucketChecked = false;
+async function ensureProductImageBucket() {
+  if (!supabase || _bucketChecked) return;
+  try {
+    const { data: buckets } = await supabase.storage.listBuckets();
+    if (buckets && !buckets.some(b => b.name === 'product-images')) {
+      await supabase.storage.createBucket('product-images', { public: true });
+      console.log('✅ تم إنشاء bucket التخزين product-images في Supabase');
+    }
+    _bucketChecked = true;
+  } catch (err) {
+    console.warn('⚠️ فحص/إنشاء bucket التخزين:', err.message);
+  }
+}
+
+// رفع صورة للمنتج (مع دعم التخزين السحابي الدائم في Supabase وبديل Base64 الآمن)
 app.post('/api/upload', upload.single('image'), async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ success: false, error: 'Ù„Ù… ÙŠØªÙ… Ø§Ø®ØªÙŠØ§Ø± Ø£ÙŠ ØµÙˆØ±Ø©' });
+      return res.status(400).json({ success: false, error: 'لم يتم اختيار أي صورة' });
     }
     const localUrl = `/uploads/${req.file.filename}`;
     let finalUrl = localUrl;
+    let uploadedToCloud = false;
 
-    // Ø±ÙØ¹ Ø¯Ø§Ø¦Ù… Ø¥Ù„Ù‰ Supabase Storage Ø­ØªÙ‰ Ù„Ø§ ØªØ¶ÙŠØ¹ Ø§Ù„ØµÙˆØ± Ø¹Ù†Ø¯ Ù†ÙˆÙ… Ø£Ùˆ Ø¥Ø¹Ø§Ø¯Ø© Ù†Ø´Ø± Ø®Ø§Ø¯Ù… Render
+    // رفع دائم إلى Supabase Storage
     if (supabase) {
       try {
+        await ensureProductImageBucket();
         const fileContent = fs.readFileSync(req.file.path);
         const remoteName = `prod-${Date.now()}-${Math.round(Math.random() * 1e5)}${path.extname(req.file.originalname).toLowerCase() || '.jpg'}`;
         const { data: upData, error: upError } = await supabase.storage
@@ -759,15 +800,30 @@ app.post('/api/upload', upload.single('image'), async (req, res) => {
           const { data: pUrl } = supabase.storage.from('product-images').getPublicUrl(remoteName);
           if (pUrl && pUrl.publicUrl) {
             finalUrl = pUrl.publicUrl;
+            uploadedToCloud = true;
           }
+        } else {
+          console.warn('⚠️ تنبيه رفع الصورة إلى Supabase Storage:', upError ? upError.message : 'Unknown');
         }
       } catch (sbErr) {
-        console.warn('âš ï¸ Supabase image upload fallback to local:', sbErr.message);
+        console.warn('⚠️ استثناء رفع الصورة لـ Supabase Storage:', sbErr.message);
+      }
+    }
+
+    // إذا لم ينجح الرفع السحابي وكنا في بيئة Vercel أو بدون سيرفر محلي دائم، نحفظ الصورة كـ base64 لضمان عدم ضياعها أبداً
+    if (!uploadedToCloud && (process.env.VERCEL || !supabase)) {
+      try {
+        const fileContent = fs.readFileSync(req.file.path);
+        const mime = req.file.mimetype || 'image/jpeg';
+        finalUrl = `data:${mime};base64,${fileContent.toString('base64')}`;
+      } catch (b64Err) {
+        console.warn('⚠️ تعذر تحويل الصورة إلى base64:', b64Err.message);
       }
     }
 
     res.json({ success: true, imageUrl: finalUrl, localUrl });
   } catch (err) {
+    console.error('Upload error:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });

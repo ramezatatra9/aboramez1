@@ -3097,6 +3097,7 @@ async function handleMultipleImagesUpload(input) {
   showToast(`جاري معالجة وضغط (${files.length}) صورة للأجهزة الذكية والأندرويد...`, 'info');
 
   let uploadedCount = 0;
+  let lastErrorMsg = '';
   for (const rawFile of files) {
     try {
       const file = await compressImageForUpload(rawFile);
@@ -3108,8 +3109,12 @@ async function handleMultipleImagesUpload(input) {
         if (!Array.isArray(state.editingProductImages)) state.editingProductImages = [];
         state.editingProductImages.push(data.imageUrl);
         uploadedCount++;
+      } else {
+        lastErrorMsg = data.error || (data.code ? `خطأ: ${data.code}` : 'فشل رفع الصورة');
+        console.error('فشل رفع الصورة:', data);
       }
     } catch (err) {
+      lastErrorMsg = err.message;
       console.error('فشل رفع إحدى الصور:', err);
     }
   }
@@ -3118,7 +3123,7 @@ async function handleMultipleImagesUpload(input) {
   if (uploadedCount > 0) {
     showToast(`✅ تم رفع وإضافة (${uploadedCount}) صورة بنجاح!`, 'success');
   } else {
-    showToast('فشل رفع الصور المحددة', 'error');
+    showToast('فشل رفع الصور: ' + (lastErrorMsg || 'يرجى التحقق من اتصال الإنترنت والصيغة'), 'error');
   }
 }
 

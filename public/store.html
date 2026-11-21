@@ -2251,7 +2251,7 @@
           <div class="product-card">
             <div class="card-img-container" onclick="openQuickView('${escapeJsStr(p.id)}')">
               ${stockBadge}
-              <img class="card-img" src="${escapeHtml(img)}" alt="${escapeHtml(p.name)}" loading="lazy">
+              <img class="card-img" src="${escapeHtml(img)}" alt="${escapeHtml(p.name)}" loading="lazy" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=500';">
               ${p.brand ? `<span class="badge-brand-tag">${escapeHtml(p.brand)}</span>` : ''}
             </div>
 

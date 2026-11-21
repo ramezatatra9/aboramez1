@@ -15,6 +15,7 @@ let healthCheckTimer = null;
 
 // قائمة بالمسارات الآمنة التي لا تعدل الحسابات ويُسمح بها في وضع القراءة فقط
 const SAFE_POST_ROUTES = [
+  '/api/upload',
   '/api/internal/orders/receive',
   '/api/public/orders',
   '/api/store-config',
@@ -126,7 +127,7 @@ function stopPeriodicHealthCheck() {
 /**
  * Express Middleware: حظر أي عملية تعديل أو إضافة أو حذف عند انقطاع السحابة
  */
-function requireWritePermission(req, res, next) {
+async function requireWritePermission(req, res, next) {
   const mutatingMethods = ['POST', 'PUT', 'DELETE', 'PATCH'];
   if (!mutatingMethods.includes(req.method)) {
     return next();
@@ -135,6 +136,13 @@ function requireWritePermission(req, res, next) {
   // السماح بالمسارات الآمنة
   if (isSafePostRoute(req.path)) {
     return next();
+  }
+
+  // إذا لم يكن النظام في وضع الكتابة، أعد التحقق فوراً (مهم جداً لخوادم Vercel Serverless)
+  if (systemMode !== 'read-write') {
+    try {
+      await verifyReadiness({ quiet: true });
+    } catch (_) {}
   }
 
   if (systemMode !== 'read-write') {
@@ -168,3 +176,9 @@ module.exports = {
   requireWritePermission
 };
 
+
+
+// تشغيل فحص الجاهزية الأولي فور تحميل الوحدة
+if (supabase) {
+  verifyReadiness({ quiet: true }).catch(() => {});
+}

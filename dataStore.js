@@ -364,7 +364,7 @@ function notifyStoreServers() {
   const currentHost = (process.env.RENDER_EXTERNAL_HOSTNAME || '').toLowerCase();
   const targets = [
     process.env.STORE_REFRESH_URL,
-    'https://aboramez1.onrender.com/api/refresh-from-cloud',
+    'https://www.aboramez.store/api/refresh-from-cloud',
     'https://aboramez.store/api/refresh-from-cloud'
   ].filter(Boolean);
 
@@ -445,7 +445,7 @@ async function syncOrdersToSupabase(orders) {
 }
 
 async function notifyAdminServerNewOrder(order) {
-  const adminUrl = process.env.ADMIN_URL || 'https://aboramez1-admin.onrender.com';
+  const adminUrl = process.env.ADMIN_URL || 'https://admin.aboramez.store';
   const currentHost = (process.env.RENDER_EXTERNAL_HOSTNAME || '').toLowerCase();
   try {
     const u = new URL(adminUrl);
@@ -540,6 +540,10 @@ const dataStore = {
     _productsCache = Array.isArray(data) ? data : [];
     _productsCacheTime = Date.now();
     return _productsCache;
+  },
+
+  isCacheStale(maxAgeMs = 60000) {
+    return !_productsCache || (Date.now() - _productsCacheTime) > maxAgeMs;
   },
 
   // تحديث الذاكرة المؤقتة
@@ -2250,7 +2254,7 @@ const dataStore = {
 
       // 4. مزامنة سحابية خلفية فائقة السرعة مع Supabase دون تعطيل برنامج الشامل
       if (supabase && updatedOrNewProducts.length > 0) {
-        setImmediate(async () => {
+        const doBatchSync = async () => {
           try {
             const withTimeout = (p, ms = 8000) => Promise.race([
               p,
@@ -2299,7 +2303,12 @@ const dataStore = {
           } catch (err) {
             console.warn('⚠️ Background Supabase sync error:', err.message);
           }
-        });
+        };
+        if (process.env.VERCEL) {
+          await doBatchSync();
+        } else {
+          setImmediate(doBatchSync);
+        }
       }
     }
 
@@ -3614,7 +3623,7 @@ const dataStore = {
         // دمج آمن: تحديث الأسعار والمخزون مع الحفاظ الصارم على الصور، الماركات، والأوصاف
         const merged = allSbProducts.map(p => {
           const loc = localMap.get(String(p.code || '').toUpperCase()) || localMap.get(String(p.id));
-          const finalImage = (loc && loc.image && !loc.image.includes('placeholder')) ? loc.image : (p.image || 'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80');
+          const finalImage = (p.image && !p.image.includes('placeholder')) ? p.image : (loc && loc.image && !loc.image.includes('placeholder') ? loc.image : (p.image || 'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=600&auto=format&fit=crop&q=80'));
           const finalBrand = (loc && loc.brand && loc.brand !== 'أخرى') ? loc.brand : (p.brand || 'أخرى');
           const finalBrandAr = (loc && loc.brandAr && loc.brandAr !== 'أخرى / عام') ? loc.brandAr : (p.brandAr || 'أخرى / عام');
           const finalDesc = (loc && loc.description) ? loc.description : (p.description || '');
@@ -4228,7 +4237,7 @@ const dataStore = {
                 sellPrice: Number(p.sellPrice) || 0,
                 stock: parseInt(p.stock) || 0,
                 unit: p.unit || 'قطعة',
-                image: (loc && loc.image && !loc.image.includes('placeholder')) ? loc.image : (p.image || ''),
+                image: (p.image && !p.image.includes('placeholder')) ? p.image : (loc && loc.image && !loc.image.includes('placeholder') ? loc.image : (p.image || '')),
                 description: (loc && loc.description) ? loc.description : (p.description || ''),
                 barcode: (loc && loc.barcode) ? loc.barcode : (p.barcode || ''),
                 isSuspended: loc ? Boolean(loc.isSuspended) : Boolean(p.isSuspended),
