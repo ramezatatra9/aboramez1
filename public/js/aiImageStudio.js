@@ -1,6 +1,7 @@
 /**
  * محرك تحسين وتفريغ صور المنتجات بالذكاء الاصطناعي (AI Image Studio Pro)
  * شركة ابو رامز للأجهزة الكهربائية
+ * الإصدار 2.0 - معالجة على الخادم (Server-Side AI) لضمان نتائج حقيقية
  *
  * - خيار 1: تحسين وتفريغ تلقائي فوري عند رفع الصور المتعددة
  * - خيار 2: استوديو تفاعلي مخصص مع معاينة حية وخيارات استوديو احترافية
@@ -9,7 +10,6 @@
 (function(window) {
   'use strict';
 
-  let _imglyModule = null;
   let _currentOriginalBlob = null;
   let _currentOriginalUrl = null;
   let _currentEnhancedBlob = null;
@@ -29,28 +29,6 @@
     localStorage.setItem('aboramez_auto_ai_enhance', val ? 'true' : 'false');
     const chk = document.getElementById('chkAutoAiEnhance');
     if (chk) chk.checked = !!val;
-  }
-
-  // تحميل مكتبة الذكاء الاصطناعي عند أول استخدام مع دعم خوادم بديلة
-  async function loadAiModel() {
-    if (_imglyModule) return _imglyModule;
-    updateAiProgress(10, 'جاري تهيئة نموذج الذكاء الاصطناعي...');
-
-    try {
-      const mod = await import('https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/dist/index.mjs');
-      _imglyModule = mod;
-      return mod;
-    } catch (cdnErr) {
-      console.warn('تعذر التحميل من jsdelivr، محاولة unpkg...', cdnErr.message);
-      try {
-        const mod = await import('https://unpkg.com/@imgly/background-removal@1.7.0/dist/index.mjs');
-        _imglyModule = mod;
-        return mod;
-      } catch (unpkgErr) {
-        console.warn('تعذر تحميل مكتبة @imgly، سيتم تفعيل محرك الاستوديو الذكي المحلي:', unpkgErr.message);
-        return null;
-      }
-    }
   }
 
   function updateAiProgress(percent, text) {
@@ -93,34 +71,34 @@
     });
   }
 
-  // ضمان تحويل أي مصدر إلى Blob نقي محلي لمنع أخطاء CORS أو أخطاء publicPath في @imgly
-  async function ensureBlob(source, loadedImg) {
-    if (source instanceof Blob) return source;
+  // تحويل أي مصدر إلى File/Blob لرفعه للخادم
+  async function sourceToFile(source) {
+    if (source instanceof File) return source;
+    if (source instanceof Blob) return new File([source], 'image.png', { type: source.type || 'image/png' });
 
     if (typeof source === 'string') {
+      // محاولة جلب الصورة عبر fetch
       try {
         const res = await fetch(source, { mode: 'cors' });
         if (res.ok) {
-          const b = await res.blob();
-          if (b && b.size > 0) return b;
+          const blob = await res.blob();
+          const ext = source.split('.').pop().split('?')[0].toLowerCase();
+          const mime = blob.type || (ext === 'png' ? 'image/png' : (ext === 'webp' ? 'image/webp' : 'image/jpeg'));
+          return new File([blob], `image.${ext || 'jpg'}`, { type: mime });
         }
       } catch (_) {}
+
+      // إذا فشل الجلب المباشر، نستخرج من Canvas
+      const img = await loadImageElement(source);
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth || img.width || 800;
+      canvas.height = img.naturalHeight || img.height || 800;
+      canvas.getContext('2d').drawImage(img, 0, 0);
+      const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.95));
+      return new File([blob], 'image.jpg', { type: 'image/jpeg' });
     }
 
-    // استخراج الـ Blob محلياً عبر Canvas
-    const img = loadedImg || await loadImageElement(source);
-    const canvas = document.createElement('canvas');
-    canvas.width = img.naturalWidth || img.width || 800;
-    canvas.height = img.naturalHeight || img.height || 800;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(img, 0, 0);
-
-    return new Promise((resolve, reject) => {
-      canvas.toBlob(blob => {
-        if (blob) resolve(blob);
-        else reject(new Error('فشل استخراج بيانات الصورة'));
-      }, 'image/png');
-    });
+    throw new Error('مصدر صورة غير مدعوم');
   }
 
   // حساب حدود المنتج الحقيقي بدون الحواف الشفافة (Auto Trim / Bounding Box)
@@ -139,7 +117,6 @@
       let minX = w, minY = h, maxX = 0, maxY = 0;
       let found = false;
 
-      // فحص سريع بخطوة 2 بكسل لسرعة فائقة
       for (let y = 0; y < h; y += 2) {
         for (let x = 0; x < w; x += 2) {
           const alpha = data[(y * w + x) * 4 + 3];
@@ -157,7 +134,6 @@
         return { x: 0, y: 0, w, h };
       }
 
-      // إضافة هامش صغير (Padding 1%)
       const padX = Math.round(w * 0.01);
       const padY = Math.round(h * 0.01);
       const realX = Math.max(0, minX - padX);
@@ -189,7 +165,7 @@
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, targetSize, targetSize);
 
-    // 2. اقتصاص الفراغات وتوسيط المنتج بنسبة 82% من مساحة الإطار
+    // 2. اقتصاص الفراغات وتوسيط المنتج بنسبة 82%
     const bounds = getNonTransparentBounds(subjectImg);
     const maxDim = targetSize * 0.82;
     const ratio = Math.min(maxDim / bounds.w, maxDim / bounds.h);
@@ -198,7 +174,7 @@
     const destX = Math.round((targetSize - destW) / 2);
     const destY = Math.round((targetSize - destH) / 2);
 
-    // 3. ظل أرضي ناعم واقعي تحت قاعدة المنتج (Realistic Ground Contact Shadow)
+    // 3. ظل أرضي ناعم واقعي
     const centerX = destX + destW / 2;
     const centerY = destY + destH - Math.round(destH * 0.015);
     const radiusX = Math.round(destW * 0.44);
@@ -229,7 +205,7 @@
       destX, destY, destW, destH
     );
 
-    // 5. لمسة تباين وإضاءة استوديو متوازنة
+    // 5. لمسة تباين وإضاءة استوديو
     enhanceCanvasLighting(ctx, targetSize, targetSize);
 
     return new Promise(resolve => {
@@ -264,7 +240,7 @@
     });
   }
 
-  // محرك استوديو الإضاءة والألوان (بدون تفريغ كامل)
+  // محرك استوديو الإضاءة والألوان (بدون تفريغ خلفية)
   function composeLightingEnhanceOnly(img, targetSize = 1000) {
     const canvas = document.createElement('canvas');
     canvas.width = targetSize;
@@ -290,17 +266,17 @@
     });
   }
 
-  // فلتر ضبط الألوان والسطوع والحدة للاستوديو التجاري
+  // فلتر ضبط الألوان والسطوع والحدة
   function enhanceCanvasLighting(ctx, width, height) {
     try {
       const imgData = ctx.getImageData(0, 0, width, height);
       const d = imgData.data;
-      const contrast = 1.08; // زيادة دقيقة للتباين
-      const brightness = 6;  // رفع خفيف للسطوع
+      const contrast = 1.08;
+      const brightness = 6;
       const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
 
       for (let i = 0; i < d.length; i += 4) {
-        if (d[i + 3] === 0) continue; // تخطي البكسل الشفاف تماماً
+        if (d[i + 3] === 0) continue;
         d[i] = Math.min(255, Math.max(0, factor * (d[i] - 128) + 128 + brightness));
         d[i + 1] = Math.min(255, Math.max(0, factor * (d[i + 1] - 128) + 128 + brightness));
         d[i + 2] = Math.min(255, Math.max(0, factor * (d[i + 2] - 128) + 128 + brightness));
@@ -309,61 +285,94 @@
     } catch (_) {}
   }
 
-  // الدالة الرئيسية لمعالجة وتحسين الصورة بالذكاء الاصطناعي
+  // ===================================================================
+  // الدالة الرئيسية — تفريغ الخلفية بالذكاء الاصطناعي على الخادم
+  // ===================================================================
   async function processImageAI(source, mode = 'studio', onProgress) {
-    if (onProgress) onProgress(15, 'جاري تحليل وقراءة بيانات الصورة...');
+    if (onProgress) onProgress(10, 'جاري تحضير الصورة للمعالجة...');
+
     const originalImg = await loadImageElement(source);
 
     if (mode === 'lighting') {
+      // وضع الإضاءة فقط — بدون تفريغ خلفية
       if (onProgress) onProgress(60, 'جاري موازنة الإضاءة وتوضيح المعالم...');
       const blob = await composeLightingEnhanceOnly(originalImg);
       if (onProgress) onProgress(100, 'تم التحسين بنجاح!');
       return blob;
     }
 
-    // تفريغ الخلفية باستخدام نموذج الذكاء الاصطناعي السحابي/المتصفحي
-    const mod = await loadAiModel();
-    if (mod && typeof mod.removeBackground === 'function') {
-      if (onProgress) onProgress(30, 'جاري عزل وتفريغ خلفية المنتج بالذكاء الاصطناعي...');
-      try {
-        const inputBlob = await ensureBlob(source, originalImg);
+    // === تفريغ الخلفية عبر الخادم (Server-Side AI) ===
+    if (onProgress) onProgress(20, 'جاري رفع الصورة للخادم لمعالجتها بالذكاء الاصطناعي...');
+    let transparentBlob = null;
 
-        const transparentBlob = await mod.removeBackground(inputBlob, {
-          publicPath: 'https://staticimgly.com/@imgly/background-removal-data/1.7.0/dist/',
-          model: 'isnet_quint8', // نموذج خفيف وسريع جداً (10 ميغابايت)
-          debug: false,
-          progress: (key, current, total) => {
-            if (total > 0 && onProgress) {
-              const p = Math.round(30 + (current / total) * 50);
-              onProgress(p, 'جاري معالجة تفاصيل المنتج (' + Math.round((current / total) * 100) + '%)...');
-            }
+    try {
+      const imageFile = await sourceToFile(source);
+      const formData = new FormData();
+      formData.append('image', imageFile);
+
+      if (onProgress) onProgress(35, 'جاري تفريغ خلفية المنتج بالذكاء الاصطناعي (قد تستغرق 15-30 ثانية)...');
+
+      const res = await fetch('/api/ai/remove-background', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.imageUrl) {
+          if (onProgress) onProgress(80, 'تم تفريغ الخلفية — جاري بناء صورة الاستوديو...');
+
+          // جلب صورة شفافة ووضعها في الاستوديو
+          const transparentRes = await fetch(data.imageUrl);
+          if (transparentRes.ok) {
+            transparentBlob = await transparentRes.blob();
+          } else {
+            // إذا كانت data URL مباشرة
+            transparentBlob = data.imageUrl.startsWith('data:') ? dataUrlToBlob(data.imageUrl) : null;
           }
-        });
-
-        if (mode === 'transparent') {
-          if (onProgress) onProgress(90, 'جاري ضبط أبعاد الإطار الشفاف...');
-          const cutOutImg = await loadImageElement(transparentBlob);
-          const finalPng = await composeTransparentCropped(cutOutImg);
-          if (onProgress) onProgress(100, 'تم تفريغ الخلفية بنجاح!');
-          return finalPng;
         }
-
-        // وضع خلفية الاستوديو والظل الاحترافي 1:1
-        if (onProgress) onProgress(85, 'جاري بناء استوديو الإضاءة الاحترافي والظل...');
-        const cutOutImg = await loadImageElement(transparentBlob);
-        const studioBlob = await composeStudioBackground(cutOutImg);
-        if (onProgress) onProgress(100, 'تم إنشاء صورة الاستوديو بنجاح!');
-        return studioBlob;
-      } catch (aiErr) {
-        console.warn('تنبيه أثناء إزالة الخلفية بالذكاء الاصطناعي، الانتقال لمحرك الاستوديو البديل:', aiErr.message);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        console.warn('⚠️ خطأ من خادم الذكاء الاصطناعي:', errData.error || res.status);
       }
+    } catch (serverErr) {
+      console.warn('⚠️ تعذر الاتصال بخادم الذكاء الاصطناعي، سيتم الانتقال للبديل:', serverErr.message);
     }
 
-    // بديل ذكي فائق السرعة إذا تعذر نموذج WASM
-    if (onProgress) onProgress(75, 'جاري ضبط ألوان المنتج وتوسيط الإطار في استوديو 1:1...');
+    if (transparentBlob) {
+      const cutOutImg = await loadImageElement(transparentBlob);
+
+      if (mode === 'transparent') {
+        if (onProgress) onProgress(90, 'جاري ضبط أبعاد الإطار الشفاف...');
+        const finalPng = await composeTransparentCropped(cutOutImg);
+        if (onProgress) onProgress(100, 'تم تفريغ الخلفية بنجاح!');
+        return finalPng;
+      }
+
+      if (onProgress) onProgress(90, 'جاري بناء استوديو الإضاءة الاحترافي والظل...');
+      const studioBlob = await composeStudioBackground(cutOutImg);
+      if (onProgress) onProgress(100, 'تم إنشاء صورة الاستوديو بنجاح!');
+      return studioBlob;
+    }
+
+    // بديل سريع إذا تعذّر نموذج الذكاء الاصطناعي تماماً
+    if (onProgress) onProgress(80, 'جاري تطبيق تحسين الإضاءة والإطار الاستوديوي...');
     const fallbackBlob = await composeLightingEnhanceOnly(originalImg);
-    if (onProgress) onProgress(100, 'تم تحسين صورة الصنف بنجاح!');
+    if (onProgress) onProgress(100, 'تم تحسين صورة الصنف!');
     return fallbackBlob;
+  }
+
+  // تحويل Data URL إلى Blob
+  function dataUrlToBlob(dataUrl) {
+    try {
+      const arr = dataUrl.split(',');
+      const mime = arr[0].match(/:(.*?);/)[1];
+      const bstr = atob(arr[1]);
+      let n = bstr.length;
+      const u8arr = new Uint8Array(n);
+      while (n--) u8arr[n] = bstr.charCodeAt(n);
+      return new Blob([u8arr], { type: mime });
+    } catch (_) { return null; }
   }
 
   // -------------------------------------------------------------------

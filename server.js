@@ -880,6 +880,98 @@ app.post('/api/upload', upload.single('image'), async (req, res) => {
 });
 
 // -------------------------------------------------------------
+// AI تفريغ خلفية الصورة بالذكاء الاصطناعي على الخادم (Server-Side AI Background Removal)
+// -------------------------------------------------------------
+let _bgRemovalModule = null;
+
+async function getBackgroundRemovalModule() {
+  if (_bgRemovalModule) return _bgRemovalModule;
+  try {
+    _bgRemovalModule = require('@imgly/background-removal-node');
+    return _bgRemovalModule;
+  } catch (e) {
+    console.warn('⚠️ @imgly/background-removal-node غير متوفر:', e.message);
+    return null;
+  }
+}
+
+app.post('/api/ai/remove-background', upload.single('image'), async (req, res) => {
+  try {
+    // قبول صورة كملف مرفوع أو كرابط URL
+    let imageBuffer = null;
+    let mimeType = 'image/png';
+
+    if (req.file) {
+      imageBuffer = fs.readFileSync(req.file.path);
+      mimeType = req.file.mimetype || 'image/jpeg';
+    } else if (req.body && req.body.imageUrl) {
+      // جلب من URL باستخدام Node.js https
+      const imgUrl = req.body.imageUrl;
+      const https = imgUrl.startsWith('https://') ? require('https') : require('http');
+      imageBuffer = await new Promise((resolve, reject) => {
+        const chunks = [];
+        https.get(imgUrl, (r) => {
+          r.on('data', c => chunks.push(c));
+          r.on('end', () => resolve(Buffer.concat(chunks)));
+          r.on('error', reject);
+        }).on('error', reject);
+      });
+      mimeType = 'image/jpeg';
+    } else {
+      return res.status(400).json({ success: false, error: 'يجب رفع صورة أو إرسال imageUrl' });
+    }
+
+    const bgMod = await getBackgroundRemovalModule();
+    if (!bgMod || typeof bgMod.removeBackground !== 'function') {
+      return res.status(503).json({ success: false, error: 'نموذج إزالة الخلفية غير متاح على الخادم' });
+    }
+
+    // تحويل Buffer إلى Blob
+    const { Blob } = require('buffer');
+    const inputBlob = new Blob([imageBuffer], { type: mimeType });
+
+    // تشغيل نموذج إزالة الخلفية
+    const resultBlob = await bgMod.removeBackground(inputBlob, {
+      model: 'isnet_quint8',
+      debug: false
+    });
+
+    // تحويل النتيجة إلى Buffer ورفعها إلى Supabase Storage
+    const resultArrayBuffer = await resultBlob.arrayBuffer();
+    const resultBuffer = Buffer.from(resultArrayBuffer);
+    const remoteName = `ai-bg-${Date.now()}-${Math.round(Math.random()*1e5)}.png`;
+
+    let finalUrl = null;
+    if (supabase) {
+      await ensureProductImageBucket();
+      const { data: upData, error: upError } = await supabase.storage
+        .from('product-images')
+        .upload(remoteName, resultBuffer, { contentType: 'image/png', upsert: true });
+      if (!upError && upData) {
+        const { data: pUrl } = supabase.storage.from('product-images').getPublicUrl(remoteName);
+        if (pUrl && pUrl.publicUrl) finalUrl = pUrl.publicUrl;
+      }
+    }
+
+    // إذا تعذر Supabase، أرسل كـ base64
+    if (!finalUrl) {
+      finalUrl = `data:image/png;base64,${resultBuffer.toString('base64')}`;
+    }
+
+    // حذف الملف المؤقت
+    if (req.file) {
+      try { fs.unlinkSync(req.file.path); } catch (_) {}
+    }
+
+    res.json({ success: true, imageUrl: finalUrl, transparent: true });
+  } catch (err) {
+    console.error('AI remove-background error:', err);
+    if (req.file) { try { fs.unlinkSync(req.file.path); } catch (_) {} }
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// -------------------------------------------------------------
 // APIs: Ù…Ø²Ø§Ù…Ù†Ø© Ø¨Ø±Ù†Ø§Ù…Ø¬ Ø§Ù„Ø´Ø§Ù…Ù„ Ù„Ø§ÙŠØª (Al-Shamel Lite Sync API)
 // -------------------------------------------------------------
 
@@ -3224,7 +3316,40 @@ app.listen(PORT, '0.0.0.0', async () => {
 
   // ÙØ­Øµ Ø¯ÙˆØ±ÙŠ ÙƒÙ„ 30 Ø«Ø§Ù†ÙŠØ© Ù„Ø§Ø³ØªØ¹Ø§Ø¯Ø© ÙˆØ¶Ø¹ Ø§Ù„ÙƒØªØ§Ø¨Ø© Ø¹Ù†Ø¯ Ø¹ÙˆØ¯Ø© Ø§Ù„Ø§ØªØµØ§Ù„
   systemMode.startPeriodicHealthCheck(30000, async () => {
-    await dataStore.initFromSupabase();
+    // Fix: عند إعادة الاتصال، ندفع البيانات المحلية الحديثة إلى Supabase
+    // بدلاً من سحب بيانات قديمة منها تؤدي لفساد البيانات
+    console.log('🔄 عادت قاعدة Supabase — جاري رفع البيانات المحلية الأحدث إليها...');
+    try {
+      // دفع الزبائن المحليين إلى Supabase (البيانات المحلية هي الأحدث أثناء فترة الانقطاع)
+      const localCustomers = dataStore.getCustomers();
+      if (localCustomers && localCustomers.length > 0) {
+        await supabase.from('settings').upsert({ id: 'customers', data: localCustomers }).catch(() => {});
+      }
+      // دفع الموردين المحليين
+      const localSuppliers = dataStore.getSuppliers();
+      if (localSuppliers && localSuppliers.length > 0) {
+        await supabase.from('settings').upsert({ id: 'suppliers', data: localSuppliers }).catch(() => {});
+      }
+      // دفع الفواتير المحلية (ضمان تزامن أي فواتير صدرت أثناء الانقطاع)
+      const localInvoices = dataStore.getInvoices();
+      if (localInvoices && localInvoices.length > 0) {
+        for (const inv of localInvoices.slice(-50)) {
+          supabase.from('invoices').upsert(inv, { onConflict: 'id' }).catch(() => {});
+        }
+        await supabase.from('settings').upsert({ id: 'invoices', data: localInvoices }).catch(() => {});
+      }
+      // دفع سندات القبض والصرف
+      const localReceipts = dataStore.getReceipts();
+      if (localReceipts && localReceipts.length > 0) {
+        for (const r of localReceipts.slice(-50)) {
+          supabase.from('receipts').upsert(r, { onConflict: 'id' }).catch(() => {});
+        }
+        await supabase.from('settings').upsert({ id: 'receipts', data: localReceipts }).catch(() => {});
+      }
+      console.log('✅ تم رفع البيانات المحلية الحديثة إلى Supabase بنجاح بعد إعادة الاتصال');
+    } catch (pushErr) {
+      console.warn('⚠️ تعذر رفع البيانات المحلية بعد إعادة الاتصال:', pushErr.message);
+    }
   });
 
   // Ø§Ø³ØªØ¹Ø§Ø¯Ø© Ø§Ù„Ø¨ÙŠØ§Ù†Ø§Øª Ù…Ù† Supabase

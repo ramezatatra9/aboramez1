@@ -4468,6 +4468,64 @@ const dataStore = {
           }
         } catch (e) {}
 
+        // هـ) تحديث أرصدة الزبائن من Supabase (Fix: تأخر تحديث الديون والأرصدة)
+        try {
+          const cRes = await withTimeout(supabase.from('settings').select('data').eq('id', 'customers').maybeSingle(), 6000);
+          if (cRes && cRes.data && Array.isArray(cRes.data.data) && cRes.data.data.length > 0) {
+            const sbCustomers = cRes.data.data;
+            const localCustomers = readJson(CUSTOMERS_FILE, []);
+            // دمج: نحتفظ بالبيانات المحلية الأحدث ونحدّث الأرصدة فقط من Supabase
+            const sbMap = new Map();
+            sbCustomers.forEach(c => {
+              const key = String(c.systemNumber || c.shamelCode || c.id || '').toUpperCase();
+              if (key) sbMap.set(key, c);
+            });
+            const merged = localCustomers.map(loc => {
+              const key = String(loc.systemNumber || loc.shamelCode || loc.id || '').toUpperCase();
+              const sbC = sbMap.get(key);
+              if (!sbC) return loc;
+              // نستخدم رصيد Supabase إذا كان محدّثاً مؤخراً
+              const sbBal = parseFloat(sbC.shamelBalance !== undefined ? sbC.shamelBalance : sbC.balance) || 0;
+              return Object.assign({}, loc, { shamelBalance: sbBal, balance: sbBal });
+            });
+            // إضافة الزبائن الجدد من Supabase غير الموجودين محلياً
+            const localKeys = new Set(localCustomers.map(c => String(c.systemNumber || c.shamelCode || c.id || '').toUpperCase()));
+            sbCustomers.forEach(c => {
+              const key = String(c.systemNumber || c.shamelCode || c.id || '').toUpperCase();
+              if (key && !localKeys.has(key)) merged.push(c);
+            });
+            writeJson(CUSTOMERS_FILE, merged);
+            results.updated.push('customers_balances:' + merged.length);
+          }
+        } catch (e) {
+          console.warn('⚠️ خطأ في تحديث أرصدة الزبائن من Supabase:', e.message);
+        }
+
+        // و) تحديث أرصدة الموردين من Supabase
+        try {
+          const sRes = await withTimeout(supabase.from('settings').select('data').eq('id', 'suppliers').maybeSingle(), 6000);
+          if (sRes && sRes.data && Array.isArray(sRes.data.data) && sRes.data.data.length > 0) {
+            const sbSuppliers = sRes.data.data;
+            const localSuppliers = readJson(SUPPLIERS_FILE, []);
+            const sbMap = new Map();
+            sbSuppliers.forEach(s => {
+              const key = String(s.shamelCode || s.id || '').toUpperCase();
+              if (key) sbMap.set(key, s);
+            });
+            const merged = localSuppliers.map(loc => {
+              const key = String(loc.shamelCode || loc.id || '').toUpperCase();
+              const sbS = sbMap.get(key);
+              if (!sbS) return loc;
+              const sbBal = parseFloat(sbS.shamelBalance !== undefined ? sbS.shamelBalance : sbS.balance) || 0;
+              return Object.assign({}, loc, { shamelBalance: sbBal, balance: sbBal });
+            });
+            writeJson(SUPPLIERS_FILE, merged);
+            results.updated.push('suppliers_balances:' + merged.length);
+          }
+        } catch (e) {
+          console.warn('⚠️ خطأ في تحديث أرصدة الموردين من Supabase:', e.message);
+        }
+
       } catch (err) {
         console.warn('⚠️ خطأ في التحديث الدوري من السحابة:', err.message);
       }

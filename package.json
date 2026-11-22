@@ -8,6 +8,7 @@
     "dev": "node server.js"
   },
   "dependencies": {
+    "@imgly/background-removal-node": "^1.4.5",
     "@supabase/supabase-js": "^2.116.0",
     "compression": "^1.8.2",
     "cors": "^2.8.5",
