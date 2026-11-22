@@ -214,6 +214,9 @@
     background: #ede9fe;
     border-color: #c4b5fd;
   }
+  #aiStudioModal.active {
+    display: flex !important;
+  }
 </style>
 
 </head>
@@ -4641,7 +4644,7 @@
   <script src="/js/html2pdf.bundle.min.js?v=11.0.0"></script>
   <script src="/js/warranties.js"></script>
   <script src="/js/brandsAudit.js"></script>
-  <script src="/js/aiImageStudio.js?v=1.0.0"></script>
+  <script src="/js/aiImageStudio.js?v=1.1.0"></script>
   <script src="/js/app.js?v=11.0.7"></script>
   <script src="/js/pwa.js?v=11.0.7"></script>
   <!-- مكتبة مسح الباركود المحلية السريعة -->
@@ -4826,7 +4829,7 @@
   <!-- ======================================================= -->
   <!-- نافذة استوديو تحسين الصور بالذكاء الاصطناعي (AI Studio Modal) -->
   <!-- ======================================================= -->
-  <div class="modal-backdrop" id="aiStudioModal" style="z-index: 100050; display: none;">
+  <div class="modal-backdrop" id="aiStudioModal" style="z-index: 100050;">
     <div class="modal-card" style="max-width: 820px; border-radius: 18px; overflow: hidden; box-shadow: 0 25px 60px rgba(0,0,0,0.35); border: 2px solid #8b5cf6; margin: auto;">
       <div class="modal-header" style="background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%); color: #fff; padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center;">
         <div style="display: flex; align-items: center; gap: 0.6rem;">

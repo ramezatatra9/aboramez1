@@ -248,11 +248,11 @@ app.get('/api/public/store-data', async (req, res) => {
       popupOffer: storeConfig.popupOffer || { enabled: false },
       storeSettings: storeConfig.storeSettings || {},
       company: {
-        name: settings.companyName || 'Ø´Ø±ÙƒØ© Ø±Ø§Ù…Ø² Ø¹Ø·Ø§Ø·Ø±Ø©',
-        phone: (storeConfig.storeSettings && storeConfig.storeSettings.phone) || settings.companyPhone || '',
-        whatsapp: (storeConfig.storeSettings && storeConfig.storeSettings.whatsapp) || settings.companyPhone || '',
-        address: (storeConfig.storeSettings && storeConfig.storeSettings.address) || settings.companyAddress || '',
-        currency: (storeConfig.storeSettings && storeConfig.storeSettings.currency) || settings.currency || 'Ø´ÙŠÙƒÙ„',
+        name: settings.companyName || 'شركة ابو رامز للأجهزة الكهربائية',
+        phone: (storeConfig.storeSettings && storeConfig.storeSettings.phone) || settings.companyPhone || '0595979592',
+        whatsapp: (storeConfig.storeSettings && storeConfig.storeSettings.whatsapp) || settings.companyPhone || '0595979592',
+        address: (storeConfig.storeSettings && storeConfig.storeSettings.address) || settings.companyAddress || 'الفرع الاول: جنين / يعبد - الكراج | الفرع الثاني: جنين / يعبد - بطن الضبع',
+        currency: (storeConfig.storeSettings && storeConfig.storeSettings.currency) || settings.currency || 'شيكل',
         logo: (storeConfig.storeSettings && storeConfig.storeSettings.companyLogo) || settings.companyLogo || ''
       }
     });
@@ -344,11 +344,15 @@ app.post('/api/public/orders', async (req, res) => {
 // Ù„ÙˆØ­Ø© ØªØ­ÙƒÙ… Ø¥Ø¯Ø§Ø±Ø© Ø§Ù„Ù…ØªØ¬Ø± Ø§Ù„Ø¥Ù„ÙƒØªØ±ÙˆÙ†ÙŠ (Admin Store Management APIs)
 // ================================================================
 
-// 1. Ø¬Ù„Ø¨ Ø¥Ø¹Ø¯Ø§Ø¯Ø§Øª ÙˆØªØ®ØµÙŠØµ Ø§Ù„Ù…ØªØ¬Ø± Ø§Ù„ÙƒØ§Ù…Ù„Ø©
-app.get('/api/admin/store-config', (req, res) => {
+// 1. جلب إعدادات وتخصيص المتجر الكاملة
+app.get(['/api/admin/store-config', '/api/store-config'], async (req, res) => {
   try {
-    const config = dataStore.getStoreConfig();
-    const orders = dataStore.getOrders();
+    const config = typeof dataStore.getStoreConfigAsync === 'function'
+      ? await dataStore.getStoreConfigAsync()
+      : dataStore.getStoreConfig();
+    const orders = typeof dataStore.getOrdersAsync === 'function'
+      ? await dataStore.getOrdersAsync()
+      : dataStore.getOrders();
     const pendingOrdersCount = orders.filter(o => o.status === 'pending').length;
     res.json({
       success: true,
@@ -359,6 +363,29 @@ app.get('/api/admin/store-config', (req, res) => {
         approvedOrders: orders.filter(o => o.status === 'approved').length
       }
     });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 1.1 جلب أقسام المتجر النشطة
+app.get(['/api/categories', '/api/public/categories'], async (req, res) => {
+  try {
+    const config = typeof dataStore.getStoreConfigAsync === 'function'
+      ? await dataStore.getStoreConfigAsync()
+      : dataStore.getStoreConfig();
+    const categories = (config.categories || [])
+      .filter(c => c.isVisible !== false)
+      .map(c => ({
+        id: c.id,
+        name: c.storeName || c.name,
+        originalName: c.name,
+        storeName: c.storeName || c.name,
+        image: c.image || '',
+        sortOrder: parseInt(c.sortOrder) || 99
+      }))
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+    res.json({ success: true, categories });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
