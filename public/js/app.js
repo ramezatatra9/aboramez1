@@ -1889,7 +1889,7 @@ async function loadProducts() {
     const res = await fetch('/api/products');
     const data = await res.json();
     if (data.success) {
-      state.products = data.products || [];
+      state.products = (data.products || []).filter(p => !p.isSuspended && !(p.name && (p.name.includes('ملغي') || p.name.includes('مجمد'))));
       // تسريع فوري للبحث: تجهيز نص الفهرسة لكل منتج مسبقاً (Instant Indexing)
       for (let i = 0; i < state.products.length; i++) {
         const p = state.products[i];

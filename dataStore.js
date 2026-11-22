@@ -618,10 +618,11 @@ const dataStore = {
             };
           });
 
-          _productsCache = merged;
+          const activeMerged = merged.filter(p => !p.isSuspended && !(p.name && (p.name.includes("ملغي") || p.name.includes("مجمد"))));
+          _productsCache = activeMerged;
           _productsCacheTime = Date.now();
-          writeJson(PRODUCTS_FILE, merged);
-          return merged;
+          writeJson(PRODUCTS_FILE, activeMerged);
+          return activeMerged;
         }
       } catch (err) {
         console.warn('⚠️ getProductsAsync Supabase error:', err.message);
@@ -637,7 +638,7 @@ const dataStore = {
     }
     // قراءة من الملف المحلي المتزامن دون أي افتراضات وهمية
     const data = readJson(PRODUCTS_FILE, []);
-    _productsCache = Array.isArray(data) ? data : [];
+    _productsCache = (Array.isArray(data) ? data : []).filter(p => !p.isSuspended && !(p.name && (p.name.includes("ملغي") || p.name.includes("مجمد"))));
     _productsCacheTime = Date.now();
     return _productsCache;
   },
@@ -761,6 +762,27 @@ const dataStore = {
     writeJson(PRODUCTS_FILE, filtered);
     notifyStoreServers();
     return true;
+  },
+
+  // تنظيف وحذف جميع الأصناف المجمدة والملغية
+  async purgeSuspendedProducts() {
+    const products = typeof this.getProductsAsync === 'function' ? await this.getProductsAsync() : this.getProducts();
+    const suspended = products.filter(p => p.isSuspended || (p.name && (p.name.includes('ملغي') || p.name.includes('مجمد'))));
+    const ids = suspended.map(p => String(p.id));
+    let deletedFromCloud = 0;
+    if (supabase && ids.length > 0) {
+      for (let i = 0; i < ids.length; i += 50) {
+        const chunk = ids.slice(i, i + 50);
+        const { error } = await supabase.from('products').delete().in('id', chunk);
+        if (!error) deletedFromCloud += chunk.length;
+      }
+    }
+    const cleanList = products.filter(p => !p.isSuspended && !(p.name && (p.name.includes('ملغي') || p.name.includes('مجمد'))));
+    _productsCache = cleanList;
+    _productsCacheTime = Date.now();
+    writeJson(PRODUCTS_FILE, cleanList);
+    notifyStoreServers();
+    return { success: true, purgedCount: ids.length, deletedFromCloud, activeCount: cleanList.length };
   },
 
   // خصم الكميات المباعة من المخزون عند إنشاء فاتورة
@@ -2241,7 +2263,23 @@ const dataStore = {
         const newSellPrice = item.sellPrice !== undefined ? Math.max(0, parseFloat(item.sellPrice) || 0) : null;
         const newCostPrice = item.costPrice !== undefined ? Math.max(0, parseFloat(item.costPrice) || 0) : null;
         const newStock = item.stock !== undefined ? Math.max(0, parseInt(item.stock) || 0) : null;
-        const isSuspended = Boolean(item.isSuspended);
+        const isSuspended = Boolean(item.isSuspended) || 
+          (item.name && (item.name.trim() === 'ملغي' || item.name.includes('ملغي') || item.name.includes('مجمد')));
+
+        // إذا كان الصنف مجمداً أو ملغياً في الشامل، يجب حذفه إن كان موجوداً، وعدم إضافته نهائياً إذا كان جديداً
+        if (isSuspended) {
+          if (existing) {
+            const idx = products.findIndex(p => p.id === existing.id);
+            if (idx !== -1) products.splice(idx, 1);
+            productMap.delete(codeKey);
+            if (supabase) {
+              deleteProductFromSupabase(existing.id).catch(() => {});
+            }
+            summary.suspended++;
+            summary.details.push({ code: cleanCode, name: existing.name, action: 'purged_suspended' });
+          }
+          continue; // تخطي الصنف وعدم إضافته إطلاقاً لقاعدة البيانات أو الموقع
+        }
 
         if (existing) {
           // --- الصنف موجود مسبقاً: تحديث آمن ودقيق للأسعار ورأس المال والكميات والاسم مع الحفاظ على الصور ---

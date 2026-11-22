@@ -499,13 +499,24 @@ app.post('/api/admin/store/toggle-manual-show', async (req, res) => {
 });
 
 
-// Ø¬Ù„Ø¨ Ø¬Ù…ÙŠØ¹ Ø§Ù„Ù…Ù†ØªØ¬Ø§Øª
+// جلب جميع المنتجات النشطة واستبعاد الأصناف الملغية والمجمدة
 app.get('/api/products', async (req, res) => {
   try {
-    const products = typeof dataStore.getProductsAsync === 'function'
+    const allProducts = typeof dataStore.getProductsAsync === 'function'
       ? await dataStore.getProductsAsync()
       : dataStore.getProducts();
+    const products = allProducts.filter(p => !p.isSuspended && !(p.name && (p.name.includes('ملغي') || p.name.includes('مجمد'))));
     res.json({ success: true, products });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// تنظيف وحذف جميع الأصناف المجمدة والملغية من قاعدة البيانات والسيرفر
+app.post(['/api/admin/purge-suspended', '/api/products/purge-suspended'], async (req, res) => {
+  try {
+    const result = await dataStore.purgeSuspendedProducts();
+    res.json(result);
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
