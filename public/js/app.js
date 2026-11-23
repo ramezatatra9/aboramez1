@@ -1200,6 +1200,8 @@ async function checkDatabaseStatus() {
       }
       if (dbText) dbText.textContent = 'قاعدة البيانات: قراءة فقط ⚠️';
       if (dbBanner) dbBanner.style.display = 'flex';
+      // فحص سريع بعد ثانية ونصف لتنشيط الاتصال عند بدء التشغيل البارد (Cold Start)
+      setTimeout(checkDatabaseStatus, 1500);
     }
   } catch (e) {
     isDatabaseWriteReady = false;

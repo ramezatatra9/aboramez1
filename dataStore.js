@@ -542,6 +542,10 @@ const defaultSettings = {
 
 // ذاكرة تخزين مؤقت للمنتجات (تُحدَّث عند كل عملية تعديل أو مزامنة)
 let _productsCache = null;
+let _invoicesCache = null;
+let _invoicesCacheTime = 0;
+let _receiptsCache = null;
+let _receiptsCacheTime = 0;
 let _customersCache = null;
 let _customersCacheTime = 0;
 let _suppliersCache = null;
@@ -562,6 +566,25 @@ const dataStore = {
     }
     if (supabase) {
       try {
+        // تسريع فائق: فحص snapshot المنتجات المزامنة أولاً من جدول settings (يستغرق 50ms فقط)
+        try {
+          const withTimeoutFast = (p, ms = 3500) => Promise.race([
+            p,
+            new Promise((_, r) => setTimeout(() => r(new Error('timeout')), ms))
+          ]);
+          const { data: snapRow, error: snapErr } = await withTimeoutFast(
+            supabase.from('settings').select('data').eq('id', 'products_snapshot').maybeSingle(),
+            3500
+          );
+          if (!snapErr && snapRow && Array.isArray(snapRow.data) && snapRow.data.length > 50) {
+            const cleanProds = snapRow.data.filter(p => !p.isSuspended && !(p.name && (p.name.includes('ملغي') || p.name.includes('مجمد'))));
+            _productsCache = cleanProds;
+            _productsCacheTime = Date.now();
+            writeJson(PRODUCTS_FILE, cleanProds);
+            return cleanProds;
+          }
+        } catch (_) {}
+
         let allSbProducts = [];
         let page = 0;
         const pageSize = 1000;
@@ -853,6 +876,38 @@ const dataStore = {
   },
 
   // الفواتير
+  async getInvoicesAsync(force = false) {
+    if (!force && _invoicesCache && _invoicesCache.length > 0 && (Date.now() - _invoicesCacheTime) < 30000) {
+      return _invoicesCache;
+    }
+    if (supabase) {
+      try {
+        const withTimeout = (p, ms = 5000) => Promise.race([
+          p,
+          new Promise((_, r) => setTimeout(() => r(new Error('timeout')), ms))
+        ]);
+        const { data: invRow, error } = await withTimeout(
+          supabase.from('settings').select('data').eq('id', 'invoices').maybeSingle(),
+          5000
+        );
+        if (!error && invRow && Array.isArray(invRow.data) && invRow.data.length > 0) {
+          _invoicesCache = invRow.data;
+          _invoicesCacheTime = Date.now();
+          writeJson(INVOICES_FILE, invRow.data);
+          return _invoicesCache;
+        }
+      } catch (e) {
+        console.warn('⚠️ Supabase getInvoicesAsync timeout/error:', e.message);
+      }
+    }
+    const local = this.getInvoices();
+    if (local && local.length > 0) {
+      _invoicesCache = local;
+      _invoicesCacheTime = Date.now();
+    }
+    return local;
+  },
+
   getInvoices() {
     return readJson(INVOICES_FILE, []);
   },
@@ -1114,6 +1169,38 @@ const dataStore = {
   },
 
   // سندات القبض
+  async getReceiptsAsync(force = false) {
+    if (!force && _receiptsCache && _receiptsCache.length > 0 && (Date.now() - _receiptsCacheTime) < 30000) {
+      return _receiptsCache;
+    }
+    if (supabase) {
+      try {
+        const withTimeout = (p, ms = 5000) => Promise.race([
+          p,
+          new Promise((_, r) => setTimeout(() => r(new Error('timeout')), ms))
+        ]);
+        const { data: rcpRow, error } = await withTimeout(
+          supabase.from('settings').select('data').eq('id', 'receipts').maybeSingle(),
+          5000
+        );
+        if (!error && rcpRow && Array.isArray(rcpRow.data) && rcpRow.data.length > 0) {
+          _receiptsCache = rcpRow.data;
+          _receiptsCacheTime = Date.now();
+          writeJson(RECEIPTS_FILE, rcpRow.data);
+          return _receiptsCache;
+        }
+      } catch (e) {
+        console.warn('⚠️ Supabase getReceiptsAsync timeout/error:', e.message);
+      }
+    }
+    const local = this.getReceipts();
+    if (local && local.length > 0) {
+      _receiptsCache = local;
+      _receiptsCacheTime = Date.now();
+    }
+    return local;
+  },
+
   getReceipts() {
     return readJson(RECEIPTS_FILE, []);
   },

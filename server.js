@@ -135,7 +135,12 @@ app.get('/api/health', async (req, res) => {
   });
 });
 
-app.get('/api/ready', (req, res) => {
+app.get('/api/ready', async (req, res) => {
+  if (systemMode.getStatus().mode !== 'read-write') {
+    try {
+      await systemMode.verifyReadiness({ quiet: true });
+    } catch (_) {}
+  }
   const s = systemMode.getStatus();
   res.status(s.isWriteReady ? 200 : 503).json(s);
 });
@@ -1240,9 +1245,9 @@ app.get('/api/vouchers', (req, res) => {
 // -------------------------------------------------------------
 
 // Ø¬Ù„Ø¨ Ø¬Ù…ÙŠØ¹ Ø§Ù„ÙÙˆØ§ØªÙŠØ±
-app.get('/api/invoices', (req, res) => {
+app.get('/api/invoices', async (req, res) => {
   try {
-    const invoices = dataStore.getInvoices();
+    const invoices = typeof dataStore.getInvoicesAsync === 'function' ? await dataStore.getInvoicesAsync() : dataStore.getInvoices();
     res.json({ success: true, invoices });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -2005,9 +2010,9 @@ app.post('/api/telegram/send-pdf-document', pdfUpload.single('pdfFile'), async (
 // -------------------------------------------------------------
 
 // Ø¬Ù„Ø¨ Ø¬Ù…ÙŠØ¹ Ø§Ù„Ø³Ù†Ø¯Ø§Øª
-app.get('/api/receipts', (req, res) => {
+app.get('/api/receipts', async (req, res) => {
   try {
-    const receipts = dataStore.getReceipts();
+    const receipts = typeof dataStore.getReceiptsAsync === 'function' ? await dataStore.getReceiptsAsync() : dataStore.getReceipts();
     res.json({ success: true, receipts });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

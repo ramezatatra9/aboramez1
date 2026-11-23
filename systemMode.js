@@ -7,8 +7,11 @@ const { supabase, testSupabaseConnection } = require('./supabaseClient');
 let telegramService = null;
 try { telegramService = require('./telegramService'); } catch (e) { console.warn('systemMode: telegramService unavailable'); }
 
-let systemMode = 'read-only'; // يبدأ الخادم في وضع القراءة فقط كإجراء احترازي حتى تثبت الجاهزية
-let isReady = false;
+// فحص المفتاح السحابي مباشرة: إذا كان السيرفر يملك مفتاح الخدمة السحابي فيبدأ في وضع القراءة والكتابة فوراً
+const { keySource, writeCapable } = require('./supabaseClient');
+const hasWriteKey = Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY || writeCapable || (keySource && !keySource.includes('PUBLIC_ANON_KEY')));
+let systemMode = hasWriteKey ? 'read-write' : 'read-only';
+let isReady = hasWriteKey;
 let lastCheckedAt = null;
 let lastCheckError = null;
 let healthCheckTimer = null;
