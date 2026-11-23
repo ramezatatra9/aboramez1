@@ -880,96 +880,7 @@ app.post('/api/upload', upload.single('image'), async (req, res) => {
 });
 
 // -------------------------------------------------------------
-// AI تفريغ خلفية الصورة بالذكاء الاصطناعي على الخادم (Server-Side AI Background Removal)
-// -------------------------------------------------------------
-let _bgRemovalModule = null;
 
-async function getBackgroundRemovalModule() {
-  if (_bgRemovalModule) return _bgRemovalModule;
-  try {
-    _bgRemovalModule = require('@imgly/background-removal-node');
-    return _bgRemovalModule;
-  } catch (e) {
-    console.warn('⚠️ @imgly/background-removal-node غير متوفر:', e.message);
-    return null;
-  }
-}
-
-app.post('/api/ai/remove-background', upload.single('image'), async (req, res) => {
-  try {
-    // قبول صورة كملف مرفوع أو كرابط URL
-    let imageBuffer = null;
-    let mimeType = 'image/png';
-
-    if (req.file) {
-      imageBuffer = fs.readFileSync(req.file.path);
-      mimeType = req.file.mimetype || 'image/jpeg';
-    } else if (req.body && req.body.imageUrl) {
-      // جلب من URL باستخدام Node.js https
-      const imgUrl = req.body.imageUrl;
-      const https = imgUrl.startsWith('https://') ? require('https') : require('http');
-      imageBuffer = await new Promise((resolve, reject) => {
-        const chunks = [];
-        https.get(imgUrl, (r) => {
-          r.on('data', c => chunks.push(c));
-          r.on('end', () => resolve(Buffer.concat(chunks)));
-          r.on('error', reject);
-        }).on('error', reject);
-      });
-      mimeType = 'image/jpeg';
-    } else {
-      return res.status(400).json({ success: false, error: 'يجب رفع صورة أو إرسال imageUrl' });
-    }
-
-    const bgMod = await getBackgroundRemovalModule();
-    if (!bgMod || typeof bgMod.removeBackground !== 'function') {
-      return res.status(503).json({ success: false, error: 'نموذج إزالة الخلفية غير متاح على الخادم' });
-    }
-
-    // تحويل Buffer إلى Blob
-    const { Blob } = require('buffer');
-    const inputBlob = new Blob([imageBuffer], { type: mimeType });
-
-    // تشغيل نموذج إزالة الخلفية
-    const resultBlob = await bgMod.removeBackground(inputBlob, {
-      model: 'isnet_quint8',
-      debug: false
-    });
-
-    // تحويل النتيجة إلى Buffer ورفعها إلى Supabase Storage
-    const resultArrayBuffer = await resultBlob.arrayBuffer();
-    const resultBuffer = Buffer.from(resultArrayBuffer);
-    const remoteName = `ai-bg-${Date.now()}-${Math.round(Math.random()*1e5)}.png`;
-
-    let finalUrl = null;
-    if (supabase) {
-      await ensureProductImageBucket();
-      const { data: upData, error: upError } = await supabase.storage
-        .from('product-images')
-        .upload(remoteName, resultBuffer, { contentType: 'image/png', upsert: true });
-      if (!upError && upData) {
-        const { data: pUrl } = supabase.storage.from('product-images').getPublicUrl(remoteName);
-        if (pUrl && pUrl.publicUrl) finalUrl = pUrl.publicUrl;
-      }
-    }
-
-    // إذا تعذر Supabase، أرسل كـ base64
-    if (!finalUrl) {
-      finalUrl = `data:image/png;base64,${resultBuffer.toString('base64')}`;
-    }
-
-    // حذف الملف المؤقت
-    if (req.file) {
-      try { fs.unlinkSync(req.file.path); } catch (_) {}
-    }
-
-    res.json({ success: true, imageUrl: finalUrl, transparent: true });
-  } catch (err) {
-    console.error('AI remove-background error:', err);
-    if (req.file) { try { fs.unlinkSync(req.file.path); } catch (_) {} }
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
 
 // -------------------------------------------------------------
 // APIs: Ù…Ø²Ø§Ù…Ù†Ø© Ø¨Ø±Ù†Ø§Ù…Ø¬ Ø§Ù„Ø´Ø§Ù…Ù„ Ù„Ø§ÙŠØª (Al-Shamel Lite Sync API)
@@ -2178,9 +2089,10 @@ app.post('/api/receipts', async (req, res) => {
 // -------------------------------------------------------------
 
 // Ø¬Ù„Ø¨ Ø¬Ù…ÙŠØ¹ Ø§Ù„Ø²Ø¨Ø§Ø¦Ù† ÙˆØ§Ù„Ø£Ø±ØµØ¯Ø© (Ù…Ø¹ Ø¥Ù…ÙƒØ§Ù†ÙŠØ© ØªØ¶Ù…ÙŠÙ† Ø§Ù„Ù…ÙˆØ±Ø¯ÙŠÙ† ÙƒØ­Ø³Ø§Ø¨Ø§Øª)
-app.get('/api/customers', (req, res) => {
+app.get('/api/customers', async (req, res) => {
   try {
-    const customers = dataStore.getCustomers().map(c => ({
+    const rawList = typeof dataStore.getCustomersAsync === 'function' ? await dataStore.getCustomersAsync() : dataStore.getCustomers();
+    const customers = rawList.map(c => ({
       ...c,
       accountType: 'customer',
       isSupplier: false,
@@ -2188,7 +2100,8 @@ app.get('/api/customers', (req, res) => {
     }));
 
     if (req.query.includeSuppliers === 'true' || req.query.allAccounts === 'true') {
-      const suppliers = dataStore.getSuppliers().map(s => {
+      const rawSuppList = typeof dataStore.getSuppliersAsync === 'function' ? await dataStore.getSuppliersAsync() : dataStore.getSuppliers();
+      const suppliers = rawSuppList.map(s => {
         const rawBal = parseFloat(s.balance) || 0;
         return {
           id: s.id,
@@ -2223,10 +2136,10 @@ app.get('/api/customers', (req, res) => {
 });
 
 // Ø¬Ù„Ø¨ Ø¬Ù…ÙŠØ¹ Ø§Ù„Ù…ÙˆØ±Ø¯ÙŠÙ† ÙˆØ§Ù„Ø£Ø±ØµØ¯Ø©
-app.get('/api/suppliers', (req, res) => {
+app.get('/api/suppliers', async (req, res) => {
   try {
-    // Ù†ÙØ±Ø¬Ø¹ Ø§Ù„Ù…ÙˆØ±Ø¯ÙŠÙ† Ù…Ø¹ shamelBalance ÙƒØ±ØµÙŠØ¯ Ø§Ù„Ø¹Ø±Ø¶ Ø§Ù„Ù†Ù‡Ø§Ø¦ÙŠ Ù…Ù† Ø§Ù„Ø´Ø§Ù…Ù„
-    const suppliers = dataStore.getSuppliers().map(function(s) {
+    const rawSuppList = typeof dataStore.getSuppliersAsync === 'function' ? await dataStore.getSuppliersAsync() : dataStore.getSuppliers();
+    const suppliers = rawSuppList.map(function(s) {
       var displayBal = s.shamelBalance !== undefined ? s.shamelBalance : (parseFloat(s.balance) || 0);
       return Object.assign({}, s, { balance: displayBal });
     });

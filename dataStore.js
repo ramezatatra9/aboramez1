@@ -542,6 +542,11 @@ const defaultSettings = {
 
 // ذاكرة تخزين مؤقت للمنتجات (تُحدَّث عند كل عملية تعديل أو مزامنة)
 let _productsCache = null;
+let _customersCache = null;
+let _customersCacheTime = 0;
+let _suppliersCache = null;
+let _suppliersCacheTime = 0;
+const CUSTOMERS_CACHE_TTL_MS = 15 * 1000; // 15 ثانية لتحديث فوري للأرصدة
 let _productsCacheTime = 0;
 let _storeConfigCache = null;
 let _storeConfigCacheTime = 0;
@@ -1482,6 +1487,70 @@ const dataStore = {
   // -------------------------------------------------------------
   // دليل وأرصدة ديون الزبائن (Customers & Outstanding Balances)
   // -------------------------------------------------------------
+
+  async getCustomersAsync(force = false) {
+    if (!force && _customersCache && _customersCache.length > 0 && (Date.now() - _customersCacheTime) < CUSTOMERS_CACHE_TTL_MS) {
+      return _customersCache;
+    }
+    if (supabase) {
+      try {
+        const withTimeout = (p, ms = 5000) => Promise.race([
+          p,
+          new Promise((_, r) => setTimeout(() => r(new Error('timeout')), ms))
+        ]);
+        const { data: cRow, error } = await withTimeout(
+          supabase.from('settings').select('data').eq('id', 'customers').maybeSingle(),
+          5000
+        );
+        if (!error && cRow && Array.isArray(cRow.data) && cRow.data.length > 0) {
+          _customersCache = cRow.data;
+          _customersCacheTime = Date.now();
+          writeJson(CUSTOMERS_FILE, cRow.data);
+          return _customersCache;
+        }
+      } catch (err) {
+        console.warn('⚠️ تعذر جلب الزبائن من Supabase مباشرة:', err.message);
+      }
+    }
+    const local = this.getCustomers();
+    if (local && local.length > 0) {
+      _customersCache = local;
+      _customersCacheTime = Date.now();
+    }
+    return local;
+  },
+
+  async getSuppliersAsync(force = false) {
+    if (!force && _suppliersCache && _suppliersCache.length > 0 && (Date.now() - _suppliersCacheTime) < CUSTOMERS_CACHE_TTL_MS) {
+      return _suppliersCache;
+    }
+    if (supabase) {
+      try {
+        const withTimeout = (p, ms = 5000) => Promise.race([
+          p,
+          new Promise((_, r) => setTimeout(() => r(new Error('timeout')), ms))
+        ]);
+        const { data: sRow, error } = await withTimeout(
+          supabase.from('settings').select('data').eq('id', 'suppliers').maybeSingle(),
+          5000
+        );
+        if (!error && sRow && Array.isArray(sRow.data) && sRow.data.length > 0) {
+          _suppliersCache = sRow.data;
+          _suppliersCacheTime = Date.now();
+          writeJson(SUPPLIERS_FILE, sRow.data);
+          return _suppliersCache;
+        }
+      } catch (err) {
+        console.warn('⚠️ تعذر جلب الموردين من Supabase مباشرة:', err.message);
+      }
+    }
+    const local = this.getSuppliers();
+    if (local && local.length > 0) {
+      _suppliersCache = local;
+      _suppliersCacheTime = Date.now();
+    }
+    return local;
+  },
 
   getCustomers() {
     const list = readJson(CUSTOMERS_FILE, []);
@@ -2839,20 +2908,21 @@ const dataStore = {
       persisted = true;
       notifyStoreServers();
 
-      // مزامنة سحابية خلفية غير معطلة مع Supabase
+      // مزامنة سحابية مباشرة ومضمونة مع Supabase (Awaited لضمان عدم فقدان البيانات في Serverless)
+      _customersCache = updatedCustomers;
+      _customersCacheTime = Date.now();
       if (supabase) {
-        setImmediate(async () => {
-          try {
-            const withTimeout = (p, ms = 8000) => Promise.race([
-              p,
-              new Promise((_, r) => setTimeout(() => r(new Error('timeout')), ms))
-            ]);
-            await withTimeout(supabase.from('settings').upsert({ id: 'customers', data: updatedCustomers }), 8000).catch(() => {});
-            await withTimeout(supabase.from('settings').upsert({ id: 'sync_customers_meta', data: custMeta }), 5000).catch(() => {});
-          } catch (e) {
-            console.warn('⚠️ Background customers sync warning:', e.message);
-          }
-        });
+        try {
+          const withTimeout = (p, ms = 10000) => Promise.race([
+            p,
+            new Promise((_, r) => setTimeout(() => r(new Error('timeout after ' + ms + 'ms')), ms))
+          ]);
+          await withTimeout(supabase.from('settings').upsert({ id: 'customers', data: updatedCustomers }), 10000);
+          await withTimeout(supabase.from('settings').upsert({ id: 'sync_customers_meta', data: custMeta }), 5000);
+          console.log('✅ تم حفظ مزامنة الزبائن بنجاح في Supabase settings.customers');
+        } catch (e) {
+          console.warn('⚠️ تنبيه حفظ مزامنة الزبائن في Supabase:', e.message);
+        }
       }
     }
 
@@ -3094,20 +3164,21 @@ const dataStore = {
       persisted = true;
       notifyStoreServers();
 
-      // مزامنة سحابية خلفية غير معطلة مع Supabase
+      // مزامنة سحابية مباشرة ومضمونة مع Supabase (Awaited لضمان عدم فقدان البيانات في Serverless)
+      _suppliersCache = updatedSuppliers;
+      _suppliersCacheTime = Date.now();
       if (supabase) {
-        setImmediate(async () => {
-          try {
-            const withTimeout = (p, ms = 8000) => Promise.race([
-              p,
-              new Promise((_, r) => setTimeout(() => r(new Error('timeout')), ms))
-            ]);
-            await withTimeout(supabase.from('settings').upsert({ id: 'suppliers', data: updatedSuppliers }), 8000).catch(() => {});
-            await withTimeout(supabase.from('settings').upsert({ id: 'sync_suppliers_meta', data: suppMeta }), 5000).catch(() => {});
-          } catch (e) {
-            console.warn('⚠️ Background suppliers sync warning:', e.message);
-          }
-        });
+        try {
+          const withTimeout = (p, ms = 10000) => Promise.race([
+            p,
+            new Promise((_, r) => setTimeout(() => r(new Error('timeout after ' + ms + 'ms')), ms))
+          ]);
+          await withTimeout(supabase.from('settings').upsert({ id: 'suppliers', data: updatedSuppliers }), 10000);
+          await withTimeout(supabase.from('settings').upsert({ id: 'sync_suppliers_meta', data: suppMeta }), 5000);
+          console.log('✅ تم حفظ مزامنة الموردين بنجاح في Supabase settings.suppliers');
+        } catch (e) {
+          console.warn('⚠️ تنبيه حفظ مزامنة الموردين في Supabase:', e.message);
+        }
       }
     }
 
@@ -3847,22 +3918,41 @@ const dataStore = {
       console.error('❌ خطأ في استعادة المنتجات:', pErr.message);
     }
 
-    // 6. استعادة الزبائن — settings.customers أولاً (snapshot المزامنة الكامل مع تاريخ الفروقات) ثم جدول customers المباشر
+    // 6. استعادة الزبائن — التحقق الذكي من تاريخ آخر مزامنة لضمان عدم ضياع التحديث الأحدث
     try {
-      let custData = null;
-      const { data: cRow } = await supabase.from('settings').select('data').eq('id', 'customers').maybeSingle();
-      if (cRow && Array.isArray(cRow.data) && cRow.data.length > 0) {
-        custData = cRow.data;
-        console.log(`✅ تم استعادة ${custData.length} زبون بأرصدتهم وتواريخ حركاتهم الدائمة من settings`);
+      const localCustMeta = readJson(path.join(DATA_DIR, 'sync_customers_meta.json'), {});
+      const localCustomers = readJson(CUSTOMERS_FILE, []);
+      const localLastSync = localCustMeta && localCustMeta.lastSyncAt ? new Date(localCustMeta.lastSyncAt).getTime() : 0;
+
+      const { data: mcRow } = await supabase.from('settings').select('data').eq('id', 'sync_customers_meta').maybeSingle();
+      const sbLastSync = mcRow && mcRow.data && mcRow.data.lastSyncAt ? new Date(mcRow.data.lastSyncAt).getTime() : 0;
+
+      // إذا كانت المزامنة المحلية أحدث من السحابة (مثلاً حدثت أثناء انقطاع الاتصال بالسحابة)، ندفع المحلي إلى السحابة ولا نمسحه
+      if (localLastSync > sbLastSync && localCustomers.length > 0) {
+        console.log('🛡️ المزامنة المحلية للزبائن أحدث من السحابة — جاري دفعها إلى Supabase لحمايتها...');
+        await supabase.from('settings').upsert({ id: 'customers', data: localCustomers }).catch(() => {});
+        await supabase.from('settings').upsert({ id: 'sync_customers_meta', data: localCustMeta }).catch(() => {});
+        _customersCache = localCustomers;
+        _customersCacheTime = Date.now();
       } else {
-        const { data: cTable, error: cErr } = await supabase.from('customers').select('*').order('name');
-        if (!cErr && Array.isArray(cTable) && cTable.length > 0) {
-          custData = cTable;
-          console.log(`✅ تم استعادة ${custData.length} زبون من جدول customers الأساسي في Supabase`);
+        // السحابة أحدث أو مساوية، نستعيد من السحابة
+        let custData = null;
+        const { data: cRow } = await supabase.from('settings').select('data').eq('id', 'customers').maybeSingle();
+        if (cRow && Array.isArray(cRow.data) && cRow.data.length > 0) {
+          custData = cRow.data;
+          console.log(`✅ تم استعادة ${custData.length} زبون بأرصدتهم الدقيقة من settings`);
+        } else {
+          const { data: cTable, error: cErr } = await supabase.from('customers').select('*').order('name');
+          if (!cErr && Array.isArray(cTable) && cTable.length > 0) {
+            custData = cTable;
+            console.log(`✅ تم استعادة ${custData.length} زبون من جدول customers الأساسي`);
+          }
         }
-      }
-      if (custData && custData.length > 0) {
-        writeJson(CUSTOMERS_FILE, custData);
+        if (custData && custData.length > 0) {
+          writeJson(CUSTOMERS_FILE, custData);
+          _customersCache = custData;
+          _customersCacheTime = Date.now();
+        }
       }
     } catch (cErr) {
       console.warn('⚠️ تعذر استعادة الزبائن من Supabase:', cErr.message);
